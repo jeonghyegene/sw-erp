@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>공통 코드 관리 시스템 v2.0</title>
+
+    <!-- Fonts: Pretendard -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3b82f6',
+                        primaryHover: '#2563eb',
+                        surface: '#ffffff',
+                        background: '#f8fafc',
+                        border: '#e2e8f0',
+                        textMain: '#1e293b',
+                        textSub: '#64748b',
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                        'modal': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .drag-handle { cursor: grab; color: #cbd5e1; }
+        .drag-handle:active { cursor: grabbing; color: #94a3b8; }
+
+        .drag-line-top    { border-top:    2px solid #3b82f6 !important; border-radius: 0; }
+        .drag-line-bottom { border-bottom: 2px solid #3b82f6 !important; border-radius: 0; }
+        .dragging         { opacity: 0.35; pointer-events: none; }
+
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .modal-enter { animation: modalEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalEnter { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        .toast-enter { animation: toastSlideUp 0.3s ease-out forwards; }
+        .toast-exit { animation: toastFadeOut 0.3s ease-in forwards; }
+        @keyframes toastSlideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes toastFadeOut { to { opacity: 0; transform: translateY(10px); } }
+    </style>
+</head>
+<body class="bg-background text-textMain h-screen flex flex-col overflow-hidden text-sm">
+
+    <!-- 1. Header -->
+    <header class="h-14 bg-white border-b border-border flex items-center justify-between px-5 shadow-sm z-20 flex-shrink-0">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-2 text-primary font-bold text-lg">
+                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <span>ICCMS v2.0</span>
+            </div>
+
+            <nav class="hidden lg:flex items-center gap-1">
+                <a href="#" class="px-3 py-2 rounded-md text-textSub hover:bg-slate-50 hover:text-textMain transition-colors">대시보드</a>
+                <a href="#" class="px-3 py-2 rounded-md text-textSub hover:bg-slate-50 hover:text-textMain transition-colors">기준정보</a>
+                <a href="#" class="px-3 py-2 rounded-md font-semibold text-primary bg-blue-50 transition-colors">시스템 관리</a>
+                <a href="#" class="px-3 py-2 rounded-md text-textSub hover:bg-slate-50 hover:text-textMain transition-colors">모니터링</a>
+            </nav>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div class="relative hidden md:block">
+                <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" placeholder="메뉴 검색 (Ctrl+/)" class="pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all w-64">
+            </div>
+            <div class="h-6 w-px bg-slate-200 mx-1"></div>
+            <button class="w-8 h-8 rounded-full hover:bg-slate-100 text-textSub flex items-center justify-center relative">
+                <i class="fa-regular fa-bell"></i>
+                <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+            </button>
+            <button class="flex items-center gap-2 hover:bg-slate-50 pr-2 pl-1 py-1 rounded-full transition-colors">
+                <img src="https://source.unsplash.com/random/100x100/?face" alt="User" class="w-7 h-7 rounded-full object-cover border border-slate-200">
+                <span class="text-xs font-medium hidden md:block">Admin</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- 2. Sidebar -->
+        <aside class="w-64 bg-white border-r border-border flex flex-col flex-shrink-0 z-10 transition-all duration-300" id="sidebar">
+            <div class="p-4">
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-3">System Config</div>
+                <nav class="space-y-0.5">
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 text-textSub hover:bg-slate-50 hover:text-textMain rounded-md transition-colors">
+                        <i class="fa-solid fa-users-gear w-5 text-center"></i> 사용자 권한 관리
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 text-textSub hover:bg-slate-50 hover:text-textMain rounded-md transition-colors">
+                        <i class="fa-solid fa-list-check w-5 text-center"></i> 메뉴 관리
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 bg-blue-50 text-primary font-medium rounded-md transition-colors">
+                        <i class="fa-solid fa-code-branch w-5 text-center"></i> 공통 코드 관리
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 text-textSub hover:bg-slate-50 hover:text-textMain rounded-md transition-colors">
+                        <i class="fa-solid fa-globe w-5 text-center"></i> 다국어 사전
+                    </a>
+                </nav>
+
+                <div class="my-4 border-t border-slate-100"></div>
+
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-3">Logs & History</div>
+                <nav class="space-y-0.5">
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 text-textSub hover:bg-slate-50 hover:text-textMain rounded-md transition-colors">
+                        <i class="fa-solid fa-clock-rotate-left w-5 text-center"></i> 변경 이력 조회
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3 py-2 text-textSub hover:bg-slate-50 hover:text-textMain rounded-md transition-colors">
+                        <i class="fa-solid fa-shield-halved w-5 text-center"></i> 보안 감사 로그
+                    </a>
+                </nav>
+            </div>
+
+            <div class="mt-auto p-4 border-t border-border">
+                <div class="bg-slate-50 rounded-lg p-3 text-xs text-textSub">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-semibold">System Status</span>
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    </div>
+                    <div>Ver 2.0.1 (Stable)</div>
+                    <div class="text-slate-400 mt-1">Last Deploy: 2025-12-23</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 3. Main Content -->
+        <main class="flex-1 flex flex-col bg-slate-50/50 min-w-0">
+            <!-- Tabs -->
+            <div class="h-10 bg-white border-b border-border flex items-center px-4 gap-2 shadow-sm flex-shrink-0 overflow-x-auto no-scrollbar">
+                <div class="flex items-center gap-2 px-4 py-2 bg-slate-50 border-x border-t border-border rounded-t-lg text-xs font-semibold text-primary relative top-[1px] cursor-default user-select-none min-w-fit">
+                    <i class="fa-solid fa-code-branch mr-1"></i> 공통 코드 관리
+                    <button class="ml-2 text-slate-400 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+                    <div class="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary"></div>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 text-xs text-textSub hover:bg-slate-50 rounded-t-lg cursor-pointer transition-colors min-w-fit opacity-60 hover:opacity-100">
+                    <i class="fa-regular fa-file-lines mr-1"></i> 사용자 메뉴얼
+                    <button class="ml-2 text-slate-300 hover:text-red-500"><i class="fa-solid fa-times"></i></button>
+                </div>
+            </div>
+
+            <!-- Content Area (4-Column Layout) -->
+            <div class="flex-1 p-6 overflow-hidden">
+                <div class="flex h-full gap-4">
+
+                    <!-- 1차 코드 컬럼 -->
+                    <div class="flex flex-col bg-white rounded-xl shadow-soft border border-border flex-1 min-w-0">
+                        <div class="p-4 border-b border-border flex justify-between items-center bg-slate-50/50 rounded-t-xl">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-blue-100 text-blue-600 w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold">1</span>
+                                <h2 class="font-bold text-slate-700">1차 코드 (대분류)</h2>
+                            </div>
+                            <button onclick="openModal(1)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all shadow-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-plus"></i> 추가
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-[32px_1fr_60px_48px_50px] gap-2 px-3 py-2 bg-slate-50 border-b border-border text-xs font-medium text-slate-500 select-none">
+                            <div class="text-center"><i class="fa-solid fa-sort"></i></div>
+                            <div>코드명</div>
+                            <div class="text-center">ID</div>
+                            <div class="text-center">상태</div>
+                            <div class="text-center">관리</div>
+                        </div>
+
+                        <div id="list-depth-1" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                        </div>
+                    </div>
+
+                    <!-- 2차 코드 컬럼 -->
+                    <div class="flex flex-col bg-white rounded-xl shadow-soft border border-border flex-1 min-w-0">
+                        <div class="p-4 border-b border-border flex justify-between items-center bg-slate-50/50 rounded-t-xl">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-indigo-100 text-indigo-600 w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold">2</span>
+                                <h2 class="font-bold text-slate-700">2차 코드 (중분류)</h2>
+                            </div>
+                            <button id="btn-add-2" onclick="openModal(2)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fa-solid fa-plus"></i> 추가
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-[32px_1fr_60px_48px_50px] gap-2 px-3 py-2 bg-slate-50 border-b border-border text-xs font-medium text-slate-500 select-none">
+                            <div class="text-center"><i class="fa-solid fa-sort"></i></div>
+                            <div>코드명</div>
+                            <div class="text-center">ID</div>
+                            <div class="text-center">상태</div>
+                            <div class="text-center">관리</div>
+                        </div>
+
+                        <div id="list-depth-2" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-0.5 relative">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 select-none">
+                                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                                    <i class="fa-solid fa-arrow-left text-lg opacity-50"></i>
+                                </div>
+                                <p class="text-xs font-medium">1차 코드를 선택해주세요</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3차 코드 컬럼 -->
+                    <div class="flex flex-col bg-white rounded-xl shadow-soft border border-border flex-1 min-w-0">
+                        <div class="p-4 border-b border-border flex justify-between items-center bg-slate-50/50 rounded-t-xl">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-teal-100 text-teal-600 w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold">3</span>
+                                <h2 class="font-bold text-slate-700">3차 코드 (소분류)</h2>
+                            </div>
+                            <button id="btn-add-3" onclick="openModal(3)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fa-solid fa-plus"></i> 추가
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-[32px_1fr_60px_48px_50px] gap-2 px-3 py-2 bg-slate-50 border-b border-border text-xs font-medium text-slate-500 select-none">
+                            <div class="text-center"><i class="fa-solid fa-sort"></i></div>
+                            <div>코드명</div>
+                            <div class="text-center">ID</div>
+                            <div class="text-center">상태</div>
+                            <div class="text-center">관리</div>
+                        </div>
+
+                        <div id="list-depth-3" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-0.5 relative">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 select-none">
+                                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                                    <i class="fa-solid fa-arrow-left text-lg opacity-50"></i>
+                                </div>
+                                <p class="text-xs font-medium">2차 코드를 선택해주세요</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4차 코드 컬럼 -->
+                    <div class="flex flex-col bg-white rounded-xl shadow-soft border border-border flex-1 min-w-0">
+                        <div class="p-4 border-b border-border flex justify-between items-center bg-slate-50/50 rounded-t-xl">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-amber-100 text-amber-600 w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold">4</span>
+                                <h2 class="font-bold text-slate-700">4차 코드 (세분류)</h2>
+                            </div>
+                            <button id="btn-add-4" onclick="openModal(4)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fa-solid fa-plus"></i> 추가
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-[32px_1fr_60px_48px_50px] gap-2 px-3 py-2 bg-slate-50 border-b border-border text-xs font-medium text-slate-500 select-none">
+                            <div class="text-center"><i class="fa-solid fa-sort"></i></div>
+                            <div>코드명</div>
+                            <div class="text-center">ID</div>
+                            <div class="text-center">상태</div>
+                            <div class="text-center">관리</div>
+                        </div>
+
+                        <div id="list-depth-4" class="flex-1 overflow-y-auto custom-scrollbar p-1 space-y-0.5 relative">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 select-none">
+                                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                                    <i class="fa-solid fa-arrow-left text-lg opacity-50"></i>
+                                </div>
+                                <p class="text-xs font-medium">3차 코드를 선택해주세요</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal (Add/Edit Code) -->
+    <div id="modalOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 hidden flex items-center justify-center transition-opacity opacity-0" aria-hidden="true">
+        <div id="modalContent" class="bg-white rounded-xl shadow-modal w-full max-w-lg overflow-hidden transform scale-95 transition-all duration-200">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800" id="modalTitle">코드 등록</h3>
+                    <p class="text-xs text-slate-500 mt-0.5" id="modalBreadcrumb"></p>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200/50 transition-colors">
+                    <i class="fa-solid fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                <!-- 1. Code Name (한국어 only) -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">코드명 <span class="text-red-500">*</span></label>
+                    <div class="bg-slate-50 border border-border rounded-lg p-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-14 text-xs font-medium text-slate-500 flex-shrink-0">한국어</span>
+                            <input type="text" id="inputNameKr" class="flex-1 border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all bg-white" placeholder="예) 스탠다드">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Code ID & Options -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">코드 ID <span class="text-red-500">*</span></label>
+                        <input type="text" id="inputCodeId" maxlength="3" oninput="validateCode(this)" onblur="checkDuplicate(this)" class="w-full border border-border rounded-md px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:font-sans" placeholder="영문/숫자 1~3자">
+                        <p class="text-[11px] text-slate-400 mt-1" id="codeIdHelp">영문 대문자+숫자, 1~3자</p>
+                        <p class="text-[11px] text-red-500 mt-1 hidden" id="codeIdError">이미 존재하는 코드입니다.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">사용 여부</label>
+                        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-md">
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="useYn" value="Y" checked class="peer sr-only">
+                                <div class="text-center py-1.5 rounded text-sm text-slate-500 peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm peer-checked:font-semibold transition-all">사용 (Y)</div>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="useYn" value="N" class="peer sr-only">
+                                <div class="text-center py-1.5 rounded text-sm text-slate-500 peer-checked:bg-white peer-checked:text-rose-500 peer-checked:shadow-sm peer-checked:font-semibold transition-all">미사용 (N)</div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Description -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">설명 (선택)</label>
+                    <textarea id="inputDesc" class="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all resize-none h-20" placeholder="코드에 대한 설명을 입력하세요"></textarea>
+                    <div class="text-right text-[11px] text-slate-400 mt-1">0 / 200자</div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 bg-slate-50 border-t border-border flex justify-end gap-2">
+                <button onclick="closeModal()" class="px-4 py-2 bg-white border border-border rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-800 text-sm font-medium transition-all shadow-sm">취소</button>
+                <button onclick="saveCode()" class="px-5 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-check"></i> 저장
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // --- 1. Data Store ---
+        const db = {
+            depth1: [
+                { id: 'ST', name: '스탠다드', use: 'Y', code: 'ST' },
+                { id: 'SP', name: '스페셜', use: 'Y', code: 'SP' },
+                { id: 'PA', name: '패키지', use: 'Y', code: 'PA' },
+                { id: 'OP', name: '옵션', use: 'Y', code: 'OP' },
+            ],
+            depth2: {
+                'ST': [
+                    { id: '00', name: '앙상블', use: 'Y', code: '00' },
+                    { id: '01', name: '아르떼', use: 'Y', code: '01' },
+                    { id: '02', name: '랑데뷰', use: 'Y', code: '02' }
+                ],
+                'SP': [
+                    { id: '10', name: '몽블랑', use: 'Y', code: '10' }
+                ]
+            },
+            depth3: {
+                '00': [
+                    { id: '001', name: '새싹', use: 'Y', code: '001' },
+                    { id: '002', name: '소모품', use: 'Y', code: '002' },
+                    { id: '003', name: '코팅', use: 'N', code: '003' },
+                    { id: '004', name: '전용지', use: 'Y', code: '004' }
+                ]
+            },
+            depth4: {
+                '001': [
+                    { id: 'A1', name: '새싹A', use: 'Y', code: 'A1' },
+                    { id: 'B1', name: '새싹B', use: 'Y', code: 'B1' }
+                ]
+            }
+        };
+
+        // --- 2. State ---
+        let state = {
+            selectedD1: null,
+            selectedD2: null,
+            selectedD3: null,
+            isEditMode: false,
+            currentModalDepth: 0
+        };
+
+        // --- Drag State ---
+        let dragState = { depth: null, id: null, fromIndex: null };
+
+        function getDataArray(depth) {
+            if (depth === 1) return db.depth1;
+            if (depth === 2) return db.depth2[state.selectedD1?.id];
+            if (depth === 3) return db.depth3[state.selectedD2?.id];
+            if (depth === 4) return db.depth4[state.selectedD3?.id];
+            return null;
+        }
+
+        function rerenderDepth(depth) {
+            if (depth === 1) renderDepth1();
+            else if (depth === 2) renderDepth2();
+            else if (depth === 3) renderDepth3();
+            else renderDepth4();
+        }
+
+        function clearDragLines() {
+            document.querySelectorAll('.drag-line-top, .drag-line-bottom').forEach(el => {
+                el.classList.remove('drag-line-top', 'drag-line-bottom');
+            });
+        }
+
+        // --- 3. Render Functions ---
+        function renderDepth1() {
+            const container = document.getElementById('list-depth-1');
+            container.innerHTML = '';
+            db.depth1.forEach(item => {
+                const el = createListItem(item, 1, state.selectedD1?.id === item.id);
+                el.onclick = (e) => {
+                    if (e.target.closest('.action-btn')) return;
+                    selectDepth1(item);
+                };
+                container.appendChild(el);
+            });
+        }
+
+        function renderDepth2() {
+            const container = document.getElementById('list-depth-2');
+            const btnAdd = document.getElementById('btn-add-2');
+            if (!state.selectedD1 || !db.depth2[state.selectedD1.id]) {
+                container.innerHTML = getEmptyState('1차 코드를 선택해주세요');
+                btnAdd.disabled = true;
+                return;
+            }
+            btnAdd.disabled = false;
+            container.innerHTML = '';
+            const items = db.depth2[state.selectedD1.id] || [];
+            if (items.length === 0) {
+                container.innerHTML = getEmptyState('데이터가 없습니다', 'fa-folder-open');
+                return;
+            }
+            items.forEach(item => {
+                const el = createListItem(item, 2, state.selectedD2?.id === item.id);
+                el.onclick = (e) => {
+                    if (e.target.closest('.action-btn')) return;
+                    selectDepth2(item);
+                };
+                container.appendChild(el);
+            });
+        }
+
+        function renderDepth3() {
+            const container = document.getElementById('list-depth-3');
+            const btnAdd = document.getElementById('btn-add-3');
+            if (!state.selectedD2 || !db.depth3[state.selectedD2.id]) {
+                container.innerHTML = getEmptyState('2차 코드를 선택해주세요');
+                btnAdd.disabled = true;
+                return;
+            }
+            btnAdd.disabled = false;
+            container.innerHTML = '';
+            const items = db.depth3[state.selectedD2.id] || [];
+            if (items.length === 0) {
+                container.innerHTML = getEmptyState('데이터가 없습니다', 'fa-folder-open');
+                return;
+            }
+            items.forEach(item => {
+                const el = createListItem(item, 3, state.selectedD3?.id === item.id);
+                el.onclick = (e) => {
+                    if (e.target.closest('.action-btn')) return;
+                    selectDepth3(item);
+                };
+                container.appendChild(el);
+            });
+        }
+
+        function renderDepth4() {
+            const container = document.getElementById('list-depth-4');
+            const btnAdd = document.getElementById('btn-add-4');
+            if (!state.selectedD3 || !db.depth4[state.selectedD3.id]) {
+                container.innerHTML = getEmptyState('3차 코드를 선택해주세요');
+                btnAdd.disabled = true;
+                return;
+            }
+            btnAdd.disabled = false;
+            container.innerHTML = '';
+            const items = db.depth4[state.selectedD3.id] || [];
+            if (items.length === 0) {
+                container.innerHTML = getEmptyState('데이터가 없습니다', 'fa-folder-open');
+                return;
+            }
+            items.forEach(item => {
+                const el = createListItem(item, 4, false);
+                container.appendChild(el);
+            });
+        }
+
+        function createListItem(item, depth, isSelected) {
+            const div = document.createElement('div');
+            div.draggable = true;
+            div.className = `
+                grid grid-cols-[32px_1fr_60px_48px_50px] gap-2 px-3 py-2.5 rounded-lg border border-transparent cursor-pointer transition-colors duration-150 group items-center
+                ${isSelected ? 'bg-blue-50 border-blue-200 shadow-sm z-10' : 'hover:bg-slate-50 hover:border-slate-200'}
+            `;
+            const badgeClass = item.use === 'Y'
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : 'bg-slate-100 text-slate-400 border-slate-200 line-through decoration-slate-400';
+            const activeTextClass = isSelected ? 'text-primary font-bold' : 'text-slate-700 font-medium';
+            const iconColor = isSelected ? 'text-blue-300' : 'text-slate-300';
+            div.innerHTML = `
+                <div class="text-center ${iconColor} group-hover:text-slate-400 drag-handle transition-colors"><i class="fa-solid fa-grip-vertical"></i></div>
+                <div class="truncate ${activeTextClass} transition-colors">${item.name}</div>
+                <div class="text-center font-mono text-xs text-slate-500 bg-slate-100 rounded py-0.5 px-1">${item.code}</div>
+                <div class="flex justify-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${item.use}</span></div>
+                <div class="text-center">
+                    <button onclick="openEditModal(${depth}, '${item.id}')" class="action-btn text-slate-400 hover:text-primary hover:bg-blue-50 w-7 h-7 rounded-full transition-all">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                </div>
+            `;
+
+            // --- Drag & Drop ---
+            div.addEventListener('dragstart', e => {
+                const arr = getDataArray(depth);
+                dragState.depth = depth;
+                dragState.id = item.id;
+                dragState.fromIndex = arr.findIndex(x => x.id === item.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', item.id);
+                setTimeout(() => div.classList.add('dragging'), 0);
+            });
+
+            div.addEventListener('dragend', () => {
+                div.classList.remove('dragging');
+                clearDragLines();
+                dragState = { depth: null, id: null, fromIndex: null };
+            });
+
+            div.addEventListener('dragover', e => {
+                e.preventDefault();
+                if (dragState.depth !== depth) return;
+                e.dataTransfer.dropEffect = 'move';
+                clearDragLines();
+                const rect = div.getBoundingClientRect();
+                if (e.clientY < rect.top + rect.height / 2) {
+                    div.classList.add('drag-line-top');
+                } else {
+                    div.classList.add('drag-line-bottom');
+                }
+            });
+
+            div.addEventListener('dragleave', e => {
+                if (!div.contains(e.relatedTarget)) {
+                    div.classList.remove('drag-line-top', 'drag-line-bottom');
+                }
+            });
+
+            div.addEventListener('drop', e => {
+                e.preventDefault();
+                clearDragLines();
+                if (dragState.depth !== depth || dragState.id === item.id) return;
+
+                const arr = getDataArray(depth);
+                const fromIdx = dragState.fromIndex;
+                const toIdx = arr.findIndex(x => x.id === item.id);
+                const rect = div.getBoundingClientRect();
+                const insertAfter = e.clientY >= rect.top + rect.height / 2;
+
+                const [moved] = arr.splice(fromIdx, 1);
+                const newTo = arr.findIndex(x => x.id === item.id);
+                arr.splice(insertAfter ? newTo + 1 : newTo, 0, moved);
+
+                rerenderDepth(depth);
+            });
+
+            return div;
+        }
+
+        function getEmptyState(text, icon = 'fa-arrow-left') {
+            return `
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 select-none fade-in">
+                    <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                        <i class="fa-solid ${icon} text-lg opacity-50"></i>
+                    </div>
+                    <p class="text-xs font-medium">${text}</p>
+                </div>
+            `;
+        }
+
+        // --- 4. Selection ---
+        function selectDepth1(item) {
+            state.selectedD1 = item;
+            state.selectedD2 = null;
+            state.selectedD3 = null;
+            renderDepth1();
+            renderDepth2();
+            renderDepth3();
+            renderDepth4();
+        }
+
+        function selectDepth2(item) {
+            state.selectedD2 = item;
+            state.selectedD3 = null;
+            renderDepth2();
+            renderDepth3();
+            renderDepth4();
+        }
+
+        function selectDepth3(item) {
+            state.selectedD3 = item;
+            renderDepth3();
+            renderDepth4();
+        }
+
+        // --- 5. Modal ---
+        function openModal(depth) {
+            state.isEditMode = false;
+            state.currentModalDepth = depth;
+
+            document.getElementById('modalTitle').innerText = `${depth}차 코드 등록`;
+            const bc = document.getElementById('modalBreadcrumb');
+
+            if (depth === 1) {
+                bc.innerText = '최상위 대분류 코드를 등록합니다.';
+            } else if (depth === 2) {
+                bc.innerHTML = `상위코드: <span class="font-bold text-primary">${state.selectedD1.name} (${state.selectedD1.code})</span>`;
+            } else if (depth === 3) {
+                bc.innerHTML = `상위코드: <span class="font-bold text-primary">${state.selectedD1.name}</span> > <span class="font-bold text-primary">${state.selectedD2.name} (${state.selectedD2.code})</span>`;
+            } else if (depth === 4) {
+                bc.innerHTML = `상위코드: <span class="font-bold text-primary">${state.selectedD1.name}</span> > <span class="font-bold text-primary">${state.selectedD2.name}</span> > <span class="font-bold text-primary">${state.selectedD3.name} (${state.selectedD3.code})</span>`;
+            }
+
+            document.getElementById('inputNameKr').value = '';
+            const codeInput = document.getElementById('inputCodeId');
+            codeInput.value = '';
+            codeInput.readOnly = false;
+            codeInput.classList.remove('bg-slate-100', 'text-slate-500');
+            document.getElementById('inputDesc').value = '';
+            document.querySelector('input[name="useYn"][value="Y"]').checked = true;
+
+            resetValidation();
+            showModal();
+        }
+
+        function openEditModal(depth, id) {
+            state.isEditMode = true;
+            state.currentModalDepth = depth;
+
+            let data;
+            if (depth === 1) data = db.depth1.find(c => c.id === id);
+            else if (depth === 2) data = db.depth2[state.selectedD1.id].find(c => c.id === id);
+            else if (depth === 3) data = db.depth3[state.selectedD2.id].find(c => c.id === id);
+            else data = db.depth4[state.selectedD3.id].find(c => c.id === id);
+
+            document.getElementById('modalTitle').innerText = `${depth}차 코드 수정`;
+            document.getElementById('modalBreadcrumb').innerText = '등록된 코드 정보를 수정합니다.';
+
+            document.getElementById('inputNameKr').value = data.name;
+
+            const codeInput = document.getElementById('inputCodeId');
+            codeInput.value = data.code;
+            codeInput.readOnly = true;
+            codeInput.classList.add('bg-slate-100', 'text-slate-500');
+
+            document.querySelector(`input[name="useYn"][value="${data.use}"]`).checked = true;
+
+            resetValidation();
+            showModal();
+        }
+
+        function showModal() {
+            const overlay = document.getElementById('modalOverlay');
+            const content = document.getElementById('modalContent');
+            overlay.classList.remove('hidden');
+            void overlay.offsetWidth;
+            overlay.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+            document.getElementById('inputNameKr').focus();
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modalOverlay');
+            const content = document.getElementById('modalContent');
+            overlay.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => { overlay.classList.add('hidden'); }, 200);
+        }
+
+        // --- 6. Validation ---
+        function validateCode(input) {
+            // 소문자→대문자 변환, 한글·특수문자 제거, 최대 3자
+            input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+        }
+
+        function checkDuplicate(input) {
+            if (state.isEditMode || input.value.length === 0) return;
+            const error = document.getElementById('codeIdError');
+            const help = document.getElementById('codeIdHelp');
+            if (['ST', 'SP', '00', 'TEST'].includes(input.value)) {
+                error.classList.remove('hidden');
+                help.classList.add('hidden');
+                input.classList.add('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+                input.classList.remove('focus:border-primary', 'focus:ring-primary');
+            } else {
+                error.classList.add('hidden');
+                help.classList.remove('hidden');
+                input.classList.remove('border-red-500', 'focus:border-red-500', 'focus:ring-red-500');
+            }
+        }
+
+        function resetValidation() {
+            document.getElementById('codeIdError').classList.add('hidden');
+            document.getElementById('codeIdHelp').classList.remove('hidden');
+            document.getElementById('inputCodeId').classList.remove('border-red-500');
+        }
+
+        // --- 7. Save ---
+        function saveCode() {
+            const name = document.getElementById('inputNameKr').value.trim();
+            const code = document.getElementById('inputCodeId').value.trim();
+
+            if (!name) {
+                showToast('코드명(한국어)을 입력해주세요.', 'error');
+                document.getElementById('inputNameKr').focus();
+                return;
+            }
+
+            if (!code) {
+                showToast('코드 ID를 입력해주세요.', 'error');
+                document.getElementById('inputCodeId').focus();
+                return;
+            }
+
+            if (code.length < 1 || code.length > 3) {
+                showToast('코드 ID는 1~3자로 입력해주세요.', 'error');
+                document.getElementById('inputCodeId').focus();
+                return;
+            }
+
+            closeModal();
+            const action = state.isEditMode ? '수정' : '등록';
+            showToast(`코드가 성공적으로 ${action}되었습니다.`);
+
+            if (state.currentModalDepth === 1) renderDepth1();
+            if (state.currentModalDepth === 2) renderDepth2();
+            if (state.currentModalDepth === 3) renderDepth3();
+            if (state.currentModalDepth === 4) renderDepth4();
+        }
+
+        // --- 8. Toast ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `
+                flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white pointer-events-auto toast-enter
+                ${type === 'success' ? 'bg-slate-800' : 'bg-rose-500'}
+            `;
+            const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
+            toast.innerHTML = `
+                <i class="fa-solid ${icon} ${type === 'success' ? 'text-green-400' : 'text-white'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // --- Init ---
+        renderDepth1();
+    </script>
+</body>
+</html>

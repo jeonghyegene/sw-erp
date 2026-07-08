@@ -1,0 +1,1596 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>그룹웨어 · 관리자</title>
+
+  <link rel="icon" href="assets/img/logo.svg" />
+
+  <!-- Pretendard (한국어 가변 폰트) — 다이나믹 서브셋 (필요한 글리프만 로드) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+  <link rel="stylesheet" href="assets/css/variables.css" />
+  <link rel="stylesheet" href="assets/css/reset.css" />
+  <!-- 인사/근태 모듈 전용 스타일 (erp-hr 이식) -->
+  <link rel="stylesheet" href="assets/css/hr-ui-kit.css?v=20260624f" />
+  <link rel="stylesheet" href="assets/css/hr-components.css" />
+  <link rel="stylesheet" href="assets/css/layout.css?v=20260624b" />
+  <link rel="stylesheet" href="assets/css/components.css" />
+  <link rel="stylesheet" href="assets/css/ui-kit.css" />
+
+  <!-- 다크모드 초기 적용 — CSS 페인트 전에 data-theme 설정 (FOUC 방지) -->
+  <script>
+    (function () {
+      var s = localStorage.getItem('sw-theme');
+      var dark = s === 'dark' || (!s && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    })();
+  </script>
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- ========================= GNB ========================= -->
+    <header class="gnb" role="banner">
+      <a class="gnb__brand" href="#/" aria-label="그룹웨어 홈">
+        <img class="gnb__brand-full" src="assets/img/logo.svg" alt="성원애드피아 그룹웨어" />
+        <img class="gnb__brand-icon" src="assets/img/logo-icon.svg" alt="성원애드피아" />
+      </a>
+
+      <nav class="gnb__nav" aria-label="주 메뉴">
+        <ul id="gnb-categories"><!-- JS 렌더 --></ul>
+      </nav>
+
+      <div class="gnb__util">
+        <a id="btn-uikit" class="gnb__shortcut" href="ui-kit.html" target="_blank" rel="noopener" title="UI Kit 전체 컴포넌트 가이드">
+          UI Kit
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+        </a>
+        <a id="btn-shortcut" class="gnb__shortcut" href="#" target="_blank" rel="noopener">
+          생산관리
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+        </a>
+
+        <button id="btn-theme" class="gnb__icon-btn gnb__theme-toggle" type="button" aria-label="다크모드 전환" title="다크모드 전환" aria-pressed="false">
+          <!-- 라이트 모드: 달 아이콘 (클릭 시 다크로 전환) -->
+          <svg class="gnb__theme-icon gnb__theme-icon--moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <!-- 다크 모드: 해 아이콘 (클릭 시 라이트로 전환) -->
+          <svg class="gnb__theme-icon gnb__theme-icon--sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+
+        <button id="btn-notif" class="gnb__icon-btn" type="button" aria-label="알림">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="badge">3</span>
+        </button>
+
+        <button id="btn-fullscreen" class="gnb__icon-btn" type="button" aria-label="전체화면">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/></svg>
+        </button>
+
+        <div id="gnb-profile" class="gnb__profile">
+          <button class="gnb__profile-btn" type="button" aria-haspopup="menu" aria-label="프로필">
+            <span class="gnb__profile-avatar">윤</span>
+            <span class="gnb__profile-name">윤성수</span>
+          </button>
+          <ul class="gnb__profile-menu" role="menu">
+            <li><button type="button" data-open-myinfo>내 정보</button></li>
+            <li><button type="button" data-open-notif>알림함</button></li>
+            <li><button type="button" data-logout>로그아웃</button></li>
+          </ul>
+        </div>
+
+        <!-- 모바일(≤1280px) 전용 햄버거 — 가장 우측 정렬 -->
+        <button id="btn-hamburger" class="gnb__hamburger gnb__icon-btn" type="button" aria-label="메뉴 열기" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 모바일 드로어 스크림 -->
+    <div id="lnb-scrim" class="lnb-scrim" aria-hidden="true"></div>
+
+    <!-- ========================= LNB ========================= -->
+    <aside class="lnb" role="complementary" aria-label="카테고리 메뉴">
+      <div class="lnb__header">
+        <span id="lnb-cat-title" class="lnb__cat-title">홈</span>
+        <button id="btn-collapse-lnb" class="lnb__collapse-btn" type="button" aria-label="메뉴 접기">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <!-- 모바일(≤1280px) 전용: GNB 카테고리 전환 바 -->
+      <div id="lnb-mobile-cats" class="lnb__mobile-cats"><!-- JS 렌더 --></div>
+      <div id="lnb-body" class="lnb__body"><!-- JS 렌더 --></div>
+    </aside>
+
+    <!-- ========================= Story Tab Bar ========================= -->
+    <div id="tabbar" class="tabbar" role="tablist" aria-label="열린 화면"></div>
+
+    <!-- ========================= Main / Body ========================= -->
+    <main class="main" role="main">
+
+      <!--
+        ===== Pages =====
+        모든 페이지의 내부 마크업은 JS(Components) 로 채워집니다.
+        index.html 에는 마운트 포인트(section)만 남깁니다.
+
+        - page-dashboard : KPI / 카드 위젯  (Components.dashboardPage)
+        - page-grid      : 검색 + 툴바 + 그리드 (활성 LNB 항목에 따라 동적)
+                           컬럼/검색/Mock 데이터는 assets/js/grid-schemas.js 참고
+        - page-generic   : 그 외 화면 fallback
+      -->
+
+      <!-- ===== Page: Dashboard (최초 진입) ===== -->
+      <section id="page-dashboard" class="page is-active"></section>
+
+      <!-- ===== Page: 홈 > 대시보드 > 팀원 전용 (프로필 + 근무 KPI + 월별 근태 스트립 + 공지/알림) ===== -->
+      <section id="page-dashboard-member" class="page"></section>
+
+      <!-- ===== Page: 홈 > 대시보드 > 팀장 전용 (팀 근태 KPI + 팀원 로스터 + 결재대기/금주일정/공지/알림) ===== -->
+      <section id="page-dashboard-lead" class="page"></section>
+
+      <!-- ===== Page: 홈 > 생산현황 > 생산통계 (MES 연동 — 대표용 생산 KPI·추세·가동·품질·재작업) ===== -->
+      <section id="page-prod-stats" class="page psx"></section>
+
+      <!-- ===== Page: 홈 > 생산현황 > 기기 통계 (MES 모니터링 연동 — 대표용 설비 가동·생산·효율 현황) ===== -->
+      <section id="page-machine-stats" class="page psx"></section>
+
+      <!-- ===== Page: 회계 > 비용관리 > 클릭비 (인쇄장비 월 클릭비 정산·청구 + 미터연동/마스터/마감승인) ===== -->
+      <section id="page-click-fee" class="page"></section>
+
+      <section id="page-grid" class="page"></section>
+
+      <!-- ===== Page: 전자결재 > 기안 > 문서작성 (Master-Detail P-012) ===== -->
+      <section id="page-doc-write" class="page">
+        <div class="mdetail">
+          <aside class="mdetail__list">
+            <div class="mdetail__list-head">
+              <div class="tabs tabs--segmented" data-doc-tabs>
+                <div class="tabs__nav">
+                  <button class="tabs__tab is-active" data-cat="all">전체</button>
+                  <button class="tabs__tab" data-cat="hr">인사</button>
+                  <button class="tabs__tab" data-cat="ga">총무</button>
+                  <button class="tabs__tab" data-cat="ac">회계</button>
+                  <button class="tabs__tab" data-cat="etc">기타</button>
+                </div>
+              </div>
+            </div>
+            <div class="mdetail__list-search">
+              <input class="input" type="text" placeholder="문서명 검색 (초성 가능, 예: ㅎㄱ → 휴가)" data-doc-search>
+            </div>
+            <div class="mdetail__list-body" id="doc-list"></div>
+          </aside>
+          <section class="mdetail__detail" id="doc-form"></section>
+        </div>
+      </section>
+
+      <!-- ===== Page: 전자결재 > 관리 > 문서/양식 (3-Panel) ===== -->
+      <section id="page-apr-category" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 차량 예약 (3-Panel) ===== -->
+      <section id="page-vehicle-res" class="page page--scroll"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 내 예약 목록 (Card Grid) ===== -->
+      <section id="page-vehicle-myres" class="page page--scroll"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 차량 관리 ===== -->
+      <section id="page-vehicle-mgmt" class="page page--scroll"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 예외 알림 ===== -->
+      <section id="page-vehicle-alerts" class="page page--scroll"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 보안관리 > 경비 근무 일지 (App.GuardLog + 등록/상세 modal — 점검 내역 라인아이템) ===== -->
+      <section id="page-sec-guard" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 보안관리 > 방문자 등록 (App.Visitors + 등록/상세 modal — 신분증/기타 출입인증) ===== -->
+      <section id="page-sec-visitor" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 보안관리 > 블랙리스트 (App.Blacklist — 등급/조치/해제 + 방문자 등록 시 자동 탐지 연동) ===== -->
+      <section id="page-sec-blacklist" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 유류비 정산 (개인차량 법인카드 유류비 정산 + OCR 자동인식) ===== -->
+      <section id="page-vehicle-fuel" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 시설관리 > 월간 현황 (스케쥴 UI — 점검 일정 캘린더: 일간/주간/월간 + 미니 캘린더 + 일정 카드) ===== -->
+      <section id="page-facility-monthly" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 시설관리 > 점검 목록 (App.Inspections + 점검 상세 OC + 등록 modal) ===== -->
+      <section id="page-facility-list" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 시설관리 > 시설 대장 (App.FacilityRegistry — 시설마스터 CRUD) ===== -->
+      <section id="page-facility-ledger" class="page"></section>
+
+      <!-- ===== Page: 보안·시설·차량 > 시설관리 > 수리 내역 (App.FacilityRepairs + 등록/수정 modal — 점검·부품·인사 연동) ===== -->
+      <section id="page-facility-fix" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 장비 > 장비 현황 (장비 마스터 + 등록/수정 승인 + 수정이력 + 금액변경이력) ===== -->
+      <section id="page-eq-status" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 장비 > AS 내역 (장비별 AS 이력 + 비용 breakdown + 견적서 첨부/다운로드) ===== -->
+      <section id="page-eq-as" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 장비 > 월마감 (월별 AS 발생 내역 + 발생월 필터) ===== -->
+      <section id="page-eq-close" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 부품관리 > 부품 현황 (부품 마스터 + 누적 입출고 derived 재고) ===== -->
+      <section id="page-eq-parts-status" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 부품관리 > 부품 입고 (App.PartInbound + 승인 요청 + Parts.cumIn 자동 동기화) ===== -->
+      <section id="page-eq-parts-in" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 부품관리 > 부품 출고 (App.PartOutbound + 승인 요청 + Parts.cumOut 자동 동기화) ===== -->
+      <section id="page-eq-parts-out" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 부품관리 > 부품 교체 (장비 AS 내역에서 등록된 사용부품 데이터 derived view) ===== -->
+      <section id="page-eq-parts-replace" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 칼/철형 > 칼/철형 현황 (App.Parts 의 kind='칼/철형' 항목만 필터 — 부품 현황 상세 modal 공유) ===== -->
+      <section id="page-eq-knife-status" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 칼/철형 > 칼 교체 현황 (부품 교체 derived view 중 partKind='칼/철형' 만 필터) ===== -->
+      <section id="page-eq-knife-replace" class="page"></section>
+
+      <!-- ===== Page: 장비/부품 > 칼/철형 > 월마감 (App.KnifeMonthClose — 월별/업체별 집계 + 청구서/계산서 첨부 + 전자결재 연동) ===== -->
+      <section id="page-eq-knife-close" class="page"></section>
+
+      <!-- ===== Page: 시스템 > 코드관리 (원자재/부자재/장비/부품/공통 공용 4-Depth) ===== -->
+      <section id="page-code-mgmt" class="page"></section>
+
+      <!-- ===== Page: 시스템 > 권한관리 > 권한관리 (부서별 권한 + 공통/팀장/팀원 분리 + 화면 상세 권한) ===== -->
+      <section id="page-role-mgmt" class="page"></section>
+
+      <!-- ===== Page: 시스템 > 권한관리 > 관리자 지정 (권한 셋팅 가능한 관리자 등록/관리 + 권한 토글) ===== -->
+      <section id="page-role-admin" class="page"></section>
+
+      <!-- ===== Page: 시스템 > 기준정보 > 장소 관리 (장소·층·섹터별 업무 — 입출고/재고/생산 추적 기준)
+              master-detail: 좌 장소 목록 / 우 층·섹터·업무 구성 트리 + 등록/수정 nested modal ===== -->
+      <section id="page-location" class="page"></section>
+
+      <!-- ===== Page: 자재 > 자재 > 폐자재 (카드 그리드 + 거래 내역 modal + 읽기전용 OC) ===== -->
+      <section id="page-mat-scrap" class="page page--scroll"></section>
+
+      <!-- ===== Page: 자재 > 자재 > 자재 정보 (Product Grid 스타일 + 등록/상세 layer popup)
+              page--scroll 미부여 — 내부 [data-pgrid-scroll] 만 스크롤 (헤더/페이지네이션 fix) ===== -->
+      <section id="page-mat-info" class="page"></section>
+      <section id="page-movable-status" class="page"></section>
+
+      <!-- ===== Page: 자재 > 자재 > 부자재 정보 (Product Grid 스타일 + 등록/상세 layer popup) ===== -->
+      <section id="page-mat-sub-info" class="page"></section>
+
+      <!-- ===== Page: 자재 > 재고 > 원자재 재고 (Fix/Scroll 레이아웃 + 재고 상태 + LOT/이력 modal) ===== -->
+      <section id="page-mat-stock-raw" class="page"></section>
+
+      <!-- ===== Page: 자재 > 재고 > 부자재 재고 ===== -->
+      <section id="page-mat-stock-sub" class="page"></section>
+
+      <!-- ===== Page: 자재 > 설정 > 안전재고 (자재정보 연동 + 안전재고 미달 알림) ===== -->
+      <section id="page-mat-safety-stock" class="page"></section>
+
+      <!-- ===== Page: 자재 > 구매·발주 > 업체 발주 내역 (공급사 관점 발주 리스트 + 입고정보 등록) ===== -->
+      <section id="page-mat-vendor-po" class="page"></section>
+
+      <!-- ===== Page: 자산·업체 > 업체 > 거래처 현황 (거래처 마스터 관리 + 등록/수정 승인) ===== -->
+      <section id="page-vendor-status" class="page"></section>
+
+      <!-- ===== Page: 자산·업체 > 업체 > 제조 업체 (브랜드 카드 그리드 + 등록/수정 모달) ===== -->
+      <section id="page-vendor-maker" class="page"></section>
+
+      <!-- ===== Page: 경영 및 홍보 > 스케쥴/공지 > 스케쥴 (좌패널: 미니캘+선택일정 / 우패널: 일·주·월 뷰) ===== -->
+      <section id="page-schedule" class="page"></section>
+
+      <!-- ===================================================================
+           인사(HR) / 근태(ATT) 모듈 페이지 컨테이너 — erp-hr 이식
+           각 화면 구현체는 assets/js/page-hr-*.js / page-att-*.js
+           =================================================================== -->
+      <!-- ===== Page: 내 정보 (GNB 프로필 > 내 정보 — 인사정보카드 풀페이지, page-hr-info-mgmt 가 렌더) ===== -->
+      <section id="page-my-info" class="page"></section>
+      <!-- ===== Page: HR > 인사 관리 > 인사정보 관리 ===== -->
+      <section id="page-hr-info-mgmt" class="page"></section>
+      <!-- ===== Page: HR > 인사 정보 > 인사 관리 (SCR-EMP-01~04) ===== -->
+      <section id="page-hr-employee" class="page"></section>
+      <!-- ===== Page: HR > 발령 및 계약 > 발령 ===== -->
+      <section id="page-hr-appoint" class="page"></section>
+      <!-- ===== Page: HR > 발령 및 계약 > 계약 (SCR-CTR-01) ===== -->
+      <section id="page-hr-contract" class="page"></section>
+      <!-- ===== Page: HR > 계약·발령·휴직 > 휴직 관리 ===== -->
+      <section id="page-hr-loa" class="page"></section>
+      <!-- ===== Page: HR > 설정 > 직위·직책 설정 ===== -->
+      <section id="page-hr-position" class="page"></section>
+      <!-- ===== Page: HR > 포상·징계 ===== -->
+      <section id="page-hr-prize-discipline" class="page"></section>
+      <!-- ===== Page: HR > 퇴사 관리 > 퇴사 현황 ===== -->
+      <section id="page-hr-leave" class="page"></section>
+      <!-- ===== Page: HR > 퇴사 관리 > 퇴직연금 관리 ===== -->
+      <section id="page-hr-pension" class="page"></section>
+      <!-- ===== Page: HR > 평가 관리 > 평가 회차 ===== -->
+      <section id="page-hr-eval-round" class="page"></section>
+      <!-- ===== Page: HR > 평가 관리 > 평가 진행 (구성원 시점) ===== -->
+      <section id="page-hr-eval-input" class="page"></section>
+      <!-- ===== Page: HR > 평가 관리 > 수습 평가 ===== -->
+      <section id="page-hr-eval-prob" class="page"></section>
+      <!-- ===== Page: HR > 역량 평가 설정 > 평가유형 설정 ===== -->
+      <section id="page-hr-eval-type" class="page"></section>
+      <!-- ===== Page: HR > 평가 관리 > 수습 평가 설정 ===== -->
+      <section id="page-hr-eval-prob-set" class="page"></section>
+      <!-- ===== Page: 근태 관리 > 나의 근태현황 ===== -->
+      <section id="page-att-my-work" class="page"></section>
+      <!-- ===== Page: 근태 관리 > 부서별 근태현황 ===== -->
+      <section id="page-att-status" class="page"></section>
+      <!-- ===== Page: 연차 관리 > 나의 연차현황 ===== -->
+      <section id="page-att-my-leave" class="page"></section>
+      <!-- ===== Page: 연차 관리 > 부서별 연차현황 ===== -->
+      <section id="page-att-leave" class="page"></section>
+      <!-- ===== Page: 연차 관리 > 연차 계획서 ===== -->
+      <section id="page-att-leave-plan" class="page"></section>
+      <!-- ===== Page: 연차 관리 > 연차 설정 ===== -->
+      <section id="page-att-leave-set" class="page"></section>
+      <!-- ===== Page: 근무조 관리 > 부서별 근무조 현황 ===== -->
+      <section id="page-att-shift-status" class="page"></section>
+      <!-- ===== Page: 근무조 관리 > 근무정책 설정 ===== -->
+      <section id="page-att-work-policy" class="page"></section>
+      <!-- ===== Page: 근무조 관리 > 근무조 설정 (메뉴 숨김) ===== -->
+      <section id="page-att-shift" class="page"></section>
+      <!-- ===== Page: 근태 > 경조사 > 경조사 내역 ===== -->
+      <section id="page-att-event" class="page"></section>
+      <!-- ===== Page: 근태 > 업무 보고 > 나의 업무 보고 ===== -->
+      <section id="page-att-report-my" class="page"></section>
+      <!-- ===== Page: 업무보고 관리 > 부서별 업무보고 현황 ===== -->
+      <section id="page-att-report-status" class="page"></section>
+      <!-- ===== Page: 업무보고 관리 > 업무보고 설정 ===== -->
+      <section id="page-att-wr-settings" class="page"></section>
+      <!-- ===== Page: 근태 > 설정 > 근태코드 설정 ===== -->
+      <section id="page-att-code" class="page"></section>
+      <!-- ===== Page: HR > 급여 관리 > 급여 정산 ===== -->
+      <section id="page-hr-pay-settlement" class="page"></section>
+      <!-- ===== Page: HR > 급여 관리 > 급여 명세서 조회 ===== -->
+      <section id="page-hr-payslip" class="page"></section>
+      <!-- ===== Page: HR > 복리후생 > 식권 정산 ===== -->
+      <section id="page-hr-meal" class="page"></section>
+
+      <!-- ===== Page: Generic (그 외 화면 공통) ===== -->
+      <section id="page-generic" class="page page--scroll">
+        <div style="padding:24px;">
+          <p data-note style="color:var(--color-text-sub);"></p>
+          <p style="margin-top:8px; color:var(--color-text-muted); font-size:var(--fs-sm);">
+            ※ 본 화면은 공통 골격(레이아웃)만 제공합니다. 상세 구현은 각 담당자가 작성합니다.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============ 알림함 Drawer ============ -->
+  <div id="notif-backdrop" class="notif-backdrop" hidden></div>
+  <aside id="notif-drawer" class="notif-drawer" role="dialog" aria-modal="true" aria-labelledby="notif-title" hidden>
+    <header class="notif-drawer__header">
+      <h2 id="notif-title" class="notif-drawer__title">알림함</h2>
+      <div class="notif-drawer__actions">
+        <button class="btn btn--sm btn--ghost" type="button" data-notif-mark-all>모두 읽음</button>
+        <button class="btn btn--icon btn--ghost" type="button" data-notif-close aria-label="닫기">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="notif-drawer__filters">
+      <button class="notif-filter is-active" type="button" data-notif-filter="all">전체</button>
+      <button class="notif-filter" type="button" data-notif-filter="unread">미확인</button>
+      <button class="notif-filter" type="button" data-notif-filter="urgent">긴급</button>
+    </div>
+
+    <div id="notif-list" class="notif-list" role="list"><!-- JS 렌더 --></div>
+  </aside>
+
+  <!-- ============ Employee Picker OffCanvas (전자결재 > 문서작성 결재선/수신참조용) ============ -->
+  <div class="oc-backdrop" data-emp-picker-host></div>
+  <aside class="offcanvas offcanvas--lg" id="emp-picker-oc" aria-hidden="true">
+    <header class="offcanvas__header">
+      <h2 class="offcanvas__title">직원 선택</h2>
+      <button class="offcanvas__close" data-emp-picker-close aria-label="닫기">✕</button>
+    </header>
+    <div class="offcanvas__body" style="padding:0;">
+      <div class="emp-picker">
+        <div class="emp-picker__main">
+          <div class="emp-picker__search">
+            <input class="input" id="emp-picker-search" placeholder="사원명 입력" autocomplete="off">
+          </div>
+          <div class="emp-picker__employees" id="emp-picker-list"></div>
+        </div>
+        <aside class="emp-picker__tree" id="emp-picker-tree"></aside>
+      </div>
+    </div>
+    <footer class="offcanvas__footer offcanvas__footer--between">
+      <span id="emp-picker-info" style="font-size:13px; color:var(--color-text-sub);">직원을 선택하세요</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" data-emp-picker-close>취소</button>
+        <button class="btn btn--primary" data-emp-picker-confirm>선택 완료</button>
+      </div>
+    </footer>
+  </aside>
+
+  <!-- ===== 인사(HR) / 근태(ATT) 정적 모달·오프캔버스 (erp-hr 이식) ===== -->
+  <!-- ============ 인사 관리 — 인사카드 OffCanvas Drawer (SCR-EMP-02) ============ -->
+  <div class="oc-backdrop" data-oc-host="oc-hr-card"></div>
+  <aside class="offcanvas offcanvas--lg" id="oc-hr-card" role="dialog" aria-modal="true" aria-labelledby="oc-hr-card-title">
+    <header class="offcanvas__header">
+      <h2 class="offcanvas__title" id="oc-hr-card-title">인사카드</h2>
+      <button class="offcanvas__close" data-oc-close type="button" aria-label="닫기">✕</button>
+    </header>
+    <div class="offcanvas__body" id="oc-hr-card-body"><!-- JS 렌더 --></div>
+    <footer class="offcanvas__footer" id="oc-hr-card-footer"><!-- JS 렌더 (권한별 버튼) --></footer>
+  </aside>
+
+  <!-- ============ 인사 관리 — 인사정보 수정 요청 (SCR-EMP-03) ============ -->
+  <div class="modal-backdrop" id="modal-hr-edit" data-modal-id="hr-edit">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title">인사정보 수정 요청</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
+          <strong>대상:</strong> <span id="hr-edit-target"></span>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label is-required" for="hr-edit-field">수정 항목</label>
+          <select class="select input--full" id="hr-edit-field" style="width:100%">
+            <option value="">선택하세요</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+          <div class="form-field">
+            <label class="form-label">기존 값</label>
+            <input class="input input--full" type="text" id="hr-edit-before" readonly />
+          </div>
+          <div class="form-field">
+            <label class="form-label is-required" for="hr-edit-after">변경 값</label>
+            <input class="input input--full" type="text" id="hr-edit-after" placeholder="새로운 값을 입력" />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label is-required" for="hr-edit-reason">수정 사유 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(최소 10자)</small></label>
+          <textarea class="input input--full" id="hr-edit-reason" rows="3" placeholder="변경이 필요한 사유를 10자 이상 입력해주세요."></textarea>
+          <div class="form-help" data-hr-edit-reason-msg></div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">증빙 첨부 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(선택)</small></label>
+          <div class="dz" id="hr-edit-dz" tabindex="0" style="padding:18px 14px;">
+            <svg class="dz__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="dz__title" id="hr-edit-dz-title">파일을 끌어 놓거나 클릭하여 선택</div>
+            <input type="file" id="hr-edit-dz-input" hidden />
+          </div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-hr-edit-submit disabled>제출 (팀장 결재)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 인사 관리 — PDF 출력 옵션 (SCR-EMP-05) ============ -->
+  <div class="modal-backdrop" id="modal-hr-pdf" data-modal-id="hr-pdf">
+    <div class="modal">
+      <div class="modal__header">
+        <div class="modal__title">인사카드 PDF 출력</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
+          <strong>대상:</strong> <span id="hr-pdf-target"></span>
+        </div>
+
+        <div id="hr-pdf-info" style="padding:10px 12px;background:rgba(243,130,0,.08);border-left:3px solid var(--color-brand-accent);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
+          <!-- JS 권한별 안내 -->
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">출력 섹션 선택 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(권한 외 섹션은 비활성)</small></label>
+          <div id="hr-pdf-sections" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;padding:10px 0;">
+            <!-- JS 렌더: <label class="chk"><input type="checkbox" value="..." checked><span>...</span></label> -->
+          </div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn" type="button" data-hr-pdf-print disabled>인쇄</button>
+        <button class="btn btn--primary" type="button" data-hr-pdf-download disabled>PDF 다운로드</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 급여 관련 설정 — 시간외수당 계산식 모달 ============ -->
+  <div class="modal-backdrop" id="modal-ps-ot" data-modal-id="ps-ot">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title">시간외수당 계산식 설정</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="ps-ot-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
+        <!-- renderOtModal() 가 채움 -->
+      </div>
+      <div class="modal__footer" id="ps-ot-footer">
+        <!-- renderOtModal() 가 채움 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 급여 관련 설정 — 기본 지급일 설정 모달 ============ -->
+  <div class="modal-backdrop" id="modal-ps-payday" data-modal-id="ps-payday">
+    <div class="modal modal--md">
+      <div class="modal__header">
+        <div class="modal__title">기본 지급일 설정</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="ps-payday-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
+        <!-- renderPaydayModal() 가 채움 -->
+      </div>
+      <div class="modal__footer" id="ps-payday-footer">
+        <!-- renderPaydayModal() 가 채움 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 지급항목 설정 — 신규/수정 등록 모달 (Layer Modal) ============ -->
+  <div class="modal-backdrop" id="modal-pi-editor" data-modal-id="pi-editor">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title" id="pi-editor-title">지급항목 추가</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="pi-editor-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
+        <!-- renderEditorModal() 가 채움 -->
+      </div>
+      <div class="modal__footer" id="pi-editor-footer">
+        <!-- renderEditorModal() 가 채움 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 포상·징계 — 신규/수정 등록 모달 (Layer Modal) ============ -->
+  <div class="modal-backdrop" id="modal-pd-editor" data-modal-id="pd-editor">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title" id="pd-editor-title">신규 포상·징계 등록</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="pd-editor-body" style="max-height:70vh;overflow:auto;padding:20px 24px;">
+        <!-- renderEditor() 가 채움 -->
+      </div>
+      <div class="modal__footer" id="pd-editor-footer">
+        <!-- renderEditor() 가 채움 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 부서 관리 모달 (Notion-style tree + 우측 상세 패널) ============
+       조직 관리 화면(modal-org-manage) 의 split 레이아웃 패턴을 그대로 사용하되,
+       좌측 트리는 Notion 스타일(hover 시 + 버튼 노출)을 유지한다. -->
+  <div class="modal-backdrop" id="modal-emp-dept-manage" data-modal-id="emp-dept-manage">
+    <div class="modal modal--xl" style="width:96vw;max-width:1000px;height:580px;max-height:82vh;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title">부서 관리</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <!-- 승인 요청 중 잠금 배너 — [조직도 저장] 전자결재 상신 후 결재 완료 전까지 노출 -->
+      <div id="emp-dept-lock-banner" style="display:none;align-items:center;gap:10px;padding:10px 16px;background:rgba(245,158,11,.10);border-bottom:1px solid var(--color-warning);font-size:var(--fs-sm);color:var(--color-text-sub);">
+        <span style="font-size:16px;line-height:1;">🔒</span>
+        <span>조직도 변경이 전자결재 승인 대기 중입니다. 결재 완료 전까지 편집할 수 없습니다.</span>
+        <span class="pill pill--warning" style="margin-left:auto;">결재 대기</span>
+      </div>
+      <div class="modal__body" style="padding:0;flex:1;min-height:0;overflow:hidden;">
+        <div class="split split--collapsible" id="emp-dept-split" style="--split-left:360px;height:100%;">
+          <aside class="split__left" style="display:flex;flex-direction:column;min-height:0;">
+            <div class="split__head" style="height:38px;min-height:38px;padding:4px 12px;">
+              <h3 style="font-size:var(--fs-md);">조직도</h3>
+              <div style="flex:1;"></div>
+              <button class="btn btn--xs btn--icon" type="button" data-emp-dept-move-up title="위로" disabled>↑</button>
+              <button class="btn btn--xs btn--icon" type="button" data-emp-dept-move-down title="아래로" disabled>↓</button>
+              <button class="split__collapser" type="button" data-split-collapse="emp-dept-split" title="조직도 접기" style="margin-left:4px;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+            </div>
+            <div class="split__body" style="overflow:auto;">
+              <div class="ntree" id="emp-dept-tree" data-emp-dept-tree></div>
+            </div>
+          </aside>
+          <section class="split__right" style="display:flex;flex-direction:column;min-height:0;">
+            <div class="split__head" style="height:38px;min-height:38px;padding:4px 12px;">
+              <button class="split__expander" type="button" data-split-expand="emp-dept-split" title="조직도 펼치기">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <h3 id="emp-dept-form-title" style="font-size:var(--fs-md);">부서 정보</h3>
+            </div>
+            <div class="split__body" style="overflow:auto;">
+              <div id="emp-dept-detail" data-empty>
+                <p style="color:var(--color-text-muted);text-align:center;padding:48px 8px;line-height:1.7;">
+                  좌측 트리에서 부서를 선택하거나<br>
+                  부서 행에 hover 후 <strong>+</strong> 버튼으로 새 부서를 추가하세요.
+                </p>
+              </div>
+              <div id="emp-dept-form" style="display:none;padding:4px 4px 0;">
+                <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label">구분</div>
+                    <div class="fm-tbl__value" style="gap:8px;">
+                      <span id="emp-dept-type" class="pill">—</span>
+                      <select class="select" id="emp-dept-type-select" style="display:none;width:160px;"></select>
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label"><span class="form-label is-required" style="padding:0;border:0;">부서명</span></div>
+                    <div class="fm-tbl__value">
+                      <input type="text" class="input input--full" id="emp-dept-name" placeholder="부서명을 입력하세요" maxlength="30" style="max-width:320px;" />
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label">상위 소속</div>
+                    <div class="fm-tbl__value" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;">
+                      <div id="emp-dept-parent" style="font-size:var(--fs-md);color:var(--color-text);">—</div>
+                      <select class="select" id="emp-dept-parent-select" style="display:none;width:100%;max-width:320px;"></select>
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1" id="emp-dept-status-field">
+                    <div class="fm-tbl__label">상태</div>
+                    <div class="fm-tbl__value"><span id="emp-dept-status" class="pill pill--success">활성</span></div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1" id="emp-dept-member-field">
+                    <div class="fm-tbl__label">소속 인원</div>
+                    <div class="fm-tbl__value" id="emp-dept-member-count">0명</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 우측 패널 footer — 모드별 액션 버튼 -->
+            <div id="emp-dept-foot" style="display:none;padding:10px 16px;border-top:1px solid var(--color-divider);background:var(--color-surface);flex-shrink:0;border-bottom-right-radius:var(--radius-lg);">
+              <div id="emp-dept-actions-edit" style="display:flex;gap:8px;align-items:center;">
+                <button class="btn" type="button" data-emp-dept-delete>삭제</button>
+                <button class="btn" type="button" data-emp-dept-toggle-active>비활성화</button>
+                <div style="flex:1;"></div>
+                <button class="btn btn--primary" type="button" data-emp-dept-save>저장</button>
+              </div>
+              <div id="emp-dept-actions-create" style="display:none;gap:8px;align-items:center;">
+                <button class="btn" type="button" data-emp-dept-cancel>취소</button>
+                <div style="flex:1;"></div>
+                <button class="btn btn--primary" type="button" data-emp-dept-create>추가</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <!-- 모달 footer — 조직도 전체 저장(스냅샷+변경 이력) / 변경 이력 보기 -->
+      <div class="modal__footer" style="justify-content:space-between;">
+        <button class="btn btn--sm" type="button" data-emp-org-history>변경 이력</button>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <span data-emp-org-dirty style="display:none;font-size:var(--fs-sm);color:var(--color-warning);">● 저장되지 않은 변경 <strong data-emp-org-dirty-cnt>0</strong>건</span>
+          <button class="btn btn--primary" type="button" data-emp-org-save disabled>조직도 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 퇴사 처리 모달 (Layer Modal) ============
+       퇴사 현황 화면 툴바의 [+ 퇴사 처리] 버튼에서 호출. 대상자 선택은
+       전자결재 직원 선택 OffCanvas(App.openEmpPicker) 를 사용. -->
+  <div class="modal-backdrop" id="modal-lv-resign" data-modal-id="lv-resign">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title">퇴사 처리</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="lv-resign-body" style="padding:20px 24px;max-height:70vh;overflow:auto;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-lv-resign-submit disabled>퇴사 처리</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 평가 결과 모달 (Layer Modal) ============
+       평가 회차의 [결과 보기](평가 확정 회차) 에서 App.HREvalResult.open(roundId) 으로 호출.
+       본문은 page-hr-eval-history.js 의 renderResultView() 가 채움.
+       대상자 상세는 결과 모달 위에 더 높은 z-index (data-evh-detail-modal) 로 표시. -->
+  <div class="modal-backdrop" id="modal-evh-result" data-modal-id="evh-result">
+    <div class="modal modal--xl" style="width:98vw;max-width:1280px;height:90vh;max-height:920px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title" id="evh-result-title">평가 회차 결과</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="evh-result-body" style="padding:0;flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;"></div>
+    </div>
+  </div>
+
+  <!-- ============ 발령 등록 모달 (Layer Modal) ============
+       기존 풀스크린 split editor 를 모달로 전환. 본문은 renderEditorModal() 이 채움.
+       [발령 등록] 클릭 시 시스템 전자결재 모달(App.openSystemApprovalModal) 호출. -->
+  <div class="modal-backdrop" id="modal-apt-create" data-modal-id="apt-create">
+    <div class="modal modal--xl" style="width:96vw;max-width:1100px;height:80vh;max-height:820px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title">발령 등록 <span id="apt-edit-sub" style="font-size:var(--fs-sm);color:var(--color-text-muted);font-weight:var(--fw-regular);margin-left:8px;"></span></div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="apt-edit-body" style="padding:0;flex:1;min-height:0;overflow:hidden;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-apt-edit-submit disabled>발령 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 계약 관리 — 작성/상세 Layer Modal ============
+       계약번호 클릭 시 상세, [+ 신규] 클릭 시 작성. 본문은 page-hr-contract.js 에서 채움.
+       발령 등록 모달과 동일 레이아웃 (modal--xl + split). -->
+  <!-- 인사정보카드 [서명 요청] 오버레이 전용 모달 (개별 작성은 페이지 detail 로 렌더) -->
+  <div class="modal-backdrop" id="modal-ctr-view" data-modal-id="ctr-view">
+    <div class="modal modal--xl" style="width:96vw;max-width:1180px;height:88vh;max-height:880px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title" id="ctr-view-title">근로계약서</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="ctr-view-body" style="padding:0;flex:1;min-height:0;overflow:hidden;"></div>
+      <div class="modal__footer" id="ctr-view-footer"></div>
+    </div>
+  </div>
+
+
+
+  <!-- ============ 조직 관리 — 부서 관리 모달 (SCR-ORG-02) ============ -->
+  <div class="modal-backdrop" id="modal-org-manage" data-modal-id="org-manage">
+    <div class="modal modal--xl" style="height:580px;max-height:82vh;">
+      <div class="modal__header">
+        <div class="modal__title">부서 관리</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <!-- 승인 요청 중 잠금 배너 — 전자결재 상신 후 결재 완료 전까지 노출 (편집 잠금 안내) -->
+      <div id="org-lock-banner" style="display:none;align-items:center;gap:10px;padding:10px 16px;background:rgba(245,158,11,.10);border-bottom:1px solid var(--color-warning);font-size:var(--fs-sm);color:var(--color-text-sub);">
+        <span style="font-size:16px;line-height:1;">🔒</span>
+        <span id="org-lock-banner-text">조직 변경이 전자결재 승인 대기 중입니다. 결재 완료 전까지 편집할 수 없습니다.</span>
+        <span class="pill pill--warning" style="margin-left:auto;">결재 대기</span>
+      </div>
+      <div class="modal__body" style="padding:0;flex:1;min-height:0;">
+        <div class="split" style="--split-left:360px;height:100%;">
+          <aside class="split__left" style="display:flex;flex-direction:column;min-height:0;">
+            <div class="split__head" style="height:48px;min-height:48px;">
+              <div style="display:flex;gap:4px;flex-wrap:nowrap;white-space:nowrap;">
+                <button class="btn btn--sm btn--primary" type="button" data-org-add>+ 부서 추가</button>
+              </div>
+              <div style="display:flex;gap:4px;flex-wrap:nowrap;white-space:nowrap;">
+                <button class="btn btn--sm btn--icon" type="button" data-org-move-up title="위로" disabled>↑</button>
+                <button class="btn btn--sm btn--icon" type="button" data-org-move-down title="아래로" disabled>↓</button>
+              </div>
+            </div>
+            <div class="split__body">
+              <ul class="tree tree--selectable tree--dnd" id="org-manage-tree"><!-- JS 렌더 --></ul>
+            </div>
+          </aside>
+          <section class="split__right">
+            <div class="split__head" style="height:48px;min-height:48px;"><h3 id="org-manage-form-title">부서 정보</h3></div>
+            <div class="split__body">
+              <div id="org-manage-detail" data-empty>
+                <p style="color:var(--color-text-muted);text-align:center;padding:48px 8px;line-height:1.7;">
+                  좌측 트리에서 부서를 선택하거나<br>
+                  <strong>+ 부서 추가</strong> 버튼으로 새 부서를 추가하세요.
+                </p>
+              </div>
+              <div id="org-manage-form" style="display:none;padding:4px 4px 0;">
+                <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label">구분</div>
+                    <div class="fm-tbl__value" style="gap:8px;">
+                      <span id="org-manage-type-display"><span id="org-manage-type" class="pill">—</span></span>
+                      <select class="select" id="org-manage-type-select" style="display:none;width:160px;"></select>
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label"><span class="form-label is-required" style="padding:0;border:0;">부서명</span></div>
+                    <div class="fm-tbl__value">
+                      <input type="text" class="input input--full" id="org-manage-name" placeholder="부서명을 입력하세요" maxlength="30" style="max-width:320px;" />
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1">
+                    <div class="fm-tbl__label">상위 소속</div>
+                    <div class="fm-tbl__value" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;">
+                      <div id="org-manage-parent" style="font-size:var(--fs-md);color:var(--color-text);">—</div>
+                      <select class="select" id="org-manage-parent-select" style="display:none;width:100%;max-width:320px;"></select>
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1" id="org-manage-status-field">
+                    <div class="fm-tbl__label">상태</div>
+                    <div class="fm-tbl__value"><span id="org-manage-status" class="pill pill--success">활성</span></div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1" id="org-manage-member-field">
+                    <div class="fm-tbl__label">소속 인원</div>
+                    <div class="fm-tbl__value" id="org-manage-member-count">0명</div>
+                  </div>
+                </div>
+                <div id="org-manage-type-notice" style="display:none;margin:10px 0 0;padding:8px 10px;background:rgba(245,158,11,.08);border-left:3px solid var(--color-warning);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:var(--fs-xs);color:var(--color-text-sub);line-height:1.5;"></div>
+              </div>
+            </div>
+            <!-- 우측 패널 footer — 모드별 액션 버튼 -->
+            <div id="org-manage-foot" style="display:none;padding:10px 16px;border-top:1px solid var(--color-divider);background:var(--color-surface);flex-shrink:0;border-bottom-right-radius:var(--radius-lg);">
+              <div id="org-manage-actions-edit" style="display:flex;gap:8px;align-items:center;">
+                <button class="btn" type="button" data-org-delete>삭제</button>
+                <button class="btn" type="button" data-org-toggle-active>비활성화</button>
+                <div style="flex:1;"></div>
+                <button class="btn btn--primary" type="button" data-org-save>저장</button>
+              </div>
+              <div id="org-manage-actions-create" style="display:none;gap:8px;align-items:center;">
+                <button class="btn" type="button" data-org-cancel>취소</button>
+                <div style="flex:1;"></div>
+                <button class="btn btn--primary" type="button" data-org-create>추가</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 조직 관리 — 사원 부서 이동 모달 (SCR-ORG-03) ============ -->
+  <div class="modal-backdrop" id="modal-org-move" data-modal-id="org-move">
+    <div class="modal modal--lg" style="height:560px;max-height:80vh;">
+      <div class="modal__header">
+        <div class="modal__title">사원 부서 이동</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="padding:0;">
+        <div class="split" style="--split-left:50%;">
+          <aside class="split__left">
+            <div class="split__head"><h3>이동 대상 사원 <span id="org-move-count" style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(0명)</span></h3></div>
+            <div class="split__body">
+              <table class="tbl tbl--striped tbl--hover">
+                <thead>
+                  <tr>
+                    <th>사번</th>
+                    <th>성명</th>
+                    <th>현재 소속</th>
+                  </tr>
+                </thead>
+                <tbody id="org-move-emp-body"><!-- JS 렌더 --></tbody>
+              </table>
+            </div>
+          </aside>
+          <section class="split__right">
+            <div class="split__head"><h3>목적지 부서</h3></div>
+            <div class="split__body">
+              <ul class="tree tree--selectable" id="org-move-tree"><!-- JS 렌더 --></ul>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" data-modal-close type="button">취소</button>
+        <button class="btn btn--primary" type="button" data-org-move-submit disabled>전보 결재 상신</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 조직 관리 — Sweet Alert 호스트 (소속 사원 있음 등) ============ -->
+  <div class="modal-backdrop modal-backdrop--over-modal" id="org-alert-modal">
+    <div class="modal" style="max-width:400px">
+      <div class="modal__body" id="org-alert-body" style="text-align:center;padding:24px 20px;"></div>
+      <div class="modal__footer" id="org-alert-footer">
+        <button class="btn btn--primary" data-modal-close type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 조직 관리 — 변경 승인 요청 모달 (전자결재 상신) ============
+       구조 변경(추가/수정/삭제/이동/구분/상태/전보)은 즉시 반영되지 않고 본 모달로 상신.
+       결재 승인 시에만 변경이력 + 조직도가 반영된다. (mock: 상신 후 자동 승인) -->
+  <div class="modal-backdrop modal-backdrop--over-modal" id="modal-org-approval" data-modal-id="org-approval">
+    <div class="modal modal--lg" style="max-width:600px;">
+      <div class="modal__header">
+        <div class="modal__title">조직 변경 승인 요청</div>
+        <button class="modal__close" data-org-approval-cancel type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="padding:18px 20px;max-height:70vh;overflow:auto;">
+        <div id="org-approval-body"><!-- JS 렌더 --></div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-org-approval-cancel>취소</button>
+        <button class="btn btn--primary" type="button" data-org-approval-submit>전자결재 상신</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 인사정보카드 — 근무조 마스터 선택 모달 ============
+       근로 계약 정보 설정 모달에서 '고정 근무' 선택 시 노출되는 [근무조 선택] 버튼이 호출.
+       선택 시 근무시간 / 휴게시간 필드를 자동 채움. -->
+  <div class="modal-backdrop modal-backdrop--over-oc" id="modal-empi-shift-pick" data-modal-id="empi-shift-pick" style="z-index:1200;">
+    <div class="modal modal--lg" style="width:96vw;max-width:780px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title">근무조 선택</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="padding:14px 18px;max-height:70vh;overflow:auto;">
+        <p style="color:var(--color-text-muted);font-size:var(--fs-sm);margin:0 0 10px;">
+          선택한 근무조의 근무시간과 휴게시간이 인사정보카드에 자동으로 채워집니다.
+        </p>
+        <div id="empi-shift-pick-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 계약 — 일괄 작성 모달 (2-phase: 선택 → 편집) ============
+       Phase 1: 임직원 6컬럼 테이블에서 대상 직원 다중 선택
+       Phase 2: 선택 직원들을 13컬럼 inline-editable 테이블로 노출 → [일괄 발송] -->
+  <div class="modal-backdrop" id="modal-ctr-bulk" data-modal-id="ctr-bulk">
+    <div class="modal modal--xl" style="width:98vw;max-width:1700px;height:90vh;max-height:920px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title" id="ctr-bulk-title">계약서 일괄 작성 — 대상 직원 선택</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="padding:14px 18px;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+        <!-- 공통 헤더: 좌(계약 유형 — 조직도 폭) | 우(검색·카운트 — 테이블 폭 정렬) -->
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div data-ctr-bulk-kindbar style="width:240px;flex:0 0 240px;min-width:0;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:var(--fs-sm);color:var(--color-text-sub);flex:0 0 auto;">계약 유형</span>
+            <div class="tabs tabs--segmented" id="ctr-bulk-kind-tabs" style="display:inline-flex;width:auto;flex:0 0 auto;">
+              <div class="tabs__nav" style="width:auto;">
+                <button type="button" class="tabs__tab is-active" data-ctr-bulk-kind="근로계약서" style="flex:0 0 auto;">근로계약서</button>
+                <button type="button" class="tabs__tab" data-ctr-bulk-kind="임금계약서" style="flex:0 0 auto;">임금계약서</button>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;">
+            <input class="input input--search" type="text" id="ctr-bulk-kw" placeholder="성명 · 사번 검색" style="min-width:220px;" data-ctr-bulk-phase1-only />
+            <span style="flex:1;"></span>
+            <span data-ctr-bulk-counts style="display:inline-flex;align-items:center;gap:8px;">
+              <span style="color:var(--color-text-muted);font-size:var(--fs-sm);" data-ctr-bulk-sel></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Phase 1: 좌측 조직도 + 직원 선택 테이블 (임직원 관리와 동일 split--collapsible 패턴) -->
+        <div id="ctr-bulk-phase1" style="flex:1;min-height:0;display:flex;overflow:hidden;">
+          <div class="split split--collapsible is-left-collapsed" id="ctr-bulk-split" style="--split-left:240px;flex:1;min-width:0;min-height:0;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
+            <aside class="split__left">
+              <div class="split__head">
+                <h3>조직도</h3>
+                <div style="flex:1"></div>
+                <button class="split__collapser" type="button" data-ctr-tree-collapse title="조직도 접기">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+              </div>
+              <div class="split__body" style="padding:0;display:flex;flex-direction:column;">
+                <ul class="tree tree--selectable" id="ctr-bulk-tree" style="flex:1;overflow:auto;padding:8px 10px;margin:0;"></ul>
+              </div>
+            </aside>
+            <section class="split__right" style="min-width:0;overflow:hidden;">
+              <div class="split__head" style="justify-content:flex-start;gap:10px;">
+                <button class="split__expander" type="button" data-ctr-tree-expand title="조직도 펼치기">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <span class="toolbar__count">총 <span data-ctr-bulk-count><strong>0</strong>명</span></span>
+              </div>
+              <div class="grid-wrap" style="flex:1;min-width:0;min-height:0;overflow:hidden;">
+                <div class="grid-scroll">
+                  <table class="tbl tbl--hover">
+                    <thead>
+                      <tr>
+                        <th style="width:36px;text-align:center;"><input type="checkbox" data-ctr-bulk-check-all aria-label="전체 선택" /></th>
+                        <th style="width:100px;">사번</th>
+                        <th>성명</th>
+                        <th style="width:260px;">최근 계약 이력</th>
+                        <th style="width:110px;text-align:center;">계약 상태</th>
+                      </tr>
+                    </thead>
+                    <tbody id="ctr-bulk-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Phase 2: 선택 직원 인라인 편집 테이블 (가로 스크롤). 헤더는 kind 에 따라 JS 가 동적으로 채움. -->
+        <div id="ctr-bulk-phase2" style="display:none;flex:1;min-height:0;flex-direction:column;">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+            <span class="toolbar__count">선택한 인원 총 <strong data-ctr-bulk-edit-count>0</strong>명</span>
+            <span style="font-size:var(--fs-xs);color:var(--color-text-muted);">· 각 인원의 계약 이력은 <strong style="color:var(--color-text-sub);font-weight:var(--fw-medium);">성명</strong>을 눌러 인사정보카드에서 확인할 수 있습니다.</span>
+          </div>
+          <div class="grid-wrap" style="flex:1;min-height:0;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
+            <div class="grid-scroll" style="overflow:auto;">
+              <table class="tbl" style="min-width:2200px;">
+                <thead id="ctr-bulk-edit-head" style="position:sticky;top:0;background:var(--color-surface);z-index:1;"></thead>
+                <tbody id="ctr-bulk-edit-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn" type="button" data-ctr-bulk-back style="display:none;">← 선택 단계로</button>
+        <span style="flex:1;"></span>
+        <button class="btn btn--primary" type="button" data-ctr-bulk-next disabled>다음 (편집)</button>
+        <button class="btn btn--primary" type="button" data-ctr-bulk-submit style="display:none;">일괄 서명요청</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 계약 — 일괄 작성 미리보기 모달 (행별 [계약서 보기]) ============ -->
+  <div class="modal-backdrop modal-backdrop--over-oc" id="modal-ctr-bulk-preview" data-modal-id="ctr-bulk-preview">
+    <div class="modal modal--xl" style="width:96vw;max-width:1080px;height:88vh;max-height:880px;display:flex;flex-direction:column;">
+      <div class="modal__header">
+        <div class="modal__title" id="ctr-bulk-preview-title">계약서 보기</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="ctr-bulk-preview-body" style="padding:0;flex:1;min-height:0;overflow:hidden;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>닫기</button>
+        <span style="flex:1;"></span>
+        <button class="btn btn--primary" type="button" data-ctr-bulk-preview-save>저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 계약 — 직원 Picker (작성 화면에서 사용) ============ -->
+  <div class="modal-backdrop" id="modal-ctr-emppick" data-modal-id="ctr-emppick">
+    <div class="modal" style="width:480px;">
+      <div class="modal__header">
+        <div class="modal__title">대상 직원 선택</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <input class="input input--full" type="text" id="ctr-pick-kw" placeholder="이름 / 사번 / 부서 검색" style="margin-bottom:10px;" />
+        <div class="picker-list" id="ctr-pick-list"></div>
+        <p class="t-muted" style="font-size:var(--fs-xs);margin-top:8px;">※ 재직 중인 직원만 표시됩니다.</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-ctr-pick-confirm disabled>선택</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 발령 — 대상 직원 Picker (작성 화면에서 사용) ============ -->
+  <div class="modal-backdrop" id="modal-apt-emppick" data-modal-id="apt-emppick">
+    <div class="modal" style="width:480px;">
+      <div class="modal__header">
+        <div class="modal__title">대상 직원 선택 <small style="font-weight:var(--fw-regular);color:var(--color-text-muted);">(다중 선택 가능)</small></div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <input class="input input--full" type="text" id="apt-pick-kw" placeholder="이름 / 사번 / 부서 검색" style="margin-bottom:10px;" />
+        <div class="picker-list" id="apt-pick-list"></div>
+        <p class="t-muted" style="font-size:var(--fs-xs);margin-top:8px;">※ 입사확정 상태의 직원만 표시됩니다. 여러 명을 체크하면 동일 발령이 일괄 적용됩니다.</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-apt-pick-confirm disabled>선택</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 발령 — 사령장/임명장 미리보기 OffCanvas Drawer ============ -->
+  <div class="oc-backdrop" data-oc-host="oc-appoint-doc"></div>
+  <aside class="offcanvas offcanvas--lg" id="oc-appoint-doc" role="dialog" aria-modal="true" aria-labelledby="oc-appoint-doc-title">
+    <header class="offcanvas__header">
+      <h2 class="offcanvas__title" id="oc-appoint-doc-title">사령장</h2>
+      <button class="offcanvas__close" data-oc-close type="button" aria-label="닫기">✕</button>
+    </header>
+    <div class="offcanvas__body" id="oc-appoint-doc-body"><!-- JS 렌더 --></div>
+    <footer class="offcanvas__footer" id="oc-appoint-doc-footer"><!-- JS 렌더 --></footer>
+  </aside>
+
+  <!-- ※ SCR-CTR-05 계약서 상세는 풀페이지 split layout 으로 page-hr-contract.js 안에서 렌더됨 -->
+
+  <!-- ============ 계약 — 무효화 사유 입력 ============ -->
+  <div class="modal-backdrop" id="modal-ctr-void" data-modal-id="ctr-void">
+    <div class="modal">
+      <div class="modal__header">
+        <div class="modal__title">계약 무효화</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:10px 12px;background:rgba(220,38,38,.08);border-left:3px solid var(--color-danger);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--fs-sm);color:var(--color-text);margin-bottom:14px;">
+          무효 처리 후에는 원상 복구할 수 없습니다. 원본 이력은 보존됩니다.
+        </div>
+        <div class="form-field">
+          <label class="form-label is-required" for="ctr-v-reason">무효화 사유</label>
+          <textarea class="input input--full" id="ctr-v-reason" rows="4" placeholder="무효화 사유를 상세히 기재해주세요."></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-modal-close>취소</button>
+        <button class="btn btn--danger" type="button" data-ctr-v-submit disabled>무효 처리</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 회차 복제 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-copy" data-modal-id="prs-copy">
+    <div class="modal" style="width:520px;">
+      <div class="modal__header">
+        <div class="modal__title">급여 정산 복제</div>
+        <button class="modal__close" data-prs-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:12px;">
+          원본: <strong id="prs-copy-src" style="color:var(--color-text);">-</strong>
+        </div>
+        <div class="form-field">
+          <label class="form-label is-required" for="prs-copy-name">새 정산명</label>
+          <input class="input input--full" type="text" id="prs-copy-name" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+          <div class="form-field">
+            <label class="form-label" for="prs-copy-month">귀속월</label>
+            <input class="input input--full" type="month" id="prs-copy-month" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="prs-copy-paydate">지급일</label>
+            <input class="input input--full" type="date" id="prs-copy-paydate" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="prs-copy-target-from">대상자 조회 시작</label>
+            <input class="input input--full" type="date" id="prs-copy-target-from" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="prs-copy-target-to">대상자 조회 종료</label>
+            <input class="input input--full" type="date" id="prs-copy-target-to" />
+          </div>
+        </div>
+        <div class="form-help">대상자 조건·지급 항목은 그대로 복제됩니다. 새 정산은 「등록」 상태로 생성됩니다.</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-copy-confirm>복제 생성</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 근태 신청 모달 ============ -->
+  <div class="modal-backdrop" id="modal-att-apply" data-modal-id="att-apply">
+    <div class="modal modal--md" style="max-width:560px;">
+      <div class="modal__header">
+        <div class="modal__title" id="att-apply-title">근태 신청</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="att-apply-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-att-apply-cancel>취소</button>
+        <button class="btn btn--primary" type="button" data-att-apply-submit>상신</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 초과근무 신청 모달 (휴일근무 품의서 / 야근 신청서) ============ -->
+  <div class="modal-backdrop" id="modal-att-ot" data-modal-id="att-ot">
+    <div class="modal modal--md" style="max-width:600px;">
+      <div class="modal__header">
+        <div class="modal__title" id="att-ot-title">초과근무 신청</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="att-ot-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-att-ot-cancel>취소</button>
+        <button class="btn btn--primary" type="button" data-att-ot-submit>상신</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 근무조 변경 신청 모달 ============ -->
+  <div class="modal-backdrop" id="modal-att-shiftchg" data-modal-id="att-shiftchg">
+    <div class="modal modal--md" style="max-width:560px;">
+      <div class="modal__header">
+        <div class="modal__title" id="att-shiftchg-title">근무조 변경 신청</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="att-shiftchg-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-att-shiftchg-cancel>취소</button>
+        <button class="btn btn--primary" type="button" data-att-shiftchg-submit>상신</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 신청 현황 (연차/초과근무) 모달 ============ -->
+  <div class="modal-backdrop" id="modal-att-applist" data-modal-id="att-applist">
+    <div class="modal modal--lg" style="max-width:880px;">
+      <div class="modal__header">
+        <div class="modal__title" id="att-applist-title">신청 내역</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="att-applist-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-att-applist-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 경조사 전자결재 문서 상세 모달 (전자결재 내용) ============ -->
+  <div class="modal-backdrop" id="modal-evt-doc" data-modal-id="evt-doc">
+    <div class="modal" style="width:760px;max-width:94vw;">
+      <div class="modal__header">
+        <div class="modal__title" id="evt-doc-title">경조사 지원 신청서</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="evt-doc-body" style="padding:20px 24px;max-height:72vh;overflow:auto;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-evt-doc-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 경조사 업무 처리 모달 (경조휴가/경조금/화환) ============ -->
+  <div class="modal-backdrop" id="modal-evt-proc" data-modal-id="evt-proc">
+    <div class="modal" style="width:780px;max-width:94vw;">
+      <div class="modal__header">
+        <div class="modal__title" id="evt-proc-title">경조사 업무 처리</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="evt-proc-body" style="padding:20px 24px;max-height:72vh;overflow:auto;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-evt-proc-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근태] 신청 품의서 상세 모달 ============ -->
+  <div class="modal-backdrop" id="modal-att-doc" data-modal-id="att-doc">
+    <div class="modal" style="width:560px;">
+      <div class="modal__header">
+        <div class="modal__title" id="att-doc-title">신청 품의서</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="att-doc-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-att-doc-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근무조] 마스터 (설정) 모달 ============ -->
+  <div class="modal-backdrop" id="modal-shift-master" data-modal-id="shift-master">
+    <div class="modal modal--xl" style="max-width:1200px;">
+      <div class="modal__header">
+        <div class="modal__title">스케줄 마스터</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="shift-master-body" style="padding:0;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-shift-master-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [근무조] 추가/수정 모달 ============ -->
+  <div class="modal-backdrop" id="modal-shift-editor" data-modal-id="shift-editor">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title" id="shift-editor-title">스케줄 추가</div>
+        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="shift-editor-body"></div>
+      <div class="modal__footer" id="shift-editor-footer" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 계산 확인 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-calc-confirm" data-modal-id="prs-calc-confirm">
+    <div class="modal" style="width:460px;">
+      <div class="modal__header">
+        <div class="modal__title">급여 계산 시작</div>
+        <button class="modal__close" data-prs-cc-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+          <strong id="prs-cc-name" style="color:var(--color-brand-primary);">-</strong>
+          <span style="color:var(--color-text-sub);"> 급여를 계산합니다.</span>
+        </div>
+        <ul style="margin:0;padding-left:18px;color:var(--color-text-sub);font-size:var(--fs-sm);line-height:1.8;">
+          <li>해당 급여 정산 설정 변경이 불가능합니다.</li>
+          <li>대상자별 급여가 설정한 지급항목에 따라 자동으로 산출됩니다.</li>
+          <li>산출 결과는 <strong style="color:var(--color-text);">정산검토</strong> 단계에서 수정 가능합니다.</li>
+        </ul>
+        <div class="form-help" style="margin-top:14px;">계속 진행하시겠습니까?</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-cc-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-cc-confirm>계산 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 중단 확인 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-cancel-confirm" data-modal-id="prs-cancel-confirm">
+    <div class="modal" style="width:460px;">
+      <div class="modal__header">
+        <div class="modal__title">정산 중단</div>
+        <button class="modal__close" data-prs-cnc-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:12px 14px;background:rgba(220,38,38,0.06);border-left:3px solid var(--color-danger);border-radius:0 var(--radius-md) var(--radius-md) 0;margin-bottom:14px;">
+          <strong id="prs-cnc-name" style="color:var(--color-danger);">-</strong>
+          <span style="color:var(--color-text-sub);"> 정산을 중단합니다.</span>
+        </div>
+        <div style="color:var(--color-text-sub);font-size:var(--fs-sm);line-height:1.7;">
+          정산이 <strong style="color:var(--color-text);">폐기 처리</strong> 되어 더 이상 진행되지 않습니다.<br />
+          중단 후엔 <strong style="color:var(--color-text);">복구할 수 없습니다.</strong>
+        </div>
+        <div class="form-help" style="margin-top:14px;">계속 진행하시겠습니까?</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-cnc-close>취소</button>
+        <button class="btn btn--danger" type="button" data-prs-cnc-confirm>중단</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 확정 확인 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-finalize-confirm" data-modal-id="prs-finalize-confirm">
+    <div class="modal" style="width:460px;">
+      <div class="modal__header">
+        <div class="modal__title">정산 확정</div>
+        <button class="modal__close" data-prs-fc-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+          <strong id="prs-fc-name" style="color:var(--color-brand-primary);">-</strong>
+          <span style="color:var(--color-text-sub);"> 정산을 최종 확정합니다.</span>
+        </div>
+        <div style="color:var(--color-text-sub);font-size:var(--fs-sm);line-height:1.7;">
+          정산이 확정되고 난 후에는 <strong style="color:var(--color-text);">수정이 불가능</strong>합니다.<br />
+          급여 명세서 조회 여부를 결정할 수 있습니다.
+        </div>
+        <div class="form-help" style="margin-top:14px;">계속 진행하시겠습니까?</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-fc-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-fc-confirm>정산 확정</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 정산 설정(상세) 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-config" data-modal-id="prs-config">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <div class="modal__title">정산 설정 — 기본 정보 · 대상자 · 지급/공제 항목</div>
+        <button class="modal__close" data-prs-config-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-config-body"></div>
+      <div class="modal__footer">
+        <button class="btn btn--primary" type="button" data-prs-config-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 지급 항목 추가 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-additem" data-modal-id="prs-additem">
+    <div class="modal" style="width:560px;">
+      <div class="modal__header">
+        <div class="modal__title">지급 항목 추가</div>
+        <button class="modal__close" data-prs-additem-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-additem-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-additem-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-additem-confirm>추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 일괄 입력 모달 (상여금·기타수당 등 수기 항목 전 대상자 일괄) ============ -->
+  <div class="modal-backdrop" id="modal-prs-bulk" data-modal-id="prs-bulk">
+    <div class="modal" style="width:480px;">
+      <div class="modal__header">
+        <div class="modal__title">일괄 입력</div>
+        <button class="modal__close" data-prs-bulk-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-bulk-body"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-bulk-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-bulk-confirm>적용</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 4대보험 월 고지액 업로드 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-ded-insurance" data-modal-id="prs-ded-insurance">
+    <div class="modal modal--xl">
+      <div class="modal__header">
+        <div class="modal__title">4대보험 월 고지액 업로드</div>
+        <button class="modal__close" data-prs-ded-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="display:flex;flex-direction:column;gap:0;padding:8px 20px 0;">
+        <!-- 보험별 탭 -->
+        <div class="tabs" data-ins-tabs style="flex-shrink:0;">
+          <div class="tabs__nav">
+            <button type="button" class="tabs__tab is-active" data-ins-tab="health">건강보험</button>
+            <button type="button" class="tabs__tab" data-ins-tab="pension">국민연금</button>
+            <button type="button" class="tabs__tab" data-ins-tab="employment">고용보험</button>
+          </div>
+        </div>
+
+        <!-- 적용 기간 컨텍스트 바(맥락) + [기간 관리] -->
+        <div data-ins-ctx style="flex-shrink:0;"></div>
+
+        <!-- 좌(고지월·업로드) ↔ 우(업로드 정보·직원별 고지액 내역) -->
+        <div class="split" style="--split-left:340px;height:520px;max-height:56vh;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
+          <div class="split__left" data-ins-left></div>
+          <div class="split__right" data-ins-right></div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-ded-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 적용 기간 관리 모달 (4대보험 위에 오버레이) ============ -->
+  <div class="modal-backdrop" id="modal-prs-ins-period" data-modal-id="prs-ins-period">
+    <div class="modal" style="width:520px;">
+      <div class="modal__header">
+        <div class="modal__title" data-ins-pm-title>적용 기간 관리</div>
+        <button class="modal__close" data-ins-pm-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="padding-top:8px;">
+        <div data-ins-pm-body></div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-ins-pm-close>닫기</button>
+        <button class="btn btn--primary" type="button" data-ins-pm-apply>적용</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 간이세액표 업로드 모달 (4대보험과 동일한 분할 화면) ============ -->
+  <div class="modal-backdrop" id="modal-prs-ded-tax" data-modal-id="prs-ded-tax">
+    <div class="modal modal--xl">
+      <div class="modal__header">
+        <div class="modal__title">간이세액표 업로드</div>
+        <button class="modal__close" data-tax-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" style="display:flex;flex-direction:column;gap:0;padding:8px 20px 0;">
+        <!-- 적용 기간(버전) 컨텍스트 바 -->
+        <div data-tax-ctx style="flex-shrink:0;"></div>
+        <!-- 좌(적용 기간·업로드) ↔ 우(업로드 정보·간이세액표 미리보기·적용) -->
+        <div class="split" style="--split-left:340px;height:520px;max-height:56vh;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
+          <div class="split__left" data-tax-left></div>
+          <div class="split__right" data-tax-right></div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-tax-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [평가 회차] 회차 복제 모달 ============ -->
+  <div class="modal-backdrop" id="modal-evr-copy" data-modal-id="evr-copy">
+    <div class="modal" style="width:520px;">
+      <div class="modal__header">
+        <div class="modal__title">평가 회차 복제</div>
+        <button class="modal__close" data-evr-modal-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:12px;">
+          원본: <strong id="evr-copy-src" style="color:var(--color-text);">-</strong>
+        </div>
+        <div class="form-field">
+          <label class="form-label is-required" for="evr-copy-name">새 평가명</label>
+          <input class="input input--full" type="text" id="evr-copy-name" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
+          <div class="form-field">
+            <label class="form-label" for="evr-copy-period-from">대상 기간 시작</label>
+            <input class="input input--full" type="date" id="evr-copy-period-from" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="evr-copy-period-to">대상 기간 종료</label>
+            <input class="input input--full" type="date" id="evr-copy-period-to" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="evr-copy-input-from">입력 기간 시작</label>
+            <input class="input input--full" type="date" id="evr-copy-input-from" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="evr-copy-input-to">입력 기간 종료</label>
+            <input class="input input--full" type="date" id="evr-copy-input-to" />
+          </div>
+        </div>
+        <div class="form-help">평가유형·대상자 조건은 그대로 복제됩니다. 새 회차는 「대기」 상태로 생성됩니다.</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-evr-modal-close>취소</button>
+        <button class="btn btn--primary" type="button" data-evr-copy-confirm>복제 생성</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Scripts (로드 순서 중요) ============ -->
+
+  <!-- ========================= Login (풀스크린 레이어 — 로그아웃 시 노출) ========================= -->
+  <div id="login-screen" class="login" hidden>
+    <div class="login__visual">
+      <img src="assets/img/login-building.jpg" alt="" />
+    </div>
+    <div class="login__panel">
+      <form id="login-form" class="login__form" novalidate>
+        <img class="login__brand" src="assets/img/login-bi.png" alt="성원그룹" />
+        <p class="login__tagline">Beyond Printing<br />Beyond Life</p>
+        <div class="login__field">
+          <label class="login__label" for="login-id">ID</label>
+          <input class="input" id="login-id" type="text" autocomplete="username" />
+        </div>
+        <div class="login__field">
+          <label class="login__label" for="login-pw">PASSWORD</label>
+          <input class="input" id="login-pw" type="password" autocomplete="current-password" />
+        </div>
+        <button class="login__submit" type="submit">로그인</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="assets/js/icons.js"></script>
+  <script src="assets/js/components.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/nav-data.js"></script>
+  <script src="assets/js/navigation.js"></script>
+  <script src="assets/js/tabs.js"></script>
+  <script src="assets/js/search.js?v=20260702e"></script>
+  <script src="assets/js/grid.js"></script>
+  <script src="assets/js/grid-schemas.js"></script>
+  <script src="assets/js/notifications.js"></script>
+  <script src="assets/js/pages.js"></script>
+
+  <!-- ===== 인사(HR) / 근태(ATT) 모듈 — erp-hr 이식 ===== -->
+  <script src="assets/js/notify.js"></script>
+  <script src="assets/js/hr-att-shims.js"></script>
+  <script src="assets/js/photo-uploader.js"></script>
+  <script src="assets/js/hr-members-data.js?v=20260624a"></script>
+  <script src="assets/js/page-hr-info-mgmt.js?v=20260624b"></script>
+  <script src="assets/js/page-hr-employee.js?v=20260624e"></script>
+  <script src="assets/js/page-hr-contract.js"></script>
+  <script src="assets/js/page-hr-appoint.js"></script>
+  <script src="assets/js/page-hr-loa.js"></script>
+  <script src="assets/js/hr-joindocs-data.js"></script>
+  <script src="assets/js/page-hr-position.js"></script>
+  <script src="assets/js/hr-eval-config-data.js?v=20260702b"></script>
+  <script src="assets/js/page-hr-eval-round.js?v=20260702b"></script>
+  <script src="assets/js/page-hr-eval-input.js"></script>
+  <script src="assets/js/page-hr-eval-prob.js"></script>
+  <script src="assets/js/page-hr-eval-history.js"></script>
+  <script src="assets/js/page-hr-eval-type.js?v=20260702b"></script>
+  <script src="assets/js/page-hr-eval-prob-set.js"></script>
+  <script src="assets/js/page-hr-prize-discipline.js"></script>
+  <script src="assets/js/page-hr-leave.js?v=20260702e"></script>
+  <script src="assets/js/hr-resign-data.js"></script>
+  <script src="assets/js/page-hr-pension.js"></script>
+  <script src="assets/js/hr-payitem-data.js"></script>
+  <script src="assets/js/hr-paysettings-data.js"></script>
+  <script src="assets/js/page-hr-pay-settlement.js"></script>
+  <script src="assets/js/page-hr-payslip.js"></script>
+  <script src="assets/js/page-att-shift.js"></script>
+  <script src="assets/js/page-att-status.js"></script>
+  <script src="assets/js/page-att-my-work.js"></script>
+  <script src="assets/js/page-att-my-leave.js"></script>
+  <script src="assets/js/page-att-leave.js"></script>
+  <script src="assets/js/page-att-leave-plan.js"></script>
+  <script src="assets/js/page-att-shift-status.js"></script>
+  <script src="assets/js/page-hr-meal.js"></script>
+  <script src="assets/js/page-att-event.js"></script>
+  <script src="assets/js/page-att-report-my.js"></script>
+  <script src="assets/js/page-att-report-status.js"></script>
+  <script src="assets/js/page-att-wr-settings.js"></script>
+  <script src="assets/js/page-att-settings.js"></script>
+  <script src="assets/js/page-att-code.js"></script>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

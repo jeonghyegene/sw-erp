@@ -1,0 +1,148 @@
+/* =========================================================
+ * Design Tokens - 디자인 토큰
+ * 모든 색상/간격/타이포는 변수로 관리. 직접 색상값 사용 금지.
+ * ========================================================= */
+:root {
+  /* Brand */
+  --color-brand-primary: #00347D;   /* 로고 메인 컬러 */
+  --color-brand-accent:  #F38200;   /* 로고 포인트 컬러 */
+
+  /* Neutral */
+  --color-bg:          #F5F6F8;
+  --color-surface:     #FFFFFF;
+  --color-surface-alt: #FAFBFC;
+  --color-border:      #E5E7EB;
+  --color-border-strong:#D1D5DB;
+  --color-divider:     #EEF0F3;
+
+  /* Text */
+  --color-text:        #1F2937;
+  --color-text-sub:    #4B5563;
+  --color-text-muted:  #9CA3AF;
+  --color-text-invert: #FFFFFF;
+
+  /* Status */
+  --color-success: #16A34A;
+  --color-warning: #F59E0B;
+  --color-danger:  #DC2626;
+  --color-info:    #2563EB;
+  --color-violet:  #7C3AED;   /* 보조 강조 — 월간 집계 등 */
+
+  /* Brand hover (버튼 등) */
+  --color-brand-primary-hover: #002966;
+  --color-brand-accent-hover:  #D97400;
+
+  /* 표면 역할별 (다크모드에서 개별 오버라이드) */
+  --color-gnb-bg:     var(--color-brand-primary);   /* GNB 배경 — 다크모드는 남색 유지 */
+  --color-thead-bg:   #F3F4F7;                       /* 그리드/테이블 헤더 배경 */
+  --color-overlay:    rgba(16, 24, 40, 0.4);         /* 모달/드로어 스크림 */
+
+  /* States */
+  --color-hover:    rgba(0, 52, 125, 0.06);
+  --color-active:   rgba(0, 52, 125, 0.12);
+  --color-focus:    rgba(0, 52, 125, 0.25);
+  --color-danger-soft:       rgba(220, 38, 38, 0.07);   /* 긴급 행 하이라이트 배경 */
+  --color-danger-soft-hover: rgba(220, 38, 38, 0.13);   /* 긴급 행 hover 배경 */
+
+  /* Layout */
+  --gnb-height:        56px;
+  --tabbar-height:     40px;
+  --lnb-width:         240px;
+  --lnb-width-collapsed: 56px;
+  --content-padding:   20px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 8px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 24px rgba(16, 24, 40, 0.12);
+
+  /* Typography — Pretendard Variable (CDN) + 시스템 폰트 폴백 체인 */
+  --font-family: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --fs-xs:  11px;
+  --fs-sm:  12px;
+  --fs-md:  13px;
+  --fs-base:14px;
+  --fs-lg:  15px;
+  --fs-xl:  16px;
+  --fs-2xl: 18px;
+  --fs-3xl: 22px;
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+
+  /* Z-index */
+  --z-gnb:    100;
+  --z-lnb:    90;
+  --z-tabbar: 95;
+  --z-modal:  1000;
+  --z-toast:  1100;
+
+  /* Transition */
+  --t-fast:   120ms ease;
+  --t-base:   200ms ease;
+  --t-slow:   320ms ease;
+}
+
+/* =========================================================
+ * Dark Theme — :root[data-theme="dark"] 토큰 오버라이드
+ * 모든 화면이 토큰 기반이므로 여기서만 색상을 재정의하면
+ * 앱 전체가 다크모드로 전환된다. (GNB 브랜드 컬러는 그대로 유지)
+ * 토글: GNB 해/달 아이콘 버튼 (#btn-theme) → <html data-theme="dark">
+ * ========================================================= */
+:root[data-theme="dark"] {
+  /* 네이티브 폼 컨트롤·스크롤바를 다크로 */
+  color-scheme: dark;
+
+  /* Brand — 짙은 남색(#00347D)은 다크 배경 위 텍스트/아이콘/테두리로 안 보이므로
+     밝은 블루로 올린다. 흰 텍스트 버튼 배경으로도 대비 충분.
+     단 GNB 배경은 --color-gnb-bg 로 남색 유지(아래). */
+  --color-brand-primary: #3B82F6;
+  --color-brand-accent:  #FB9A3E;
+  --color-brand-primary-hover: #5C9CFF;
+  --color-brand-accent-hover:  #FFAE55;
+
+  /* Neutral */
+  --color-bg:          #11161D;
+  --color-surface:     #1A212B;
+  --color-surface-alt: #222B36;
+  --color-border:      #2D3742;
+  --color-border-strong:#3C4856;
+  --color-divider:     #262F3A;
+
+  /* Text */
+  --color-text:        #E6EAF0;
+  --color-text-sub:    #B2BCC9;
+  --color-text-muted:  #7C8896;
+  --color-text-invert: #FFFFFF;
+
+  /* Status — 다크 배경 위 가독성 위해 소폭 밝게 */
+  --color-success: #22C55E;
+  --color-warning: #FBBF24;
+  --color-danger:  #F87171;
+  --color-info:    #60A5FA;
+  --color-violet:  #A78BFA;
+
+  /* 표면 역할별 */
+  --color-gnb-bg:   #0E1726;          /* GNB — 남색 유지 (앱 전체 톤과 분리) */
+  --color-thead-bg: #232C38;          /* 그리드/테이블 헤더 — surface 보다 한 톤 밝게 */
+  --color-overlay:  rgba(0, 0, 0, 0.6);
+
+  /* States — 다크 배경에선 흰색 기반 오버레이가 자연스러움 */
+  --color-hover:    rgba(255, 255, 255, 0.06);
+  --color-active:   rgba(59, 130, 246, 0.22);   /* 선택 행/메뉴 — 브랜드 틴트 */
+  --color-focus:    rgba(96, 165, 250, 0.45);
+  --color-danger-soft:       rgba(248, 113, 113, 0.14);
+  --color-danger-soft-hover: rgba(248, 113, 113, 0.22);
+
+  /* Shadow — 다크에선 더 짙게 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.55);
+}

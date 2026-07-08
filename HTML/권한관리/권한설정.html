@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생산관리시스템 - 권한설정</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif; font-size:13px; color:#333; background:#f3f4f8; height:100vh; overflow:hidden; }
+
+/* ══════ Top Header ══════ */
+.top-header {
+  background: linear-gradient(135deg,#2a3a6a 0%,#3b4d8a 100%);
+  color:#fff; display:flex; align-items:center; height:48px; padding:0 24px;
+  justify-content:space-between; flex-shrink:0;
+}
+.logo { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; white-space:nowrap; }
+.logo svg { width:28px; height:28px; }
+.top-nav { display:flex; gap:0; }
+.top-nav a {
+  color:rgba(255,255,255,.55); text-decoration:none; padding:14px 14px;
+  font-size:13px; transition:.15s; white-space:nowrap;
+}
+.top-nav a:hover { color:rgba(255,255,255,.85); }
+.top-nav a.active { color:#fff; font-weight:700; border-bottom:2px solid #fff; }
+.header-right { display:flex; align-items:center; gap:14px; font-size:12px; color:rgba(255,255,255,.7); white-space:nowrap; }
+.header-right .search-icon { cursor:pointer; font-size:16px; }
+.user-chip { display:flex; align-items:center; gap:6px; background:rgba(255,255,255,.12); padding:4px 10px 4px 6px; border-radius:16px; }
+.user-chip .avatar { width:24px; height:24px; border-radius:50%; background:#6b8cff; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600; }
+.badge-noti { background:#ff4757; color:#fff; font-size:9px; font-weight:700; padding:1px 5px; border-radius:8px; min-width:20px; text-align:center; }
+
+/* ══════ Tab Bar ══════ */
+.tab-bar {
+  background:#fff; border-bottom:1px solid #e2e5ec; display:flex; align-items:center;
+  height:40px; padding:0; flex-shrink:0;
+}
+.tab-bar-left {
+  display:flex; align-items:center; gap:6px; padding:0 16px;
+  background:#eef0f6; height:100%; border-right:1px solid #e2e5ec; cursor:pointer;
+  font-size:13px; color:#555; white-space:nowrap;
+}
+.tab-bar-left svg { width:16px; height:16px; fill:#888; }
+.tab-bar-left .arrow { font-size:10px; color:#999; margin-left:4px; }
+.tabs-area { display:flex; align-items:center; gap:0; padding:0 8px; flex:1; overflow-x:auto; }
+.tab-item {
+  display:flex; align-items:center; gap:6px; padding:10px 14px; font-size:12px;
+  cursor:pointer; white-space:nowrap; border-bottom:2px solid transparent; color:#888;
+}
+.tab-item.active { color:#3b5bdb; font-weight:600; border-bottom-color:#3b5bdb; }
+.tab-item .tab-close { font-size:10px; color:#bbb; cursor:pointer; margin-left:2px; }
+
+/* ══════ Main Layout ══════ */
+.main-layout { display:flex; height:calc(100vh - 88px); }
+
+/* ══════ Left Sidebar ══════ */
+.sidebar {
+  width:190px; background:#fff; border-right:1px solid #e2e5ec;
+  display:flex; flex-direction:column; flex-shrink:0; overflow:hidden;
+}
+.sidebar-header { padding:16px 16px 12px; font-size:14px; font-weight:700; color:#333; }
+.sidebar-section { margin-bottom:4px; }
+.sidebar-section-title {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 16px; font-size:13px; font-weight:600; color:#3b5bdb;
+  cursor:pointer; background:#f5f7ff; border-top:1px solid #eef0f6;
+}
+.sidebar-section-title .arrow { font-size:10px; color:#7b8dc5; }
+.sidebar-section-item {
+  padding:7px 16px 7px 28px; font-size:12px; color:#666; cursor:pointer; transition:.1s;
+}
+.sidebar-section-item:hover { color:#3b5bdb; background:#f5f7ff; }
+.sidebar-footer {
+  margin-top:auto; padding:10px 16px; border-top:1px solid #eee;
+  font-size:12px; color:#999; cursor:pointer; text-align:center;
+}
+.sidebar-footer:hover { color:#666; }
+
+/* ══════ Content Area ══════ */
+.content-area { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ══════ Action Bar ══════ */
+.action-bar {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 20px 6px; flex-shrink:0;
+}
+.action-bar-left { display:flex; align-items:center; gap:12px; }
+.action-bar-right { display:flex; align-items:center; gap:8px; }
+
+/* ══════ Role Segment ══════ */
+.role-segment {
+  display:flex; border-radius:8px; overflow:hidden; border:1px solid #d0d5dd; background:#f7f8fa;
+}
+.role-seg-btn {
+  padding:6px 18px; font-size:12px; font-weight:600; cursor:pointer; border:none;
+  background:transparent; color:#888; transition:.15s; position:relative; white-space:nowrap;
+}
+.role-seg-btn:not(:last-child) { border-right:1px solid #e2e5ec; }
+.role-seg-btn.active { background:#3b5bdb; color:#fff; }
+.role-seg-btn.active-leader { background:#e67700; color:#fff; }
+.role-seg-btn.active-member { background:#2b8a3e; color:#fff; }
+.role-indicator {
+  display:none; font-size:10px; margin-left:4px; padding:1px 6px; border-radius:8px;
+  font-weight:700; vertical-align:middle;
+}
+.role-seg-btn.active .role-indicator { display:none; }
+
+.btn {
+  padding:7px 16px; border-radius:20px; font-size:12px; cursor:pointer;
+  border:1px solid #d0d5dd; background:#fff; color:#555; font-weight:500;
+  display:inline-flex; align-items:center; gap:5px; transition:.15s; white-space:nowrap;
+}
+.btn:hover { background:#f5f5f5; }
+.btn-primary { background:#3b5bdb; color:#fff; border-color:#3b5bdb; }
+.btn-primary:hover { background:#2f4cc0; }
+.btn-outline-blue { color:#3b5bdb; border-color:#3b5bdb; background:#fff; }
+.btn-outline-blue:hover { background:#f0f3ff; }
+
+/* ══════ 3-Panel Area ══════ */
+.panels { display:flex; flex:1; gap:0; overflow:hidden; padding:0 20px 16px; }
+
+.panel {
+  background:#fff; border:1px solid #e2e5ec; border-radius:12px;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.panel-title { padding:16px 16px 6px; font-size:16px; font-weight:700; color:#1a1a1a; }
+.panel-subtitle { padding:0 16px 12px; font-size:11px; color:#aaa; }
+
+/* ── Panel 1 ── */
+.panel-org { width:180px; flex-shrink:0; margin-right:12px; }
+.org-list { flex:1; overflow-y:auto; padding:4px 8px; }
+.org-item {
+  padding:9px 12px; cursor:pointer; border-radius:6px; font-size:13px;
+  color:#555; margin-bottom:1px; transition:.1s;
+}
+.org-item:hover { background:#f0f3ff; color:#3b5bdb; }
+.org-item.active { background:#3b5bdb; color:#fff; font-weight:600; }
+
+/* ── Panel 2 ── */
+.panel-menu { width:300px; flex-shrink:0; margin-right:12px; }
+.menu-list { flex:1; overflow-y:auto; padding:0 10px; }
+.menu-row {
+  display:flex; align-items:center; gap:8px; padding:7px 8px;
+  border-radius:5px; cursor:pointer; transition:.05s;
+}
+.menu-row:hover { background:#f8f9fc; }
+.menu-row .expand-arrow { width:14px; font-size:9px; color:#bbb; text-align:center; flex-shrink:0; cursor:pointer; }
+.menu-cb {
+  width:18px; height:18px; border-radius:4px; border:2px solid #ccc;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:.15s; flex-shrink:0;
+}
+.menu-cb.checked { background:#3b5bdb; border-color:#3b5bdb; }
+.menu-cb.checked::after { content:'\2713'; color:#fff; font-size:11px; font-weight:700; }
+.menu-row .menu-name { flex:1; font-size:13px; color:#444; }
+.menu-row .menu-name.dim { color:#bbb; }
+.menu-children { padding-left:22px; }
+
+.access-badge {
+  font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; white-space:nowrap;
+}
+.access-badge.allow { background:#e8edff; color:#3b5bdb; }
+.access-badge.deny { background:#f0f0f4; color:#aaa; }
+
+/* ── Inherited state ── */
+.menu-cb.inherited { border:2px dashed #a5b4fc; background:transparent; }
+.menu-cb.inherited.checked { background:rgba(59,91,219,.3); border:2px dashed #3b5bdb; }
+.menu-cb.inherited.checked::after { color:rgba(255,255,255,.7); }
+
+.inherited-tag {
+  font-size:9px; color:#a5b4fc; background:#f0f3ff; padding:1px 5px; border-radius:6px;
+  white-space:nowrap; margin-left:2px;
+}
+
+.reset-override {
+  width:16px; height:16px; border-radius:50%; border:none; background:#fee2e2;
+  color:#e53e3e; font-size:10px; cursor:pointer; display:inline-flex;
+  align-items:center; justify-content:center; margin-left:4px; flex-shrink:0;
+  transition:.1s; line-height:1;
+}
+.reset-override:hover { background:#fecaca; }
+
+/* ── Panel 3 ── */
+.panel-detail { flex:1; min-width:0; display:flex; flex-direction:column; }
+.detail-header {
+  padding:14px 20px 6px; display:flex; justify-content:space-between; align-items:flex-start;
+}
+.detail-header-left {}
+.detail-header-title { font-size:15px; font-weight:700; color:#1a1a1a; }
+.detail-header-sub { font-size:11px; color:#aaa; margin-top:2px; }
+.detail-body { flex:1; display:flex; overflow:hidden; }
+
+.screen-tree {
+  width:180px; flex-shrink:0; border-right:1px solid #eee; overflow-y:auto; padding:8px 0;
+}
+.screen-group { margin-bottom:2px; }
+.screen-group-title {
+  padding:7px 14px; font-size:12px; font-weight:700; color:#3b5bdb;
+  background:#f5f7ff; cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+  border-left:3px solid #3b5bdb;
+}
+.screen-group-title .arrow { font-size:9px; color:#7b8dc5; }
+.screen-group-item {
+  padding:6px 14px 6px 20px; font-size:12px; color:#666; cursor:pointer; transition:.1s;
+}
+.screen-group-item:hover { color:#3b5bdb; background:#f8f9ff; }
+.screen-group-item.active { color:#3b5bdb; font-weight:600; background:#eef2ff; }
+
+.perm-area { flex:1; overflow-y:auto; padding:16px 20px; }
+.perm-screen-title {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;
+}
+.perm-screen-title h3 { font-size:14px; font-weight:700; color:#333; }
+.view-toggle { display:flex; border-radius:6px; overflow:hidden; border:1px solid #d0d5dd; }
+.view-toggle-btn {
+  padding:5px 14px; font-size:12px; cursor:pointer; border:none;
+  background:#fff; color:#888; font-weight:500; transition:.1s;
+}
+.view-toggle-btn.active { background:#444; color:#fff; }
+
+.cude-section {
+  background:#fafbfc; border:1px solid #eee; border-radius:10px;
+  padding:18px 20px; margin-bottom:20px;
+}
+.cude-title { font-size:13px; font-weight:700; color:#333; margin-bottom:12px; }
+.cude-checks { display:flex; gap:24px; flex-wrap:wrap; }
+.cude-check-item { display:flex; align-items:center; gap:6px; font-size:13px; color:#555; cursor:pointer; }
+.cude-checkbox {
+  width:18px; height:18px; border-radius:4px; border:2px solid #ccc;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.15s;
+}
+.cude-checkbox.checked { background:#3b5bdb; border-color:#3b5bdb; }
+.cude-checkbox.checked::after { content:'\2713'; color:#fff; font-size:11px; font-weight:700; }
+.cude-checkbox.inherited { border:2px dashed #a5b4fc; }
+.cude-checkbox.inherited.checked { background:rgba(59,91,219,.3); border:2px dashed #3b5bdb; }
+
+.tables-area { display:flex; gap:20px; }
+.perm-table { flex:1; min-width:0; }
+.perm-table-title { font-size:14px; font-weight:700; color:#333; margin-bottom:10px; }
+.perm-table table { width:100%; border-collapse:collapse; }
+.perm-table th {
+  text-align:center; font-size:12px; font-weight:600; color:#888;
+  padding:8px 10px; background:#f7f8fa; border-bottom:1px solid #eee;
+}
+.perm-table th:first-child { text-align:left; }
+.perm-table td {
+  padding:10px 10px; border-bottom:1px solid #f2f3f5; font-size:13px; color:#555;
+  text-align:center; vertical-align:middle;
+}
+.perm-table td:first-child { text-align:left; padding-left:10px; }
+
+.toggle {
+  width:40px; height:22px; border-radius:11px; background:#d0d5dd;
+  position:relative; cursor:pointer; transition:.2s; display:inline-block;
+}
+.toggle.on { background:#3b5bdb; }
+.toggle::after {
+  content:''; position:absolute; width:18px; height:18px; border-radius:50%;
+  background:#fff; top:2px; left:2px; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.15);
+}
+.toggle.on::after { left:20px; }
+.toggle.inherited { opacity:.5; border:2px dashed #a5b4fc; border-radius:13px; }
+
+.masking-sel {
+  padding:5px 8px; border:1px solid #e2e5ec; border-radius:6px;
+  font-size:12px; background:#fff; color:#666; cursor:pointer;
+  min-width:100px; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 4l3 3 3-3' stroke='%23999' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 8px center;
+}
+.masking-sel.inherited { border:1px dashed #a5b4fc; opacity:.6; }
+
+.preview-val {
+  display:inline-block; min-width:110px; padding:5px 12px;
+  border:1px solid #e2e5ec; border-radius:6px; font-size:12px;
+  color:#333; background:#f7f8fa; text-align:right;
+  font-variant-numeric:tabular-nums; letter-spacing:.01em;
+}
+.preview-val.masked { color:#aaa; letter-spacing:.05em; }
+
+/* ══════ Role context banner ══════ */
+.role-banner {
+  display:none; padding:6px 16px; font-size:11px; font-weight:600;
+  border-radius:6px; margin:0 10px 8px;
+}
+.role-banner.show { display:flex; align-items:center; gap:6px; }
+.role-banner.leader { background:#fff4e6; color:#e67700; border:1px solid #ffe0b2; }
+.role-banner.member { background:#ebfbee; color:#2b8a3e; border:1px solid #b2dfdb; }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#d0d5dd; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- ══════ Top Header ══════ -->
+<div class="top-header">
+  <div class="logo">
+    <svg viewBox="0 0 28 28" fill="none"><path d="M5 14c0-2 3-8 9-8s9 6 9 8" stroke="#7ba4ff" stroke-width="2.5" fill="none"/><path d="M3 16c0-2 4-10 11-10s11 8 11 10" stroke="#fff" stroke-width="2" fill="none"/></svg>
+    생산관리시스템
+  </div>
+  <div class="top-nav">
+    <a href="#">홈</a><a href="#">접수</a><a href="#">결제</a><a href="#">생산</a>
+    <a href="#">배송</a><a href="#">고객</a><a href="#">제품</a><a href="#">사이트</a>
+    <a href="#">현황 및 통계</a><a href="#" class="active">시스템</a>
+  </div>
+  <div class="header-right">
+    <span class="search-icon">&#x1F50D;</span>
+    <div class="user-chip"><div class="avatar">김</div><span>김성원</span></div>
+    <span style="font-size:12px;">크롬웨어 &#x2197;</span>
+    <span class="badge-noti">99+</span>
+  </div>
+</div>
+
+<!-- ══════ Tab Bar ══════ -->
+<div class="tab-bar">
+  <div class="tab-bar-left">
+    <svg viewBox="0 0 16 16"><path d="M8 1a5 5 0 00-5 5v1H2a1 1 0 00-1 1v6a1 1 0 001 1h12a1 1 0 001-1V8a1 1 0 00-1-1h-1V6a5 5 0 00-5-5zm-3 5a3 3 0 116 0v1H5V6z" fill="#888"/></svg>
+    권한관리
+    <span class="arrow">&#x25B4;</span>
+  </div>
+  <div class="tabs-area">
+    <div class="tab-item active">권한설정 <span class="tab-close">&times;</span></div>
+    <div class="tab-item">menu name <span class="tab-close">&times;</span></div>
+    <div class="tab-item">menu name <span class="tab-close">&times;</span></div>
+    <div class="tab-item">menu name <span class="tab-close">&times;</span></div>
+    <div class="tab-item">menu name <span class="tab-close">&times;</span></div>
+  </div>
+</div>
+
+<!-- ══════ Main Layout ══════ -->
+<div class="main-layout">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar">
+    <div class="sidebar-header">권한설정</div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">배송/PG <span class="arrow">&#x25B4;</span></div>
+      <div class="sidebar-section-item">기본 배송비 관리</div>
+      <div class="sidebar-section-item">PG KEY 관리</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">알림 <span class="arrow">&#x25B4;</span></div>
+      <div class="sidebar-section-item">관리자 문자 알림</div>
+      <div class="sidebar-section-item">고객 문자 알림</div>
+      <div class="sidebar-section-item">고객 이메일 알림</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">코드관리 <span class="arrow">&#x25B4;</span></div>
+      <div class="sidebar-section-item">상태코드</div>
+      <div class="sidebar-section-item">생산코드</div>
+      <div class="sidebar-section-item">가공코드</div>
+      <div class="sidebar-section-item">공통코드</div>
+    </div>
+    <div class="sidebar-footer">닫기 &lt;</div>
+  </div>
+
+  <!-- ── Content Area ── -->
+  <div class="content-area">
+
+    <!-- Action Bar with Role Segment -->
+    <div class="action-bar">
+      <div class="action-bar-left">
+        <span style="font-size:12px; color:#888; font-weight:600;">적용 대상:</span>
+        <div class="role-segment">
+          <button class="role-seg-btn active" onclick="switchRole('common',this)">공통</button>
+          <button class="role-seg-btn" onclick="switchRole('leader',this)">팀장</button>
+          <button class="role-seg-btn" onclick="switchRole('member',this)">팀원</button>
+        </div>
+      </div>
+      <div class="action-bar-right">
+        <button class="btn" onclick="resetConfirm()">&#x21BA; 초기화</button>
+        <button class="btn btn-primary" onclick="savePermission()">저장</button>
+      </div>
+    </div>
+
+    <!-- 3 Panels -->
+    <div class="panels">
+
+      <!-- ═══ Panel 1: 조직 목록 ═══ -->
+      <div class="panel panel-org">
+        <div class="panel-title" id="orgTitle">임원실</div>
+        <div class="org-list">
+          <div class="org-item active" onclick="selectOrg(this)">임원실</div>
+          <div class="org-item" onclick="selectOrg(this)">감사</div>
+          <div class="org-item" onclick="selectOrg(this)">MVP2개발부</div>
+          <div class="org-item" onclick="selectOrg(this)">MVP개발부</div>
+          <div class="org-item" onclick="selectOrg(this)">경영지원팀</div>
+          <div class="org-item" onclick="selectOrg(this)">홍보팀</div>
+          <div class="org-item" onclick="selectOrg(this)">고객지원팀</div>
+          <div class="org-item" onclick="selectOrg(this)">MD팀</div>
+          <div class="org-item" onclick="selectOrg(this)">구매팀</div>
+          <div class="org-item" onclick="selectOrg(this)">VIP관리팀</div>
+          <div class="org-item" onclick="selectOrg(this)">영업팀</div>
+          <div class="org-item" onclick="selectOrg(this)">생산팀</div>
+          <div class="org-item" onclick="selectOrg(this)">출고팀</div>
+        </div>
+      </div>
+
+      <!-- ═══ Panel 2: 메뉴 접근 권한 ═══ -->
+      <div class="panel panel-menu">
+        <div class="panel-title">메뉴 접근 권한</div>
+        <div class="panel-subtitle">접근을 허용할 메뉴를 모두 체크해 주세요.</div>
+        <div class="role-banner leader" id="menuRoleBanner">
+          <span>팀장 전용 설정 중</span>
+          <span class="inherited-tag">점선 = 공통에서 상속</span>
+        </div>
+        <div class="menu-list" id="menuList">
+          <!-- JS가 렌더링 -->
+        </div>
+      </div>
+
+      <!-- ═══ Panel 3: 화면 상세 권한 ═══ -->
+      <div class="panel panel-detail">
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-header-title">화면 상세 권한</div>
+            <div class="detail-header-sub">대상 화면을 선택 후 상세 권한을 설정해 주세요.</div>
+          </div>
+          <button class="btn btn-outline-blue" onclick="previewPermission()">미리보기</button>
+        </div>
+
+        <div class="detail-body">
+          <!-- 대상 화면 선택 Tree -->
+          <div class="screen-tree">
+            <div style="padding:8px 14px 6px; font-size:13px; font-weight:700; color:#333;">대상화면 선택</div>
+            <div class="screen-group">
+              <div class="screen-group-title">홈 <span class="arrow">&#x25B4;</span></div>
+              <div class="screen-group-item">대시보드</div>
+            </div>
+            <div class="screen-group">
+              <div class="screen-group-title">접수관리 <span class="arrow">&#x25B4;</span></div>
+              <div class="screen-group-item active">전체 접수 내역</div>
+              <div class="screen-group-item">나의 접수 내역</div>
+            </div>
+            <div class="screen-group">
+              <div class="screen-group-title">AS/수정 <span class="arrow">&#x25B4;</span></div>
+              <div class="screen-group-item">수정 요청 내역</div>
+              <div class="screen-group-item">재작업 내역</div>
+              <div class="screen-group-item">파일 변경</div>
+              <div class="screen-group-item">접수 취소</div>
+              <div class="screen-group-item">파일 상태</div>
+              <div class="screen-group-item">금액 변경</div>
+            </div>
+            <div class="screen-group">
+              <div class="screen-group-title">별도 견적 관리 <span class="arrow">&#x25B4;</span></div>
+              <div class="screen-group-item">별도 견적 접수 내역</div>
+            </div>
+            <div class="screen-group">
+              <div class="screen-group-title">결제 내역 <span class="arrow">&#x25B4;</span></div>
+              <div class="screen-group-item">전체 결제 내역</div>
+              <div class="screen-group-item">결제 취소 내역</div>
+            </div>
+          </div>
+
+          <!-- 권한 설정 영역 -->
+          <div class="perm-area" id="permArea">
+            <!-- JS가 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   DATA MODEL
+   ══════════════════════════════════════════ */
+const MENUS = [
+  { id:'home', name:'홈', children:[] },
+  { id:'receipt', name:'접수', children:[
+    { id:'receipt_mgmt', name:'접수관리', children:[
+      { id:'all_receipt', name:'전체 접수 내역' },
+      { id:'my_receipt', name:'나의 접수 내역' }
+    ]},
+  ]},
+  { id:'as', name:'AS/수정', children:[] },
+  { id:'estimate', name:'별도 견적 관리', children:[] },
+  { id:'payment', name:'결제', children:[] },
+  { id:'production', name:'생산', children:[] },
+  { id:'shipping', name:'배송/출고', children:[] },
+  { id:'customer', name:'고객', children:[] },
+  { id:'product', name:'제품', children:[] },
+  { id:'site', name:'사이트', children:[] },
+  { id:'stats', name:'현황 및 통계', children:[] },
+  { id:'system', name:'시스템', children:[] },
+];
+
+const COLUMNS = ['접수일시','결제일시','접수번호','고객명','ID','접수제품','가공','파일','디자인'];
+const BUTTONS = ['접수일시','결제일시','접수번호','고객명'];
+
+const DUMMY_DATA = {
+  '접수일시':'24/01/15 09:30', '결제일시':'24/01/15 10:00',
+  '접수번호':'ORD-2024-001', '고객명':'홍길동', 'ID':'hong123',
+  '접수제품':'명함', '가공':'코팅', '파일':'file_001.pdf', '디자인':'design_A'
+};
+
+function applyMask(col, maskLevel) {
+  const val = DUMMY_DATA[col] || col;
+  if (maskLevel === 0) return { text: val, masked: false };
+  if (maskLevel === 2) return { text: '*'.repeat(12), masked: true };
+  // 부분 마스킹: 첫 글자 + * + 마지막 글자
+  const chars = [...val];
+  if (chars.length <= 1) return { text: '*', masked: true };
+  const mid = chars.slice(1, -1).map(() => '*').join('');
+  return { text: chars[0] + mid + chars[chars.length - 1], masked: true };
+}
+const CUDE_ITEMS = [
+  { id:'create', label:'Create(등록)' },
+  { id:'update', label:'Update (수정)' },
+  { id:'delete', label:'Delete (삭제)' },
+  { id:'excel',  label:'Excel (다운로드)' },
+];
+
+// State: common is the base, leader/member override (null = inherit from common)
+function makeMenuState(checked) {
+  const s = {};
+  function walk(list) {
+    list.forEach(m => {
+      s[m.id] = checked;
+      if (m.children) walk(m.children);
+    });
+  }
+  walk(MENUS);
+  return s;
+}
+
+const state = {
+  currentRole: 'common', // 'common' | 'leader' | 'member'
+  common: {
+    menus: {
+      home:false, receipt:true, receipt_mgmt:true, all_receipt:true, my_receipt:true,
+      as:true, estimate:true, payment:true, production:true, shipping:true, customer:true,
+      product:false, site:false, stats:false, system:false
+    },
+    cude: { create:true, update:false, delete:false, excel:false },
+    columns: {},  // key -> { visible:bool, masking:0 }
+    buttons: {},  // key -> bool
+  },
+  leader: { menus:{}, cude:{}, columns:{}, buttons:{} },   // null per key = inherit
+  member: { menus:{}, cude:{}, columns:{}, buttons:{} },
+};
+
+// Init column/button defaults
+COLUMNS.forEach(c => {
+  state.common.columns[c] = { visible:true, masking:0 };
+});
+BUTTONS.forEach(b => {
+  state.common.buttons[b] = true;
+});
+
+// Get effective value for current role
+function getVal(category, key, sub) {
+  const role = state.currentRole;
+  if (role === 'common') {
+    if (sub !== undefined) return state.common[category][key][sub];
+    return state.common[category][key];
+  }
+  const override = state[role][category][key];
+  if (override !== undefined && override !== null) {
+    if (sub !== undefined) {
+      if (typeof override === 'object' && override[sub] !== undefined) return override[sub];
+      return state.common[category][key][sub]; // partial override
+    }
+    return override;
+  }
+  // inherit from common
+  if (sub !== undefined) return state.common[category][key][sub];
+  return state.common[category][key];
+}
+
+function isInherited(category, key) {
+  const role = state.currentRole;
+  if (role === 'common') return false;
+  const override = state[role][category][key];
+  return override === undefined || override === null;
+}
+
+function setVal(category, key, val, sub) {
+  const role = state.currentRole;
+  if (role === 'common') {
+    if (sub !== undefined) { state.common[category][key][sub] = val; }
+    else { state.common[category][key] = val; }
+  } else {
+    if (sub !== undefined) {
+      if (!state[role][category][key] || typeof state[role][category][key] !== 'object') {
+        state[role][category][key] = { ...state.common[category][key] };
+      }
+      state[role][category][key][sub] = val;
+    } else {
+      state[role][category][key] = val;
+    }
+  }
+}
+
+function resetOverride(category, key) {
+  const role = state.currentRole;
+  if (role !== 'common') {
+    delete state[role][category][key];
+  }
+}
+
+/* ══════════════════════════════════════════
+   RENDER
+   ══════════════════════════════════════════ */
+function renderAll() {
+  renderMenuList();
+  renderPermArea();
+  updateRoleBanner();
+}
+
+function updateRoleBanner() {
+  const banner = document.getElementById('menuRoleBanner');
+  const role = state.currentRole;
+  if (role === 'common') {
+    banner.className = 'role-banner';
+  } else {
+    const label = role === 'leader' ? '팀장' : '팀원';
+    const cls = role === 'leader' ? 'leader' : 'member';
+    banner.className = 'role-banner show ' + cls;
+    banner.innerHTML = '<span>' + label + ' 전용 설정 중</span><span class="inherited-tag">점선 = 공통에서 상속</span>';
+  }
+}
+
+/* ── Menu List ── */
+function renderMenuList() {
+  const container = document.getElementById('menuList');
+  const role = state.currentRole;
+
+  function renderItem(menu, depth) {
+    const checked = getVal('menus', menu.id);
+    const inherited = isInherited('menus', menu.id);
+    const hasChildren = menu.children && menu.children.length > 0;
+
+    let html = '<div class="menu-row" data-menu-id="' + menu.id + '">';
+    html += '<span class="expand-arrow">' + (hasChildren ? '&#x25BC;' : '') + '</span>';
+
+    const cbClass = 'menu-cb' + (checked ? ' checked' : '') + (inherited ? ' inherited' : '');
+    html += '<div class="' + cbClass + '" data-menu-id="' + menu.id + '"></div>';
+
+    const nameClass = 'menu-name' + (!checked ? ' dim' : '');
+    html += '<span class="' + nameClass + '">' + menu.name + '</span>';
+
+    if (inherited && role !== 'common') {
+      html += '<span class="inherited-tag">공통</span>';
+    }
+    if (!inherited && role !== 'common') {
+      html += '<button class="reset-override" data-cat="menus" data-key="' + menu.id + '" title="공통으로 복원">&#x21A9;</button>';
+    }
+
+    const badgeCls = checked ? 'access-badge allow' : 'access-badge deny';
+    const badgeTxt = checked ? '접근허용' : '접근불가';
+    html += '<span class="' + badgeCls + '">' + badgeTxt + '</span>';
+    html += '</div>';
+
+    if (hasChildren) {
+      html += '<div class="menu-children">';
+      menu.children.forEach(c => { html += renderItem(c, depth + 1); });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  let html = '';
+  MENUS.forEach(m => { html += renderItem(m, 0); });
+  container.innerHTML = html;
+
+  // Bind checkbox clicks
+  container.querySelectorAll('.menu-cb').forEach(cb => {
+    cb.addEventListener('click', function() {
+      const id = this.dataset.menuId;
+      const current = getVal('menus', id);
+      setVal('menus', id, !current);
+      renderAll();
+    });
+  });
+
+  // Bind expand arrows
+  container.querySelectorAll('.expand-arrow').forEach(arrow => {
+    arrow.addEventListener('click', function() {
+      const row = this.closest('.menu-row');
+      const children = row.nextElementSibling;
+      if (children && children.classList.contains('menu-children')) {
+        const hidden = children.style.display === 'none';
+        children.style.display = hidden ? 'block' : 'none';
+        this.innerHTML = hidden ? '&#x25BC;' : '&#x25B6;';
+      }
+    });
+  });
+
+  // Bind reset override buttons
+  container.querySelectorAll('.reset-override').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      resetOverride(this.dataset.cat, this.dataset.key);
+      renderAll();
+    });
+  });
+}
+
+/* ── Perm Area (Panel 3 right) ── */
+function renderPermArea() {
+  const area = document.getElementById('permArea');
+  const role = state.currentRole;
+
+  let html = '';
+
+  // Title + view toggle
+  html += '<div class="perm-screen-title">';
+  html += '<h3>전체 접수 내역 목록화면 권한설정</h3>';
+  html += '<div class="view-toggle">';
+  html += '<button class="view-toggle-btn active" onclick="switchView(this)">목록화면</button>';
+  html += '<button class="view-toggle-btn" onclick="switchView(this)">상세화면</button>';
+  html += '</div></div>';
+
+  // CUD+E section
+  html += '<div class="cude-section"><div class="cude-title">화면 기본 권한</div>';
+  html += '<div class="cude-checks">';
+  CUDE_ITEMS.forEach(item => {
+    const checked = getVal('cude', item.id);
+    const inherited = isInherited('cude', item.id);
+    const cbCls = 'cude-checkbox' + (checked ? ' checked' : '') + (inherited ? ' inherited' : '');
+    html += '<label class="cude-check-item" data-cude-id="' + item.id + '">';
+    html += '<div class="' + cbCls + '"></div> ' + item.label;
+    if (inherited && role !== 'common') html += ' <span class="inherited-tag">공통</span>';
+    if (!inherited && role !== 'common') html += ' <button class="reset-override" data-cat="cude" data-key="' + item.id + '">&#x21A9;</button>';
+    html += '</label>';
+  });
+  html += '</div></div>';
+
+  // Tables
+  html += '<div class="tables-area">';
+
+  // Grid columns
+  html += '<div class="perm-table"><div class="perm-table-title">그리드 컬럼 설정</div>';
+  html += '<table><thead><tr><th style="text-align:left">컬럼명</th><th>노출여부</th><th>마스킹</th><th>미리보기 <span style="color:#bbb;font-weight:400">(DUMMY)</span></th>';
+  if (role !== 'common') html += '<th></th>';
+  html += '</tr></thead><tbody>';
+  COLUMNS.forEach(col => {
+    const vis = getVal('columns', col, 'visible');
+    const mask = getVal('columns', col, 'masking');
+    const inherited = isInherited('columns', col);
+    const toggleCls = 'toggle' + (vis ? ' on' : '') + (inherited ? ' inherited' : '');
+    const selCls = 'masking-sel' + (inherited ? ' inherited' : '');
+    const preview = applyMask(col, mask);
+    html += '<tr><td>' + col + '</td>';
+    html += '<td><div class="' + toggleCls + '" data-cat="columns" data-key="' + col + '" data-sub="visible"></div>';
+    if (inherited && role !== 'common') html += ' <span class="inherited-tag">공통</span>';
+    html += '</td>';
+    html += '<td><select class="' + selCls + '" data-cat="columns" data-key="' + col + '" data-sub="masking">';
+    html += '<option value="0"' + (mask===0?' selected':'') + '>마스킹 없음</option>';
+    html += '<option value="1"' + (mask===1?' selected':'') + '>부분 마스킹</option>';
+    html += '<option value="2"' + (mask===2?' selected':'') + '>전체 마스킹</option>';
+    html += '</select></td>';
+    html += '<td><span class="preview-val' + (preview.masked ? ' masked' : '') + '">' + preview.text + '</span></td>';
+    if (role !== 'common') {
+      html += '<td>';
+      if (!inherited) html += '<button class="reset-override" data-cat="columns" data-key="' + col + '">&#x21A9;</button>';
+      html += '</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Buttons
+  html += '<div class="perm-table" style="max-width:280px"><div class="perm-table-title">버튼설정</div>';
+  html += '<table><thead><tr><th style="text-align:left">컬럼명</th><th>노출여부</th>';
+  if (role !== 'common') html += '<th></th>';
+  html += '</tr></thead><tbody>';
+  BUTTONS.forEach(btn => {
+    const vis = getVal('buttons', btn);
+    const inherited = isInherited('buttons', btn);
+    const toggleCls = 'toggle' + (vis ? ' on' : '') + (inherited ? ' inherited' : '');
+    html += '<tr><td>' + btn + '</td>';
+    html += '<td><div class="' + toggleCls + '" data-cat="buttons" data-key="' + btn + '"></div>';
+    if (inherited && role !== 'common') html += ' <span class="inherited-tag">공통</span>';
+    html += '</td>';
+    if (role !== 'common') {
+      html += '<td>';
+      if (!inherited) html += '<button class="reset-override" data-cat="buttons" data-key="' + btn + '">&#x21A9;</button>';
+      html += '</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '</div>'; // tables-area
+
+  area.innerHTML = html;
+
+  // Bind CUD+E clicks
+  area.querySelectorAll('.cude-check-item').forEach(label => {
+    label.addEventListener('click', function() {
+      const id = this.dataset.cudeId;
+      const current = getVal('cude', id);
+      setVal('cude', id, !current);
+      renderAll();
+    });
+  });
+
+  // Bind toggle clicks
+  area.querySelectorAll('.toggle').forEach(toggle => {
+    toggle.addEventListener('click', function() {
+      const cat = this.dataset.cat;
+      const key = this.dataset.key;
+      const sub = this.dataset.sub || undefined;
+      const current = getVal(cat, key, sub);
+      setVal(cat, key, !current, sub);
+      renderAll();
+    });
+  });
+
+  // Bind masking selects
+  area.querySelectorAll('.masking-sel').forEach(sel => {
+    sel.addEventListener('change', function() {
+      const cat = this.dataset.cat;
+      const key = this.dataset.key;
+      const sub = this.dataset.sub;
+      setVal(cat, key, parseInt(this.value), sub);
+      renderAll();
+    });
+  });
+
+  // Bind reset override buttons
+  area.querySelectorAll('.reset-override').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      resetOverride(this.dataset.cat, this.dataset.key);
+      renderAll();
+    });
+  });
+}
+
+/* ══════════════════════════════════════════
+   INTERACTIONS
+   ══════════════════════════════════════════ */
+function switchRole(role, btn) {
+  state.currentRole = role;
+  document.querySelectorAll('.role-seg-btn').forEach(b => {
+    b.className = 'role-seg-btn';
+  });
+  if (role === 'common') btn.classList.add('active');
+  else if (role === 'leader') btn.classList.add('active-leader');
+  else btn.classList.add('active-member');
+  renderAll();
+}
+
+function selectOrg(el) {
+  document.querySelectorAll('.org-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('orgTitle').textContent = el.textContent;
+}
+
+function switchView(el) {
+  el.parentElement.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function savePermission() { alert('권한 설정이 저장되었습니다.'); }
+function previewPermission() { alert('미리보기: 현재 설정으로 사용자 시점 화면을 시뮬레이션합니다.'); }
+
+function resetConfirm() {
+  const roleLabel = state.currentRole === 'common' ? '공통' : (state.currentRole === 'leader' ? '팀장' : '팀원');
+  if (confirm('[' + roleLabel + '] 메뉴 접근 권한이 모두 초기화됩니다. 진행하시겠습니까?')) {
+    if (state.currentRole === 'common') {
+      Object.keys(state.common.menus).forEach(k => state.common.menus[k] = false);
+      Object.keys(state.common.cude).forEach(k => state.common.cude[k] = false);
+      COLUMNS.forEach(c => { state.common.columns[c] = { visible:false, masking:0 }; });
+      BUTTONS.forEach(b => { state.common.buttons[b] = false; });
+    } else {
+      state[state.currentRole] = { menus:{}, cude:{}, columns:{}, buttons:{} };
+    }
+    renderAll();
+  }
+}
+
+// Screen tree item click
+document.querySelectorAll('.screen-group-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.screen-group-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// Initial render
+renderAll();
+</script>
+
+</body>
+</html>

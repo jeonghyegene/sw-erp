@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>폐자재 관리 | 인쇄 ERP</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --border: #e5e8ee;
+    --border-strong: #d5d9e0;
+    --text: #1f2937;
+    --text-sub: #6b7280;
+    --text-muted: #9ca3af;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-soft: #eff6ff;
+    --success: #10b981;
+    --success-soft: #ecfdf5;
+    --warning: #f59e0b;
+    --warning-soft: #fffbeb;
+    --danger: #ef4444;
+    --danger-soft: #fef2f2;
+    --info: #0ea5e9;
+    --info-soft: #f0f9ff;
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  input, select, textarea { font-family: inherit; font-size: 14px; }
+
+  /* ===== Layout ===== */
+  .app {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--border);
+    padding: 20px 12px;
+  }
+  .logo {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    padding: 8px 12px 20px;
+    letter-spacing: -0.3px;
+  }
+  .logo span { color: var(--primary); }
+
+  .nav-group { margin-bottom: 18px; }
+  .nav-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-sub);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: #f3f4f6; color: var(--text); }
+  .nav-item.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* ===== Main ===== */
+  .main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .topbar {
+    height: 56px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+  }
+  .breadcrumb {
+    font-size: 13px;
+    color: var(--text-sub);
+  }
+  .breadcrumb b { color: var(--text); font-weight: 600; }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    background: #f3f4f6;
+    font-size: 13px;
+  }
+  .avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .content {
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 18px;
+  }
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 4px;
+    letter-spacing: -0.4px;
+  }
+  .page-desc {
+    font-size: 13px;
+    color: var(--text-sub);
+    margin: 0;
+  }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: all 0.12s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: #f9fafb; }
+  .btn-ghost { color: var(--text-sub); }
+  .btn-ghost:hover { background: #f3f4f6; color: var(--text); }
+  .btn-sm { padding: 5px 10px; font-size: 12.5px; }
+  .btn-icon { padding: 6px; }
+
+  /* ===== Material Cards (3-column) ===== */
+  .mat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 1280px) {
+    .mat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .mat-grid { grid-template-columns: 1fr; }
+  }
+
+  .mcard {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
+  }
+  .mcard::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: var(--accent);
+  }
+  .mcard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
+    border-color: var(--accent-soft);
+  }
+
+  .mcard-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .mcard-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .mcard-info { flex: 1; min-width: 0; }
+  .mcard-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.3px;
+    margin-bottom: 3px;
+  }
+  .mcard-meta {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .mcard-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 4px 9px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    letter-spacing: 0.2px;
+  }
+
+  /* 최종재고 강조 영역 */
+  .mcard-final {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed var(--border);
+    margin-bottom: 14px;
+  }
+  .mcard-final-label {
+    font-size: 11.5px;
+    color: var(--text-sub);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .mcard-final-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .mcard-final-value .unit {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-sub);
+    margin-left: 4px;
+  }
+
+  /* 4 stats grid (2x2 — 2단 구성) */
+  .mcard-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .mstat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: #fafbfc;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .mstat.clickable { cursor: pointer; }
+  .mstat.clickable:hover { background: #eff6ff; }
+  .mstat-label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+  .mstat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .mstat-value.in  { color: var(--success); }
+  .mstat-value.out { color: var(--danger); }
+  .mstat-value.muted { color: var(--text-sub); }
+
+  .mcard-foot {
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+  .mcard-foot .arrow {
+    color: var(--accent);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* 자재별 컬러 토큰 */
+  .mcard.c-oil  { --accent: #d97706; --accent-soft: #fef3c7; }
+  .mcard.c-wtr  { --accent: #0284c7; --accent-soft: #e0f2fe; }
+  .mcard.c-plt  { --accent: #475569; --accent-soft: #f1f5f9; }
+  .mcard.c-ppr  { --accent: #16a34a; --accent-soft: #dcfce7; }
+  .mcard.c-rag  { --accent: #9333ea; --accent-soft: #f3e8ff; }
+  .mcard.c-slv  { --accent: #db2777; --accent-soft: #fce7f3; }
+
+  /* ===== KPI Cards ===== */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .kpi-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow-sm);
+  }
+  .kpi-label {
+    font-size: 12.5px;
+    color: var(--text-sub);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .kpi-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+  .kpi-icon.blue { background: var(--primary-soft); color: var(--primary); }
+  .kpi-icon.green { background: var(--success-soft); color: var(--success); }
+  .kpi-icon.orange { background: var(--warning-soft); color: var(--warning); }
+  .kpi-icon.red { background: var(--danger-soft); color: var(--danger); }
+
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+  .kpi-value .unit { font-size: 13px; font-weight: 500; color: var(--text-sub); margin-left: 3px; }
+  .kpi-foot {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-sub);
+  }
+  .kpi-foot .up { color: var(--danger); font-weight: 600; }
+  .kpi-foot .down { color: var(--success); font-weight: 600; }
+
+  /* ===== Filter Bar ===== */
+  .panel {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .filter-bar {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .field-label {
+    font-size: 11.5px;
+    color: var(--text-sub);
+    font-weight: 500;
+  }
+  .input, .select {
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--text);
+    min-width: 140px;
+    outline: none;
+  }
+  .input:focus, .select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+  .input.search { padding-left: 32px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>"); background-repeat: no-repeat; background-position: 10px center; min-width: 220px; }
+
+  .filter-spacer { flex: 1; }
+
+  /* ===== Tabs ===== */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 10px 14px;
+    font-size: 13.5px;
+    color: var(--text-sub);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+  }
+  .tab.active { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+  .tab .count {
+    margin-left: 6px;
+    background: #f3f4f6;
+    color: var(--text-sub);
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11.5px;
+  }
+  .tab.active .count { background: var(--primary-soft); color: var(--primary); }
+
+  /* ===== Table ===== */
+  .table-wrap {
+    overflow-x: auto;
+  }
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.data thead th {
+    background: #fafbfc;
+    color: var(--text-sub);
+    font-weight: 600;
+    text-align: left;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  table.data tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f3f5;
+    vertical-align: middle;
+  }
+  table.data tbody tr:hover { background: #fafbfc; }
+  table.data tbody tr.row-clickable { cursor: pointer; }
+  table.data tbody tr.row-clickable:hover { background: #f0f7ff; }
+  table.data .cell-link {
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: rgba(0,0,0,0.15);
+  }
+  table.data .cell-link:hover {
+    text-decoration-color: currentColor;
+    background: #eff6ff;
+  }
+  table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data .center { text-align: center; }
+
+  .mat-name { font-weight: 600; color: var(--text); }
+  .mat-code { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ===== Badges ===== */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .badge.normal { background: var(--success-soft); color: var(--success); }
+  .badge.low { background: var(--warning-soft); color: var(--warning); }
+  .badge.danger { background: var(--danger-soft); color: var(--danger); }
+  .badge.info { background: var(--info-soft); color: var(--info); }
+  .badge.gray { background: #f3f4f6; color: var(--text-sub); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ===== Action Icons ===== */
+  .row-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .icon-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-sub);
+  }
+  .icon-btn:hover { background: #f3f4f6; color: var(--text); }
+
+  /* ===== Footer (pagination) ===== */
+  .table-foot {
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-sub);
+  }
+  .pager { display: flex; gap: 4px; }
+  .pager button {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 12.5px;
+    color: var(--text-sub);
+  }
+  .pager button.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+  .pager button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ===== Modal ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin: 0; }
+  .modal-body {
+    padding: 20px 24px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .modal-foot {
+    padding: 14px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background: #fafbfc;
+    border-radius: 0 0 10px 10px;
+    flex-shrink: 0;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .form-row label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .form-row label .req { color: var(--danger); margin-left: 2px; }
+  .form-row .help { font-size: 11.5px; color: var(--text-muted); }
+
+  .calc-box {
+    background: var(--info-soft);
+    border: 1px solid #bae6fd;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .calc-box b { color: var(--info); font-size: 15px; }
+
+  /* readonly input */
+  .readonly-input {
+    background: #f3f4f6;
+    color: var(--text-sub);
+    cursor: not-allowed;
+  }
+
+  /* combo (search + select) */
+  .combo { position: relative; }
+  .combo-input {
+    width: 100%;
+    padding-right: 30px;
+  }
+  .combo-caret {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  /* 거래 내역 팝업 사이즈 (1200~1800px 반응형) */
+  .tx-modal-size {
+    max-width: 1800px !important;
+    min-width: min(1200px, 96vw);
+    width: calc(100vw - 80px);
+  }
+  @media (max-width: 1280px) {
+    .tx-modal-size { width: 96vw; min-width: 0; }
+  }
+
+  /* 거래 내역 팝업 헤더 툴바 */
+  .tx-modal-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .tx-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tx-period {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .tx-period-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-sub);
+    letter-spacing: 0.2px;
+  }
+  .tx-date {
+    height: 28px;
+    min-width: 130px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 12.5px;
+  }
+  .tx-period-sep {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  /* 거래 내역 팝업: 헤더/푸터 고정, 테이블만 스크롤 */
+  .tx-modal-size .modal-body {
+    padding: 0 !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .tx-modal-size .table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  /* thead Sticky — 세로 스크롤 시 헤더 고정 */
+  .tx-modal-size table.data thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fafbfc;
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+
+  /* tx-row file chip */
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: 11.5px;
+    font-weight: 600;
+    border: 1px solid #dbeafe;
+  }
+  .file-chip:hover { background: #dbeafe; }
+
+  /* tx-row memo (truncate) */
+  .cell-memo {
+    display: inline-block;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .tx-row { transition: background 0.1s; }
+  .tx-row:hover { background: #f0f7ff !important; }
+
+  /* ===== Offcanvas (카드형 섹션 디자인) ===== */
+  .offcanvas-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: none;
+    z-index: 200;
+  }
+  .offcanvas-overlay.show { display: block; }
+
+  .offcanvas {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 480px;
+    max-width: 92vw;
+    height: 100vh;
+    background: #f4f6fb;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.12);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 210;
+    display: flex;
+    flex-direction: column;
+  }
+  .offcanvas.show { transform: translateX(0); }
+
+  .offcanvas-header {
+    padding: 18px 22px 14px;
+    background: #f4f6fb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .offcanvas-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .offcanvas-sub {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-top: 3px;
+  }
+  .offcanvas-body {
+    padding: 4px 18px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* 자재 헤더 카드 */
+  .oc-hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(16,24,40,0.04);
+  }
+  .oc-hero-thumb {
+    width: 56px; height: 56px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .oc-hero-info { flex: 1; }
+  .oc-hero-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .oc-hero-sub {
+    font-size: 12px;
+    color: var(--text-sub);
+  }
+  .oc-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 14px;
+    background: #ccfbf1;
+    color: #0f766e;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  /* 카드형 섹션 */
+  .oc-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(16,24,40,0.04);
+  }
+  .oc-card-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .oc-card-title .ic {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* 2-컬럼 정보 그리드 */
+  .oc-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 18px;
+  }
+  .oc-fields .full { grid-column: 1 / -1; }
+  .oc-field-label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .oc-field-value {
+    font-size: 13.5px;
+    color: var(--text);
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  /* 수량 통계 카드 (km 카드 스타일) */
+  .oc-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .oc-stat {
+    background: #fafbfc;
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+    border: 1px solid #eef0f4;
+  }
+  .oc-stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .oc-stat-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .oc-stat-value .unit {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-sub);
+    margin-left: 2px;
+  }
+  .oc-stat-value.in  { color: var(--success); }
+  .oc-stat-value.out { color: var(--danger); }
+  .oc-stat-value.muted { color: var(--text-muted); }
+
+  /* 첨부파일 카드 */
+  .oc-files-count {
+    color: var(--text-sub);
+    font-size: 11.5px;
+    font-weight: 500;
+    margin-left: auto;
+  }
+  .oc-files {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .oc-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #fafbfc;
+    border: 1px solid #eef0f4;
+    border-radius: 8px;
+    font-size: 12.5px;
+  }
+  .oc-file-icon {
+    width: 32px; height: 32px;
+    background: #eff6ff;
+    color: var(--primary);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .oc-file-meta { flex: 1; min-width: 0; }
+  .oc-file-name {
+    color: var(--text);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .oc-file-size { color: var(--text-muted); font-size: 11px; margin-top: 1px; }
+  .oc-file-dl {
+    color: var(--primary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--primary-soft);
+  }
+  .oc-file-dl:hover { background: #dbeafe; }
+
+  /* 메모 박스 */
+  .oc-memo {
+    padding: 12px 14px;
+    background: #fafbfc;
+    border: 1px solid #eef0f4;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+
+  /* read-only 배지 */
+  .readonly-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border-radius: 11px;
+    background: #fff;
+    color: var(--text-sub);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+
+  .oc-empty {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    text-align: center;
+    padding: 8px 0;
+  }
+
+  /* file upload */
+  .file-upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .file-upload input[type="file"] { display: none; }
+  .file-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .file-label:hover { background: #f9fafb; }
+  .file-name {
+    font-size: 12.5px;
+    color: var(--text-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="logo">PRINT<span>·ERP</span></div>
+
+    <div class="nav-group">
+      <div class="nav-title">생산</div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        대시보드
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        작업지시
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7L12 3 4 7v10l8 4 8-4V7z"/></svg>
+        자재 입출고
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">환경/안전</div>
+      <div class="nav-item active">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        폐자재 관리
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        처리 이력
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>
+        폐기물 보고
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-title">기준정보</div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>
+        폐기업체
+      </div>
+      <div class="nav-item">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        시스템 설정
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <div class="topbar">
+      <div class="breadcrumb">환경/안전 · <b>폐자재 관리</b></div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost btn-icon" title="알림">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <div class="user-chip">
+          <div class="avatar">윤</div>
+          <span>윤성수 · 환경관리</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">폐자재 관리</h1>
+          <p class="page-desc">자재 카드를 선택하면 누적 처리 이력과 상세 정보를 확인할 수 있습니다.</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            엑셀 다운로드
+          </button>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            폐자재 등록
+          </button>
+        </div>
+      </div>
+
+      <!-- 자재 카드 그리드 -->
+      <div class="mat-grid" id="mat-grid"></div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ===== Offcanvas (Read-only Detail) ===== -->
+<div class="offcanvas-overlay" id="oc-overlay" onclick="closeOffcanvas()"></div>
+<aside class="offcanvas" id="offcanvas" role="dialog" aria-label="거래 상세">
+  <div class="offcanvas-header">
+    <div>
+      <h3 class="offcanvas-title" id="oc-title">거래 상세</h3>
+      <div class="offcanvas-sub" id="oc-sub"></div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span class="readonly-badge">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Read-only
+      </span>
+      <button class="btn btn-ghost btn-icon" onclick="closeOffcanvas()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="offcanvas-body" id="oc-body"></div>
+</aside>
+
+<!-- ===== Transaction Detail Layer Popup ===== -->
+<div class="modal-overlay" id="tx-modal">
+  <div class="modal tx-modal-size">
+    <div class="modal-header tx-modal-header">
+      <h3 class="modal-title" id="tx-title">거래 내역</h3>
+      <div class="tx-toolbar">
+        <div class="tx-period">
+          <span class="tx-period-label">조회기간</span>
+          <input type="date" class="input tx-date" id="tx-from" onchange="onTxDateChange()" />
+          <span class="tx-period-sep">~</span>
+          <input type="date" class="input tx-date" id="tx-to" onchange="onTxDateChange()" />
+          <button class="btn btn-ghost btn-sm" onclick="resetTxPeriod()" title="기간 초기화">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="exportTxExcel()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          엑셀 다운로드
+        </button>
+        <button class="btn btn-ghost btn-icon" onclick="closeTxModal()" aria-label="닫기">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="center">단위</th>
+              <th class="num">기존재고</th>
+              <th class="num">입고수량</th>
+              <th class="num">사용수량</th>
+              <th class="num">폐기수량</th>
+              <th class="num">최종재고</th>
+              <th>폐기업체</th>
+              <th>업체 담당자</th>
+              <th>처리일자</th>
+              <th>인계/올바로번호</th>
+              <th class="num">처리단가</th>
+              <th class="center">첨부</th>
+              <th>메모</th>
+              <th>등록자</th>
+              <th>등록일</th>
+            </tr>
+          </thead>
+          <tbody id="tx-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <span style="font-size:12.5px; color:var(--text-sub);" id="tx-summary"></span>
+      <div style="display:flex; gap:14px; align-items:center;">
+        <div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-sub);">
+          페이지당
+          <select class="select" id="tx-page-size" style="height:28px; min-width:64px; padding:0 8px;" onchange="onTxPageSize()">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          건
+        </div>
+        <div class="pager" id="tx-pager"></div>
+        <button class="btn btn-secondary" onclick="closeTxModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Register Modal ===== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">폐자재 등록 / 처리 입력</h3>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row">
+          <label>자재 구분<span class="req">*</span></label>
+          <select class="select" id="f-mat" onchange="onMaterialChange()">
+            <option value="">자재를 선택하세요</option>
+            <option value="폐유">폐유 (지정폐기물)</option>
+            <option value="폐수">폐수 (지정폐기물)</option>
+            <option value="폐판">폐판(인쇄판) - 알루미늄</option>
+            <option value="폐지">폐지</option>
+            <option value="폐걸래">폐걸래</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>단위<span class="req">*</span></label>
+          <select class="select" id="f-unit">
+            <option>kg</option><option>L</option><option>매</option><option>박스</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>기존재고 <span style="color:var(--text-muted); font-weight:500;">(자동)</span></label>
+          <input type="number" class="input readonly-input" id="f-prev" value="0" readonly />
+          <div class="help">선택된 자재의 직전 최종재고가 자동 표시됩니다</div>
+        </div>
+        <div class="form-row">
+          <label>입고수량 (발생량)</label>
+          <input type="number" class="input" id="f-in" value="0" oninput="recalc()" />
+        </div>
+        <div class="form-row">
+          <label>사용수량 (재사용·내부처리)</label>
+          <input type="number" class="input" id="f-use" value="0" oninput="recalc()" />
+        </div>
+        <div class="form-row">
+          <label>폐기수량 (위탁처리)</label>
+          <input type="number" class="input" id="f-out" value="0" oninput="recalc()" />
+        </div>
+
+        <div class="full">
+          <div class="calc-box">
+            <span>최종재고 = 기존재고 + 입고 − 사용 − 폐기</span>
+            <span><b id="f-final">0</b> <span id="f-unit-label">kg</span></span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>폐기업체<span class="req">*</span></label>
+          <div class="combo">
+            <input type="text" class="input combo-input" id="f-vendor" list="vendor-list"
+                   placeholder="업체명 입력 또는 선택" oninput="onVendorChange()" onchange="onVendorChange()" />
+            <datalist id="vendor-list"></datalist>
+            <svg class="combo-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="help">업체관리 등록 데이터 자동 검색</div>
+        </div>
+        <div class="form-row">
+          <label>업체 담당자</label>
+          <select class="select" id="f-manager">
+            <option value="">먼저 폐기업체를 선택하세요</option>
+          </select>
+          <div class="help">선택 업체의 담당자 자동 연동</div>
+        </div>
+
+        <div class="form-row">
+          <label>처리(인계)일자</label>
+          <input type="date" class="input" value="2026-05-07" />
+        </div>
+        <div class="form-row">
+          <label>인계번호 / 올바로 번호</label>
+          <input type="text" class="input" placeholder="예) 2026-PR-00045" />
+          <div class="help">법정 보관 5년 · 폐기물처리시스템 연계</div>
+        </div>
+
+        <div class="form-row">
+          <label>처리 단가 (원/단위)</label>
+          <input type="number" class="input" placeholder="1800" />
+        </div>
+        <div class="form-row">
+          <label>첨부파일</label>
+          <div class="file-upload">
+            <input type="file" id="f-file" multiple onchange="onFileChange(event)" />
+            <label for="f-file" class="file-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              파일 선택
+            </label>
+            <span class="file-name" id="f-file-name">선택된 파일 없음</span>
+          </div>
+          <div class="help">처리확인서·인계서 사진 등 (PDF/JPG/PNG, 최대 10MB)</div>
+        </div>
+
+        <div class="form-row full">
+          <label>메모</label>
+          <textarea class="input" rows="2" style="height:auto; padding:8px 10px;" placeholder="현장 특이사항·인수자 정보 등"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ===== Sample Data : 자재 집계 + 거래내역 분리 모델 =====
+     - 자재(materials)는 기간시작 시점의 기존재고만 보유
+     - 입고·사용·폐기는 transactions(txs)에 누적되며 집계 컬럼은 sum으로 계산
+  ============================================================ */
+  const rows = [
+    {
+      code: 'WST-OIL-01', name: '폐유', cat: '지정폐기물', unit: 'L', prev: 320,
+      txs: [
+        { date: '26/05/01', in: 80,  use: 0, out: 0,   vendor: '(주)그린에코 환경', manager: '김현수 (010-3456-7890)', handover: '2026-PR-00041', price: 1800, files: [{name:'인계서_2605_01.pdf', size:'248KB'}], memo: '5월 정기 폐유 발생량 - 옵셋 2호기',  registrant: '이정민', registeredAt: '26/05/01 09:12' },
+        { date: '26/05/03', in: 100, use: 0, out: 200, vendor: '(주)그린에코 환경', manager: '김현수 (010-3456-7890)', handover: '2026-PR-00045', price: 1800, files: [{name:'처리확인서_0503.pdf', size:'412KB'},{name:'운반차량_0503.jpg', size:'1.2MB'}], memo: '위탁 처리 완료, 차량번호 12나1234, 운반 인수자 서명 완료',  registrant: '이정민', registeredAt: '26/05/03 14:22' }
+      ]
+    },
+    {
+      code: 'WST-WTR-01', name: '폐수 (현상액)', cat: '지정폐기물', unit: 'L', prev: 540,
+      txs: [
+        { date: '26/05/02', in: 120, use: 0, out: 0,   vendor: '한국자원순환', manager: '박상준 (010-9876-1122)', handover: '2026-PR-00042', price: 2100, files: [], memo: '현상액 교체 작업', registrant: '윤성수', registeredAt: '26/05/02 10:30' },
+        { date: '26/05/05', in: 140, use: 0, out: 300, vendor: '한국자원순환', manager: '박상준 (010-9876-1122)', handover: '2026-PR-00048', price: 2100, files: [{name:'폐수처리확인서.pdf', size:'380KB'}], memo: 'pH 측정값 정상 범위', registrant: '윤성수', registeredAt: '26/05/05 09:48' }
+      ]
+    },
+    {
+      code: 'WST-PLT-01', name: '폐판 (알루미늄 인쇄판)', cat: '사업장폐기물', unit: '매', prev: 1200,
+      txs: [
+        { date: '26/04/28', in: 200, use: 0, out: 0,   vendor: '대성환경개발', manager: '정유진 (010-2233-4455)', handover: '2026-PR-00037', price: 950,  files: [], memo: '', registrant: '이정민', registeredAt: '26/04/28 13:40' },
+        { date: '26/05/02', in: 280, use: 0, out: 600, vendor: '대성환경개발', manager: '정유진 (010-2233-4455)', handover: '2026-PR-00043', price: 950,  files: [{name:'알루미늄_인계서.pdf', size:'520KB'}], memo: '재활용 처리 위탁, 매당 단가 950원', registrant: '이정민', registeredAt: '26/05/02 16:05' }
+      ]
+    },
+    {
+      code: 'WST-PPR-01', name: '폐지 (인쇄 잔지)', cat: '사업장폐기물', unit: 'kg', prev: 850,
+      txs: [
+        { date: '26/05/02', in: 230, use: 60, out: 0,   vendor: '에코페이퍼', manager: '최민호 (010-7788-3344)', handover: '2026-PR-00044', price: 280,  files: [], memo: '내부 재활용 60kg 차감', registrant: '윤성수', registeredAt: '26/05/02 14:00' },
+        { date: '26/05/06', in: 200, use: 60, out: 500, vendor: '에코페이퍼', manager: '최민호 (010-7788-3344)', handover: '2026-PR-00049', price: 280,  files: [{name:'폐지_처리확인서.pdf', size:'310KB'}], memo: '재활용 종이로 분류 처리됨', registrant: '윤성수', registeredAt: '26/05/06 11:30' }
+      ]
+    },
+    {
+      code: 'WST-RAG-01', name: '폐걸래 (잉크 오염)', cat: '사업장폐기물', unit: 'kg', prev: 60,
+      txs: [
+        { date: '26/04/20', in: 15, use: 0, out: 0,  vendor: '(주)그린에코 환경', manager: '김현수 (010-3456-7890)', handover: '2026-PR-00035', price: 3200, files: [], memo: '', registrant: '이정민', registeredAt: '26/04/20 11:20' },
+        { date: '26/04/28', in: 20, use: 0, out: 20, vendor: '(주)그린에코 환경', manager: '김현수 (010-3456-7890)', handover: '2026-PR-00038', price: 3200, files: [{name:'걸래_위탁확인.pdf', size:'190KB'}], memo: '잉크 오염도 높음, 지정폐기물 준하여 처리', registrant: '이정민', registeredAt: '26/04/28 17:12' }
+      ]
+    },
+    {
+      code: 'WST-SLV-01', name: '폐용제 (세척용)', cat: '지정폐기물', unit: 'L', prev: 180,
+      txs: [
+        { date: '26/05/01', in: 60,  use: 0, out: 0,   vendor: '한국자원순환', manager: '박상준 (010-9876-1122)', handover: '2026-PR-00040', price: 2400, files: [], memo: 'IPA 세척용제 폐기 - 인쇄기 청소 후',  registrant: '윤성수', registeredAt: '26/05/01 10:15' },
+        { date: '26/05/04', in: 80,  use: 0, out: 100, vendor: '한국자원순환', manager: '박상준 (010-9876-1122)', handover: '2026-PR-00046', price: 2400, files: [{name:'폐용제_MSDS.pdf', size:'350KB'}], memo: '인화성 액체 - 밀폐 보관 후 위탁 처리', registrant: '윤성수', registeredAt: '26/05/04 13:42' }
+      ]
+    }
+  ];
+
+  /* ===== 누적 합계 헬퍼 ===== */
+  function aggregate(r){
+    const inq = r.txs.reduce((s,t)=>s+(+t.in||0), 0);
+    const use = r.txs.reduce((s,t)=>s+(+t.use||0), 0);
+    const out = r.txs.reduce((s,t)=>s+(+t.out||0), 0);
+    return { inq, use, out, final: r.prev + inq - use - out };
+  }
+
+  /* ===== 폐기업체 마스터 (업체관리에서 등록된 데이터 연동) ===== */
+  const vendorMaster = {
+    '(주)그린에코 환경':   ['김현수 (010-3456-7890)', '박지원 (010-1212-3434)'],
+    '한국자원순환':         ['박상준 (010-9876-1122)'],
+    '대성환경개발':         ['정유진 (010-2233-4455)', '오세훈 (010-5566-7788)'],
+    '에코페이퍼':           ['최민호 (010-7788-3344)']
+  };
+
+  function fmt(n){ return n.toLocaleString('ko-KR'); }
+
+  /* 자재별 컬러 + 아이콘 매핑 */
+  const matTheme = {
+    '폐유':  { cls:'c-oil', icon:'<path d="M8 2h8M12 2v6M5 22h14a2 2 0 0 0 2-2V12a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a2 2 0 0 0 2 2z"/><path d="M9 14c1.5 1 4.5 1 6 0"/>' },
+    '폐수':  { cls:'c-wtr', icon:'<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>' },
+    '폐판':  { cls:'c-plt', icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>' },
+    '폐지':  { cls:'c-ppr', icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>' },
+    '폐걸래':{ cls:'c-rag', icon:'<path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2L3 6z"/><path d="M8 10v6M12 10v6M16 10v6"/>' },
+    '폐용제':{ cls:'c-slv', icon:'<path d="M9 2v6L4 14a4 4 0 0 0 4 8h8a4 4 0 0 0 4-8l-5-6V2"/><path d="M7 2h10"/>' }
+  };
+
+  function themeOf(name){
+    for (const k of Object.keys(matTheme)) if (name.includes(k)) return matTheme[k];
+    return { cls:'c-plt', icon:'<rect x="3" y="3" width="18" height="18" rx="2"/>' };
+  }
+
+  function render(){
+    const grid = document.getElementById('mat-grid');
+    grid.innerHTML = rows.map((r, idx) => {
+      const a = aggregate(r);
+      const t = themeOf(r.name);
+      return `
+        <article class="mcard ${t.cls}" data-idx="${idx}">
+          <div class="mcard-head">
+            <div class="mcard-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg>
+            </div>
+            <div class="mcard-info">
+              <div class="mcard-name">${r.name}</div>
+              <div class="mcard-meta">${r.code} · ${r.cat}</div>
+            </div>
+            <span class="mcard-badge">${r.unit}</span>
+          </div>
+
+          <div class="mcard-final">
+            <span class="mcard-final-label">최종재고</span>
+            <span class="mcard-final-value">${fmt(a.final)}<span class="unit">${r.unit}</span></span>
+          </div>
+
+          <div class="mcard-stats">
+            <div class="mstat">
+              <div class="mstat-label">기존재고</div>
+              <div class="mstat-value">${fmt(r.prev)}</div>
+            </div>
+            <div class="mstat clickable" data-kind="in" data-idx="${idx}">
+              <div class="mstat-label">누적입고</div>
+              <div class="mstat-value in">+${fmt(a.inq)}</div>
+            </div>
+            <div class="mstat clickable" data-kind="use" data-idx="${idx}">
+              <div class="mstat-label">누적사용</div>
+              <div class="mstat-value muted">−${fmt(a.use)}</div>
+            </div>
+            <div class="mstat clickable" data-kind="out" data-idx="${idx}">
+              <div class="mstat-label">누적폐기</div>
+              <div class="mstat-value out">−${fmt(a.out)}</div>
+            </div>
+          </div>
+
+          <div class="mcard-foot">
+            <span>${r.txs.length}건의 처리 이력</span>
+            <span class="arrow">상세 보기
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </span>
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    /* 카드 클릭 → 누적 상세 팝업 (기본 입고탭) */
+    grid.querySelectorAll('.mcard').forEach(card => {
+      card.addEventListener('click', () => {
+        const idx = +card.dataset.idx;
+        openTxModal(rows[idx], 'in');
+      });
+    });
+
+    /* 통계 셀 클릭 → 해당 종류 강조하여 팝업 (입고/사용/폐기) */
+    grid.querySelectorAll('.mstat.clickable').forEach(cell => {
+      cell.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx  = +cell.dataset.idx;
+        const kind = cell.dataset.kind;
+        openTxModal(rows[idx], kind);
+      });
+    });
+  }
+  render();
+
+  /* ===== Offcanvas (Read-only 상세) ===== */
+  function openOffcanvas(material, t){
+    document.getElementById('oc-title').textContent = `${material.name} · 거래 상세`;
+    document.getElementById('oc-sub').textContent = `${material.code} · 처리일자 ${t.date}`;
+
+    const filesHTML = (t.files && t.files.length)
+      ? `<div class="oc-files">${t.files.map(f => `
+          <div class="oc-file">
+            <div class="oc-file-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="oc-file-meta">
+              <div class="oc-file-name">${f.name}</div>
+              <div class="oc-file-size">${f.size}</div>
+            </div>
+            <button class="oc-file-dl" onclick="downloadOne('${f.name}')">다운로드</button>
+          </div>
+        `).join('')}</div>`
+      : `<div class="oc-empty">첨부파일 없음</div>`;
+
+    const cost = (+t.price || 0) * (+t.out || 0);
+
+    document.getElementById('oc-body').innerHTML = `
+
+      <!-- 자재 헤로 카드 -->
+      <div class="oc-hero">
+        <div class="oc-hero-thumb">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </div>
+        <div class="oc-hero-info">
+          <div class="oc-hero-title">${material.name}</div>
+          <div class="oc-hero-sub">${material.cat} · ${material.code}</div>
+        </div>
+        <span class="oc-status-pill">처리 완료</span>
+      </div>
+
+      <!-- 처리 정보 -->
+      <div class="oc-card">
+        <h4 class="oc-card-title">
+          <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg></span>
+          처리 정보
+        </h4>
+        <div class="oc-fields">
+          <div>
+            <div class="oc-field-label">등록자</div>
+            <div class="oc-field-value">${t.registrant}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">처리일자</div>
+            <div class="oc-field-value">${t.date}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">등록일시</div>
+            <div class="oc-field-value" style="font-variant-numeric:tabular-nums;">${t.registeredAt}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">인계/올바로 번호</div>
+            <div class="oc-field-value" style="font-variant-numeric:tabular-nums;">${t.handover || '−'}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">폐기업체</div>
+            <div class="oc-field-value">${t.vendor}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">업체 담당자</div>
+            <div class="oc-field-value">${t.manager}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">처리 단가</div>
+            <div class="oc-field-value">${t.price ? fmt(t.price) + ' 원/' + material.unit : '−'}</div>
+          </div>
+          <div>
+            <div class="oc-field-label">처리 비용</div>
+            <div class="oc-field-value" style="color:var(--primary);">${cost ? fmt(cost) + ' 원' : '−'}</div>
+          </div>
+          <div class="full">
+            <div class="oc-field-label">메모</div>
+            <div class="oc-field-value" style="font-weight:500;">${t.memo || '−'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 수량 정보 -->
+      <div class="oc-card">
+        <h4 class="oc-card-title">
+          <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
+          수량 정보
+        </h4>
+        <div class="oc-stats">
+          <div class="oc-stat">
+            <div class="oc-stat-label">기존재고</div>
+            <div class="oc-stat-value">${fmt(t._before)} <span class="unit">${material.unit}</span></div>
+          </div>
+          <div class="oc-stat">
+            <div class="oc-stat-label">입고수량</div>
+            <div class="oc-stat-value in">+${fmt(t.in||0)} <span class="unit">${material.unit}</span></div>
+          </div>
+          <div class="oc-stat">
+            <div class="oc-stat-label">사용수량</div>
+            <div class="oc-stat-value muted">−${fmt(t.use||0)} <span class="unit">${material.unit}</span></div>
+          </div>
+        </div>
+        <div class="oc-stats" style="margin-top:8px;">
+          <div class="oc-stat">
+            <div class="oc-stat-label">폐기수량</div>
+            <div class="oc-stat-value out">−${fmt(t.out||0)} <span class="unit">${material.unit}</span></div>
+          </div>
+          <div class="oc-stat" style="grid-column: span 2;">
+            <div class="oc-stat-label">최종재고</div>
+            <div class="oc-stat-value">${fmt(t._after)} <span class="unit">${material.unit}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 첨부파일 -->
+      <div class="oc-card">
+        <h4 class="oc-card-title">
+          <span class="ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span>
+          첨부파일
+          <span class="oc-files-count">${(t.files||[]).length}건</span>
+        </h4>
+        ${filesHTML}
+      </div>
+    `;
+
+    document.getElementById('offcanvas').classList.add('show');
+    document.getElementById('oc-overlay').classList.add('show');
+  }
+
+  function closeOffcanvas(){
+    document.getElementById('offcanvas').classList.remove('show');
+    document.getElementById('oc-overlay').classList.remove('show');
+  }
+
+  /* 다운로드 시뮬레이션 (실제로는 서버 URL 또는 presigned-URL로 교체) */
+  function downloadOne(name){
+    const blob = new Blob([`[Mock] 폐자재 처리 첨부 - ${name}`], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  }
+
+  /* 그리드 첨부 아이콘 클릭 시 일괄 다운로드 */
+  function downloadFiles(idx){
+    const ctx = window._currentTx;
+    if (!ctx) return;
+    const t = ctx.list[idx];
+    if (!t || !t.files) return;
+    t.files.forEach(f => downloadOne(f.name));
+  }
+
+  /* ESC 키로 Offcanvas 닫기 */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeOffcanvas();
+  });
+
+  /* ===== 거래내역 레이어 팝업 (페이지네이션 + 기간필터 + 엑셀) ===== */
+  let txPageState = { material:null, sorted:[], computed:[], filtered:[], kind:'in', page:1, pageSize:20, from:'', to:'' };
+
+  /* yy/mm/dd → ISO yyyy-mm-dd 변환 */
+  function toIsoDate(s){
+    if (!s) return '';
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
+    if (!m) return '';
+    return `20${m[1]}-${m[2]}-${m[3]}`;
+  }
+  /* ISO yyyy-mm-dd → yy/mm/dd 변환 */
+  function fromIsoDate(s){
+    if (!s) return '';
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return '';
+    return `${m[1].slice(2)}/${m[2]}/${m[3]}`;
+  }
+
+  function openTxModal(material, kind){
+    const titleEl = document.getElementById('tx-title');
+    const kindLabel = { in:'누적 입고', use:'누적 사용', out:'누적 폐기' }[kind] || '거래';
+    titleEl.textContent = `${material.name} · ${kindLabel} 내역`;
+
+    /* 누적 데이터를 시연하기 위해 각 자재의 기존 거래를 다중 복제 (실 운영 시에는 서버 응답을 바인딩) */
+    const expanded = [];
+    for (let i = 0; i < 28; i++) {
+      material.txs.forEach((t, j) => {
+        const d = new Date(2026, 0, 1 + i * 5 + j);
+        const yy = String(d.getFullYear()).slice(2);
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        const hh = String((9 + i + j) % 24).padStart(2,'0');
+        const mi = String((i*7 + j*13) % 60).padStart(2,'0');
+        expanded.push({
+          ...t,
+          date: `${yy}/${mm}/${dd}`,
+          registeredAt: `${yy}/${mm}/${dd} ${hh}:${mi}`,
+          handover: `2026-PR-${String(i*10 + j + 100).padStart(5,'0')}`
+        });
+      });
+    }
+    const sorted = expanded.sort((a,b) => a.date.localeCompare(b.date));
+    let running = material.prev;
+
+    /* tx 객체에 시점 재고 부여 (Offcanvas 표시용) */
+    const computed = sorted.map((t, i) => {
+      const before = running;
+      const after  = before + (+t.in||0) - (+t.use||0) - (+t.out||0);
+      running = after;
+      return { ...t, _before: before, _after: after, _idx: i };
+    });
+
+    /* 데이터 범위 기준 from/to 기본값 (전체) */
+    const allDates = computed.map(t => toIsoDate(t.date)).sort();
+    const defFrom = allDates[0] || '';
+    const defTo   = allDates[allDates.length - 1] || '';
+
+    txPageState = {
+      material, sorted, computed,
+      filtered: computed.slice(),
+      kind,
+      page: 1,
+      pageSize: +document.getElementById('tx-page-size').value || 20,
+      from: defFrom, to: defTo
+    };
+    document.getElementById('tx-from').value = defFrom;
+    document.getElementById('tx-to').value   = defTo;
+
+    window._currentTx = { material, list: computed };
+
+    renderTxPage();
+    document.getElementById('tx-modal').classList.add('show');
+  }
+
+  function onTxPageSize(){
+    txPageState.pageSize = +document.getElementById('tx-page-size').value;
+    txPageState.page = 1;
+    renderTxPage();
+  }
+
+  function gotoTxPage(p){
+    const total = Math.ceil(txPageState.filtered.length / txPageState.pageSize);
+    if (p < 1 || p > total) return;
+    txPageState.page = p;
+    renderTxPage();
+  }
+
+  /* 기간 변경 시 필터 재계산 */
+  function onTxDateChange(){
+    const f = document.getElementById('tx-from').value;
+    const t = document.getElementById('tx-to').value;
+    if (f && t && f > t) {
+      alert('시작일이 종료일보다 늦을 수 없습니다.');
+      return;
+    }
+    txPageState.from = f;
+    txPageState.to   = t;
+    txPageState.page = 1;
+    applyTxFilter();
+    renderTxPage();
+  }
+
+  function resetTxPeriod(){
+    const all = txPageState.computed.map(t => toIsoDate(t.date)).sort();
+    const f = all[0] || '';
+    const t = all[all.length - 1] || '';
+    document.getElementById('tx-from').value = f;
+    document.getElementById('tx-to').value   = t;
+    txPageState.from = f;
+    txPageState.to   = t;
+    txPageState.page = 1;
+    applyTxFilter();
+    renderTxPage();
+  }
+
+  function applyTxFilter(){
+    const { computed, from, to } = txPageState;
+    txPageState.filtered = computed.filter(t => {
+      const iso = toIsoDate(t.date);
+      if (from && iso < from) return false;
+      if (to   && iso > to)   return false;
+      return true;
+    });
+  }
+
+  function renderTxPage(){
+    const tbody = document.getElementById('tx-tbody');
+    const sumEl = document.getElementById('tx-summary');
+    const { material, filtered, kind, page, pageSize } = txPageState;
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (page > totalPages) txPageState.page = totalPages;
+    const curPage = txPageState.page;
+    const start = (curPage - 1) * pageSize;
+    const end = Math.min(start + pageSize, total);
+    const slice = filtered.slice(start, end);
+
+    if (total === 0) {
+      tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; padding:60px 20px; color:var(--text-muted);">선택한 기간에 거래 내역이 없습니다.</td></tr>`;
+    } else {
+    tbody.innerHTML = slice.map(t => {
+      /* 클릭한 종류(kind)의 셀 강조 */
+      const hi = (col) => col === kind ? 'background:#eff6ff; font-weight:700;' : '';
+
+      const fileIcon = (t.files && t.files.length)
+        ? `<button class="file-chip" title="${t.files.map(f=>f.name).join(', ')}" onclick="event.stopPropagation(); downloadFiles(${t._idx})">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+             ${t.files.length}
+           </button>`
+        : `<span style="color:var(--text-muted);">−</span>`;
+
+      const memoText = (t.memo || '').replace(/"/g,'&quot;');
+      const memoCell = t.memo
+        ? `<span class="cell-memo" title="${memoText}">${memoText}</span>`
+        : `<span style="color:var(--text-muted);">−</span>`;
+
+      return `
+        <tr class="tx-row" data-idx="${t._idx}" style="cursor:pointer;">
+          <td class="center">${material.unit}</td>
+          <td class="num">${fmt(t._before)}</td>
+          <td class="num" style="color:var(--success); font-weight:600; ${hi('in')}">+${fmt(t.in||0)}</td>
+          <td class="num" style="color:var(--text-sub); ${hi('use')}">−${fmt(t.use||0)}</td>
+          <td class="num" style="color:var(--danger); font-weight:600; ${hi('out')}">−${fmt(t.out||0)}</td>
+          <td class="num"><b>${fmt(t._after)}</b></td>
+          <td>${t.vendor}</td>
+          <td>${t.manager}</td>
+          <td>${t.date}</td>
+          <td style="font-variant-numeric: tabular-nums;">${t.handover || '−'}</td>
+          <td class="num">${t.price ? fmt(t.price) + '원' : '−'}</td>
+          <td class="center">${fileIcon}</td>
+          <td>${memoCell}</td>
+          <td>${t.registrant || '−'}</td>
+          <td style="color:var(--text-sub); font-variant-numeric: tabular-nums; white-space: nowrap;">${t.registeredAt || '−'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    } /* end of else (total>0) */
+
+    /* 행 클릭 → Offcanvas 오픈 (전체 computed 기준 idx로 매핑) */
+    tbody.querySelectorAll('.tx-row').forEach(tr => {
+      tr.addEventListener('click', () => openOffcanvas(material, txPageState.computed[+tr.dataset.idx]));
+    });
+
+    /* 합계 (현재 기간필터 적용 결과 기준) */
+    const totalIn  = filtered.reduce((s,t)=>s+(+t.in||0), 0);
+    const totalUse = filtered.reduce((s,t)=>s+(+t.use||0), 0);
+    const totalOut = filtered.reduce((s,t)=>s+(+t.out||0), 0);
+    const finalStk = material.prev + totalIn - totalUse - totalOut;
+    sumEl.innerHTML = `총 <b style="color:var(--text);">${total.toLocaleString()}</b>건 · 입고 <b style="color:var(--success);">+${fmt(totalIn)}</b> · 사용 <b>−${fmt(totalUse)}</b> · 폐기 <b style="color:var(--danger);">−${fmt(totalOut)}</b> · 최종재고 <b style="color:var(--text);">${fmt(finalStk)} ${material.unit}</b> · <span style="color:var(--text-muted);">${total ? start+1 : 0}–${end} / ${total}</span>`;
+
+    /* 페이지네이션 렌더링 */
+    renderTxPager(curPage, totalPages);
+  }
+
+  /* ===== 엑셀(CSV) 다운로드 — 현재 기간 필터 결과 기준 ===== */
+  function exportTxExcel(){
+    const { material, filtered, from, to } = txPageState;
+    if (!material || !filtered.length) {
+      alert('다운로드할 데이터가 없습니다.');
+      return;
+    }
+    const headers = ['단위','기존재고','입고수량','사용수량','폐기수량','최종재고','폐기업체','업체담당자','처리일자','인계/올바로번호','처리단가','첨부파일','메모','등록자','등록일'];
+    const lines = [headers.join(',')];
+    filtered.forEach(t => {
+      const cells = [
+        material.unit,
+        t._before,
+        t.in || 0,
+        t.use || 0,
+        t.out || 0,
+        t._after,
+        csvCell(t.vendor),
+        csvCell(t.manager),
+        t.date,
+        t.handover || '',
+        t.price || 0,
+        csvCell((t.files || []).map(f => f.name).join(' | ')),
+        csvCell(t.memo || ''),
+        csvCell(t.registrant || ''),
+        t.registeredAt || ''
+      ];
+      lines.push(cells.join(','));
+    });
+    const csv = '﻿' + lines.join('\r\n'); /* BOM for Excel UTF-8 */
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const range = (from && to) ? `_${from}_${to}` : '';
+    a.href = url;
+    a.download = `${material.name.replace(/[\s()]/g,'')}_거래내역${range}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function csvCell(v){
+    const s = String(v ?? '').replace(/"/g, '""');
+    return /[",\r\n]/.test(s) ? `"${s}"` : s;
+  }
+
+  function renderTxPager(cur, total){
+    const pager = document.getElementById('tx-pager');
+    const make = (label, p, opts = {}) => {
+      const cls = opts.active ? 'active' : '';
+      const dis = opts.disabled ? 'disabled' : '';
+      return `<button class="${cls}" ${dis} onclick="gotoTxPage(${p})">${label}</button>`;
+    };
+    let html = '';
+    html += make('‹‹', 1, { disabled: cur === 1 });
+    html += make('‹', cur - 1, { disabled: cur === 1 });
+
+    /* 최대 7개 숫자 버튼 노출 */
+    const win = 5;
+    let s = Math.max(1, cur - Math.floor(win/2));
+    let e = Math.min(total, s + win - 1);
+    s = Math.max(1, e - win + 1);
+    for (let i = s; i <= e; i++) {
+      html += make(String(i), i, { active: i === cur });
+    }
+
+    html += make('›', cur + 1, { disabled: cur === total });
+    html += make('››', total, { disabled: cur === total });
+    pager.innerHTML = html;
+  }
+
+  function closeTxModal(){
+    document.getElementById('tx-modal').classList.remove('show');
+  }
+  document.getElementById('tx-modal').addEventListener('click', e => {
+    if (e.target.id === 'tx-modal') closeTxModal();
+  });
+
+  /* ===== Vendor datalist 초기화 ===== */
+  (function initVendorList(){
+    const dl = document.getElementById('vendor-list');
+    Object.keys(vendorMaster).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      dl.appendChild(opt);
+    });
+  })();
+
+  /* ===== Modal ===== */
+  function openModal(rowData){
+    const modal = document.getElementById('modal');
+    const title = modal.querySelector('.modal-title');
+
+    if (rowData) {
+      /* 행 클릭 → 상세 등록 모드 (기존 데이터 채움) */
+      const a = aggregate(rowData);
+      const lastTx = rowData.txs[rowData.txs.length - 1] || {};
+      title.textContent = `폐자재 상세 / 처리 입력 — ${rowData.name}`;
+      document.getElementById('f-mat').value = matKey(rowData.name);
+      document.getElementById('f-unit').value = rowData.unit;
+      document.getElementById('f-prev').value = a.final;   /* 직전 최종재고 = 현재 누적 결과 */
+      document.getElementById('f-in').value = 0;
+      document.getElementById('f-use').value = 0;
+      document.getElementById('f-out').value = 0;
+      document.getElementById('f-vendor').value = lastTx.vendor || '';
+      onVendorChange();
+      if (lastTx.manager) document.getElementById('f-manager').value = lastTx.manager;
+      document.getElementById('f-unit-label').textContent = rowData.unit;
+    } else {
+      /* 신규 등록 */
+      title.textContent = '폐자재 등록 / 처리 입력';
+      document.getElementById('f-mat').value = '';
+      document.getElementById('f-prev').value = 0;
+      document.getElementById('f-in').value = 0;
+      document.getElementById('f-use').value = 0;
+      document.getElementById('f-out').value = 0;
+      document.getElementById('f-vendor').value = '';
+      document.getElementById('f-manager').innerHTML = '<option value="">먼저 폐기업체를 선택하세요</option>';
+      document.getElementById('f-file-name').textContent = '선택된 파일 없음';
+    }
+    modal.classList.add('show');
+    recalc();
+  }
+
+  function matKey(name){
+    if (name.includes('폐유')) return '폐유';
+    if (name.includes('폐수')) return '폐수';
+    if (name.includes('폐판')) return '폐판';
+    if (name.includes('폐지')) return '폐지';
+    if (name.includes('폐걸래')) return '폐걸래';
+    return '';
+  }
+
+  function closeModal(){
+    document.getElementById('modal').classList.remove('show');
+  }
+  document.getElementById('modal').addEventListener('click', e => {
+    if (e.target.id === 'modal') closeModal();
+  });
+
+  /* ===== 자재 변경 시 직전 최종재고 자동 입력 ===== */
+  function onMaterialChange(){
+    const sel = document.getElementById('f-mat').value;
+    const found = rows.find(r => matKey(r.name) === sel);
+    const prevFinal = found ? aggregate(found).final : 0;
+    document.getElementById('f-prev').value = prevFinal;
+    if (found) {
+      document.getElementById('f-unit').value = found.unit;
+      document.getElementById('f-unit-label').textContent = found.unit;
+    }
+    recalc();
+  }
+
+  /* ===== 폐기업체 변경 시 담당자 자동 연동 ===== */
+  function onVendorChange(){
+    const v = document.getElementById('f-vendor').value;
+    const managerSel = document.getElementById('f-manager');
+    const list = vendorMaster[v];
+    if (list && list.length) {
+      managerSel.innerHTML = list.map(m => `<option value="${m}">${m}</option>`).join('');
+    } else {
+      managerSel.innerHTML = '<option value="">등록된 담당자 없음</option>';
+    }
+  }
+
+  /* ===== 첨부파일 파일명 표시 ===== */
+  function onFileChange(e){
+    const files = e.target.files;
+    const label = document.getElementById('f-file-name');
+    if (!files || !files.length) { label.textContent = '선택된 파일 없음'; return; }
+    if (files.length === 1) label.textContent = files[0].name;
+    else label.textContent = `${files[0].name} 외 ${files.length - 1}건`;
+  }
+
+  /* ===== 최종재고 자동 계산 (정책: 음수 재고 방지) ===== */
+  function recalc(){
+    const prev = +document.getElementById('f-prev').value || 0;
+    const inq  = +document.getElementById('f-in').value   || 0;
+    const use  = +document.getElementById('f-use').value  || 0;
+    const out  = +document.getElementById('f-out').value  || 0;
+    const final = prev + inq - use - out;
+    const el = document.getElementById('f-final');
+    el.textContent = final.toLocaleString('ko-KR');
+    el.style.color = final < 0 ? 'var(--danger)' : 'var(--info)';
+  }
+</script>
+</body>
+</html>
