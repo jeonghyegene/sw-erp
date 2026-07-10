@@ -494,9 +494,14 @@
     return `${y}-${m}-${dd}`;
   }
   function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (데이터 key/비교값은 원본 유지) */
+  function fmtD(s) {
+    s = (s === null || s === undefined) ? '' : String(s);
+    return s.length >= 10 ? s.slice(2,4) + '/' + s.slice(5,7) + '/' + s.slice(8,10) : s;
+  }
   function periodText(from, to) {
     if (!from && !to) return '-';
-    return `${from || '?'} ~ ${to || '?'}`;
+    return `${from ? fmtD(from) : '?'} ~ ${to ? fmtD(to) : '?'}`;
   }
   function statusPill(code) {
     const s = STATUS[code] || STATUS.pending;
@@ -1298,7 +1303,7 @@
             <div class="fm-tbl__label">생성자</div>
             <div class="fm-tbl__value">${esc(f.createdBy || '-')}</div>
             <div class="fm-tbl__label">생성일</div>
-            <div class="fm-tbl__value">${esc(f.createdAt || '-')}</div>
+            <div class="fm-tbl__value">${f.createdAt ? esc(fmtD(f.createdAt)) : '-'}</div>
           </div>
         `}
       </div>
@@ -1700,7 +1705,7 @@
       ? hist.map((h, i) => ({ h, i })).reverse().map(({ h }) => `
           <tr>
             <td style="text-align:center;">${kindPill(h.kind)}</td>
-            <td>${esc(h.at || '-')}</td>
+            <td>${h.at ? esc(fmtD(h.at)) : '-'}</td>
             <td>${esc(h.by || '-')}</td>
             <td>${esc(h.reason || '-')}</td>
           </tr>`).join('')

@@ -21,7 +21,7 @@
   }
 
   function WR() { return App.WorkReport; }
-  function HRI() { return window.App && App.HRInfoMgmt; }
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
   function emps() { return (App.AttStatus && App.AttStatus.EMP_LIST) ? App.AttStatus.EMP_LIST : []; }
 
   /* 좌측 패널 그룹 — 최상위 조직(본부/팀). HRInfoMgmt 없으면 부서명 distinct 로 fallback. */
@@ -38,7 +38,7 @@
     if (!group) return [];
     const h = HRI();
     let list;
-    if (h && h.empsInDept && /^[A-Z]/.test(group.id)) list = h.empsInDept(emps(), group.id);
+    if (h && h.empsInDept) list = h.empsInDept(emps(), group.id);
     else list = emps().filter(e => e.dept === group.name);
     return list.slice().sort((a, b) =>
       String(a.dept || '').localeCompare(String(b.dept || ''))
@@ -130,7 +130,7 @@
       <aside class="wrs__side">
         <div class="wrs__side-title">주간업무보고</div>
         <div class="wrs__month">
-          <span class="wrs__month-label">${y}년 ${m}월</span>
+          <span class="wrs__month-label">${String(y).slice(-2)}/${pad2(m)}</span>
           <span class="wrs__month-nav">
             <button type="button" data-wrs-month="-1" aria-label="이전 달">‹</button>
             <button type="button" data-wrs-month="1" aria-label="다음 달">›</button>

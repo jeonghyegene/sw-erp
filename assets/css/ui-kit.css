@@ -5882,6 +5882,34 @@ textarea.is-modified:focus {
   color: var(--color-danger);
 }
 
+/* Chip Choice — 단일/다중 선택 칩 그룹 (라디오·세그먼트 대체, 폼 필드용).
+   동작은 data-* 훅으로: 클릭 시 .is-active 토글. 단일 선택은 형제 해제 후 지정.
+   예)  <div class="chip-choice" data-chip-group>
+          <button class="chip-choice__item is-active" data-chip-val="a">근무스케줄 배치</button>
+          <button class="chip-choice__item" data-chip-val="b">근무조 변경</button>
+        </div> */
+.chip-choice { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.chip-choice__item {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-sub);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.chip-choice__item:hover { border-color: var(--color-brand-primary); color: var(--color-text); }
+.chip-choice__item.is-active {
+  background: var(--color-brand-primary);
+  border-color: var(--color-brand-primary);
+  color: #fff;
+}
+.chip-choice__item:disabled { opacity: .5; cursor: not-allowed; }
+.chip-choice__item:disabled:hover { border-color: var(--color-border); color: var(--color-text-sub); }
+
 /* Form Card Actions Footer (재사용) */
 .fm-card-actions {
   padding: 16px 22px;

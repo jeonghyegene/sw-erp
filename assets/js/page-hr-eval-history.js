@@ -46,9 +46,14 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (데이터 값은 원본 유지) */
+  function fmtD(s) {
+    s = (s === null || s === undefined) ? '' : String(s);
+    return s.length >= 10 ? s.slice(2,4) + '/' + s.slice(5,7) + '/' + s.slice(8,10) : s;
+  }
   function periodText(from, to) {
     if (!from && !to) return '-';
-    return `${from || '?'} ~ ${to || '?'}`;
+    return `${from ? fmtD(from) : '?'} ~ ${to ? fmtD(to) : '?'}`;
   }
   /* avatar — 인사정보카드와 동일 산식: 사번 끝 2자리 % 6 + 1. 이니셜은 성 한 글자. */
   function avColor(emp) {
@@ -545,7 +550,7 @@
             <span class="pill ${gradeColor(r.grade)}" style="min-width:36px;justify-content:center;font-weight:var(--fw-semibold);">${esc(r.grade)}</span>
           </td>
           <td style="white-space:nowrap;">${esc(t.id)}</td>
-          <td><a href="#" data-evh-open-detail style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(t.name)}</a></td>
+          <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((t.name||'').slice(0,1))}</span><a href="#" data-evh-open-detail style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(t.name)}</a></div></td>
           <td>${esc(t.dept || '-')}</td>
           <td style="text-align:center;">${esc(t.position || '-')}</td>
           ${elCells}
@@ -684,7 +689,7 @@
           </div>
           <div style="font-size:var(--fs-sm);color:var(--color-text-sub);margin-top:4px;">
             ${esc(t.dept || '-')} · ${esc(t.position || '-')} · ${esc(t.rank || '-')}
-            ${t.joinDate ? ` · 입사 ${esc(t.joinDate)}` : ''}
+            ${t.joinDate ? ` · 입사 ${esc(fmtD(t.joinDate))}` : ''}
           </div>
         </div>
         ${!isCanceled && result ? `

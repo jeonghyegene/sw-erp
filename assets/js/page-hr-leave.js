@@ -62,6 +62,13 @@
     if (p.length < 3) return ymdStr;
     return `${p[0].slice(2)}/${p[1]}/${p[2]}`;
   }
+  /* 일시 표시 전용 — YYYY-MM-DD HH:MM → YY/MM/DD   HH:MM (SWADPIA §2, 공백 3칸). 데이터/키 변환에는 사용 금지. */
+  function fmtDateTime(dtStr) {
+    if (!dtStr) return '-';
+    const m = String(dtStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) return dtStr;
+    return `${m[1].slice(2)}/${m[2]}/${m[3]}   ${m[4]}:${m[5]}`;
+  }
   function deletableDate(r) { return addYears(r.retiredAt, 5); }      /* ISO */
   function canDelete(r) { const d = deletableDate(r); return !!d && TODAY >= d; }
   /* avatar — 인사정보카드와 동일 산식: 사번 끝 2자리 % 6 + 1. 이니셜은 성 한 글자. */
@@ -361,7 +368,7 @@
               <div class="fm-tbl__label">제목</div>
               <div class="fm-tbl__value">${esc((r.name || '') + ' 사직원')}</div>
               <div class="fm-tbl__label">기안일시</div>
-              <div class="fm-tbl__value">${esc(draftAt)}</div>
+              <div class="fm-tbl__value">${esc(fmtDateTime(draftAt))}</div>
             </div>
           </div>
 
@@ -374,9 +381,9 @@
             </div>
             <div class="fm-tbl__row fm-tbl__row--2">
               <div class="fm-tbl__label">입사일</div>
-              <div class="fm-tbl__value">${esc(r.joinDate || '-')}</div>
+              <div class="fm-tbl__value">${esc(r.joinDate ? fmtYYMMDD(r.joinDate) : '-')}</div>
               <div class="fm-tbl__label">퇴사(예정)일</div>
-              <div class="fm-tbl__value">${esc(r.retiredAt || '-')}</div>
+              <div class="fm-tbl__value">${esc(r.retiredAt ? fmtYYMMDD(r.retiredAt) : '-')}</div>
             </div>
             <div class="fm-tbl__row fm-tbl__row--1">
               <div class="fm-tbl__label">사직 사유</div>
@@ -384,7 +391,7 @@
             </div>
             <div class="fm-tbl__row fm-tbl__row--1">
               <div class="fm-tbl__label">사직서 내용</div>
-              <div class="fm-tbl__value" style="white-space:pre-wrap;line-height:1.7;">상기 본인은 일신상의 사유로 ${esc(r.retiredAt || '')}자로 사직하고자 하오니 재가하여 주시기 바랍니다.</div>
+              <div class="fm-tbl__value" style="white-space:pre-wrap;line-height:1.7;">상기 본인은 일신상의 사유로 ${r.retiredAt ? esc(fmtYYMMDD(r.retiredAt)) : ''}자로 사직하고자 하오니 재가하여 주시기 바랍니다.</div>
             </div>
           </div>
 
@@ -405,7 +412,7 @@
                   <td class="col-center">${i + 1}차</td>
                   <td>${esc(s.name)}</td>
                   <td class="col-center"><span class="pill pill--success">결재</span></td>
-                  <td class="col-center">${esc(s.when)}</td>
+                  <td class="col-center">${esc(fmtDateTime(s.when))}</td>
                   <td>${esc(s.comment)}</td>
                 </tr>`).join('')}
             </tbody>
@@ -436,8 +443,8 @@
         <td style="white-space:nowrap;"><a href="#" data-lv-appr="${esc(r.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);text-decoration:underline;text-underline-offset:2px;">${esc(resignApprovalNo(r))}</a></td>
         <td style="white-space:nowrap;">${esc(r.empId)}</td>
         <td>${nameCell(r)}</td>
-        <td style="white-space:nowrap;">${esc(r.joinDate || '-')}</td>
-        <td style="white-space:nowrap;">${esc(r.retiredAt || '-')}</td>
+        <td style="white-space:nowrap;">${esc(r.joinDate ? fmtYYMMDD(r.joinDate) : '-')}</td>
+        <td style="white-space:nowrap;">${esc(r.retiredAt ? fmtYYMMDD(r.retiredAt) : '-')}</td>
         <td style="white-space:nowrap;text-align:center;${delOk ? 'color:var(--color-danger);font-weight:var(--fw-medium);' : 'color:var(--color-text-muted);'}">${esc(fmtYYMMDD(delAt))}</td>
         <td style="white-space:nowrap;">${esc(fmtTenure(r.tenureDays))}</td>
         <td>${esc(kindLabel(r.reasonKind))}</td>

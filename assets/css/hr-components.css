@@ -850,7 +850,7 @@ textarea.input {
   font-size: 11px;
 }
 
-/* ============== 근무조 칩 — 근무조별 색상 구분 (근무조 현황 / 스케줄) ==============
+/* ============== 근무조 칩 — 근무조별 색상 구분 (근무스케줄 현황 / 스케줄) ==============
    근무조 마스터의 등록 순서(index)에 따라 c0~c9 색을 순환 배정. 야간조는 별도 톤. */
 .shift-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -865,7 +865,7 @@ textarea.input {
 }
 .shift-chip__t { font-weight: var(--fw-regular); opacity: 0.8; }
 .shift-chip--off {
-  background: var(--color-surface-alt);
+  background: transparent;
   border: 1px dashed var(--color-border);
   color: var(--color-text-muted);
   font-weight: var(--fw-regular);
@@ -885,7 +885,7 @@ textarea.input {
 .shift-chip--night { background: #312E81; border-color: #312E81; color: #E0E7FF; }
 .shift-chip--night .shift-chip__t { color: #C7D2FE; opacity: 1; }
 
-/* ============== 근무조 현황 — 주간 스케줄표 ============== */
+/* ============== 근무스케줄 현황 — 주간 스케줄표 ============== */
 .ssw-wrap { flex: 1; min-height: 0; overflow: auto; background: var(--color-surface); }
 .ssw-tbl { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
 .ssw-tbl thead th {
@@ -899,8 +899,12 @@ textarea.input {
   white-space: nowrap;
 }
 .ssw-tbl th.ssw-tbl__day, .ssw-tbl td.ssw-tbl__day { min-width: 148px; text-align: center; }
-.ssw-tbl th.ssw-tbl__day.is-sun, .ssw-tbl td.ssw-tbl__day.is-sun .ssw-tbl__dnum { color: var(--color-danger); }
-.ssw-tbl th.ssw-tbl__day.is-sat, .ssw-tbl td.ssw-tbl__day.is-sat .ssw-tbl__dnum { color: var(--color-info); }
+/* 토·일 열 — 색상 강조 없이(투명) 점선 테두리로만 주말 구분 (부서별 근무스케줄 현황) */
+.ssw-tbl th.ssw-tbl__day.is-sat, .ssw-tbl td.ssw-tbl__day.is-sat,
+.ssw-tbl th.ssw-tbl__day.is-sun, .ssw-tbl td.ssw-tbl__day.is-sun {
+  border-left: 1px dashed var(--color-border);
+  border-right: 1px dashed var(--color-border);
+}
 .ssw-tbl__dnum { font-weight: var(--fw-semibold); color: var(--color-text); margin-right: 4px; }
 .ssw-tbl__dw { font-size: 11px; opacity: 0.75; }
 .ssw-tbl td {
@@ -908,7 +912,8 @@ textarea.input {
   padding: 8px 10px;
   vertical-align: middle;
 }
-.ssw-tbl tbody tr:hover td { background: var(--color-hover); }
+/* 행 hover 회색 제거 — 부서별 근무스케줄 현황·근무스케줄 배치에서 불필요 */
+.ssw-tbl tbody tr:hover td { background: transparent; }
 .ssw-tbl__grp { color: var(--color-text-sub); white-space: nowrap; }
 .ssw-tbl__emp { display: flex; align-items: center; gap: 8px; }
 /* 주간 뷰 — 사원명 + 신규 뱃지가 한 줄로 유지되도록 줄바꿈 방지 */
@@ -920,21 +925,24 @@ textarea.input {
   background: var(--color-active); color: var(--color-brand-primary);
   font-size: 11px; font-weight: var(--fw-semibold);
 }
-.ssw-tbl__name { font-weight: var(--fw-medium); color: var(--color-text); }
+.ssw-tbl__name { font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--color-text); }
 .ssw-tbl__id { font-size: var(--fs-xs); color: var(--color-text-muted); }
 .ssw-tbl__num { text-align: right; font-weight: var(--fw-semibold); white-space: nowrap; }
 .ssw-tbl__sumrow td { background: var(--color-surface-alt); font-weight: var(--fw-semibold); border-bottom: 2px solid var(--color-border); }
 .ssw-tbl__sumcount { color: var(--color-brand-primary); }
 .ssw-tbl__col-grp { left: 0; }
 
-/* ===== 부서별 근무조 현황 — 상단 근무정책·사용 근무코드 배너(.po-info) 내 코드 표기 ===== */
+/* ===== 부서별 근무스케줄 현황 — 상단 근무정책·사용 가능한 근무조 배너(.po-info) 내 코드 표기 ===== */
 .ss-codeitem { white-space: nowrap; }
 .ss-codesep { margin: 0 6px; color: var(--color-divider); }
 
-/* ===== 부서별 근무조 현황 — 성명 셀 (아바타 + 이름 + 부서·직책) ===== */
+/* ===== 부서별 근무스케줄 현황 — 성명 셀 (아바타 + 이름 + 직위·직책) ===== */
 .ssw-tbl__namecell-h, .ssw-tbl__namecell { min-width: 200px; text-align: left; }
-/* 예외 블록이 쌓여 행 높이가 커져도 성명은 상단(첫 블록)에 맞춰 정렬 — .ssw-tbl td(middle) 보다 높은 우선순위 */
-.ssw-tbl td.ssw-tbl__namecell { vertical-align: top; }
+/* 성명은 셀 세로 가운데 정렬 (행 높이가 커져도 중앙 유지) */
+.ssw-tbl td.ssw-tbl__namecell { vertical-align: middle; }
+/* 프로필 사진 아바타 — 임직원 관리와 동일(원본 사진 cover). 이니셜 배경/폰트는 제거 */
+.ssw-tbl__ava--photo { object-fit: cover; background: transparent; padding: 0; }
+.ssw-tbl__ava--photo.is-broken { background: var(--color-active); }
 .ssw-tbl__person { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ssw-tbl__nm { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ssw-tbl__nm-top { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -957,7 +965,7 @@ textarea.input {
    각 셀을 은은한 파스텔 카드로 채우고 근무조명(색상 강조) + 시간(회색) 2줄로 표기. */
 .ssw-tbl--sched td.ssw-tbl__day { padding: 6px; vertical-align: middle; }
 .ssw-tbl--sched tbody td { border-bottom: 1px solid var(--color-divider); }
-.ssw-tbl--sched tbody tr:hover td { background: var(--color-hover); }
+.ssw-tbl--sched tbody tr:hover td { background: transparent; }
 .ssw-tbl--sched td.ssw-tbl__day .shift-chip {
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
   gap: 3px; width: 100%; min-height: 52px; box-sizing: border-box;
@@ -967,16 +975,16 @@ textarea.input {
 .ssw-tbl--sched td.ssw-tbl__day .shift-chip__hd { font-weight: var(--fw-semibold); }
 .ssw-tbl--sched td.ssw-tbl__day .shift-chip__t {
   font-size: 11px; font-weight: var(--fw-regular);
-  color: var(--color-text-sub); opacity: 1;
+  color: var(--color-text-muted); opacity: 0.85;
   font-variant-numeric: tabular-nums;
 }
 /* 야간조 카드는 진한 배경이라 시간 텍스트를 밝게 */
 .ssw-tbl--sched td.ssw-tbl__day .shift-chip--night .shift-chip__t { color: #C7D2FE; }
-/* 휴무 — 참조 이미지처럼 은은한 분홍 카드 (근무조 파스텔과 동일 톤 계열) */
+/* 휴무 — 색상 없이 은은한 회색 카드 */
 .ssw-tbl--sched td.ssw-tbl__day .shift-chip--off {
   width: 100%; min-height: 52px; box-sizing: border-box;
   justify-content: center; align-items: center;
-  background: #FCEDED; border: 0; border-radius: var(--radius-md);
+  background: transparent; border: 0; border-radius: var(--radius-md);
   color: var(--color-text-muted); font-weight: var(--fw-medium);
 }
 /* 아바타 — 참조 이미지 톤(조금 크게) */
@@ -992,7 +1000,7 @@ textarea.input {
 .ssw-tbl__wk-no { display: block; font-weight: var(--fw-semibold); color: var(--color-text); }
 .ssw-tbl__wk-range { display: block; font-size: 11px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .ssw-tbl--month td.ssw-tbl__wk { padding: 6px; }
-/* 주차 셀 = 하나의 큰 근무코드 블록. 내부에 대표 근무조 + 예외(날짜+근무코드). */
+/* 주차 셀 = 하나의 큰 근무조 블록. 내부에 대표 근무조 + 예외(날짜+근무조). */
 .ssw-wk { display: flex; flex-direction: column; gap: 6px; }
 /* 대표 근무조 — 주간 셀과 동일한 소프트 카드(코드+명칭 / 시간).
    배치 편집 시 대표 카드는 .ssw-edit 래퍼 안에 있으므로 두 경우 모두 매칭. */
@@ -1013,7 +1021,7 @@ textarea.input {
 .ssw-tbl--month .ssw-wk > .ssw-edit > .shift-chip--off {
   width: 100%; min-height: 52px; box-sizing: border-box;
   justify-content: center; align-items: center;
-  background: #FCEDED; border: 0; border-radius: var(--radius-md);
+  background: transparent; border: 0; border-radius: var(--radius-md);
   color: var(--color-text-muted); font-weight: var(--fw-medium);
 }
 /* 예외 카드 상단 날짜 라벨 — 카드 색 위 은은한 강조 (야간 카드는 밝게) */
@@ -1024,7 +1032,21 @@ textarea.input {
 }
 .ssw-tbl--month .ssw-wk .shift-chip--night .shift-chip__date { color: #C7D2FE; opacity: 0.9; }
 
-/* ===== 근무조 배치 — 셀 편집 오버레이 (카드 위 투명 select) ===== */
+/* 근무스케줄 편성 — 오늘 이전(근태 산정 완료) 셀 잠금 아이콘. 셀 중앙 우측 고정. */
+.ssw-tbl__day--locked { position: relative; }
+.ssw-lock {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  font-size: 11px; line-height: 1; opacity: 0.5; pointer-events: none;
+}
+/* 개인 근무조 변경 승인 배지 — 자물쇠와 같은 위치(셀 중앙 우측), 초록 pill */
+.ssw-lock--appr {
+  opacity: 1; pointer-events: auto; cursor: default;
+  font-size: 9px; font-weight: var(--fw-bold); letter-spacing: 0.02em; line-height: 1.5;
+  padding: 1px 6px; border-radius: var(--radius-pill);
+  background: var(--color-success); color: #fff;
+}
+
+/* ===== 근무스케줄 배치 — 셀 편집 오버레이 (카드 위 투명 select) ===== */
 .ssw-edit { position: relative; display: block; width: 100%; }
 .ssw-edit > .ssw-edit__sel {
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -1033,7 +1055,14 @@ textarea.input {
 .ssw-tbl--edit .ssw-edit { cursor: pointer; }
 .ssw-tbl--edit .ssw-edit:hover > .shift-chip { outline: 2px solid var(--color-brand-primary); outline-offset: -2px; }
 
-/* ============== 근무조 배치 — 선택 작업 바 (selbar) ==============
+/* 부서별 근무스케줄 편성 — 행 전체 hover 회색 배경 제거. 변경 가능한 셀만 hover 시 배경을 약간 진하게.
+   (셀 hover 규칙은 행 hover 초기화 규칙보다 명시도를 높여 우선 적용) */
+#page-att-shift-batch .ssw-tbl tbody tr:hover td,
+#page-att-shift-batch .ssw-tbl--sched tbody tr:hover td { background: transparent; }
+#page-att-shift-batch .ssw-tbl tbody tr td.ssw-tbl__day--editable { cursor: pointer; transition: background var(--t-fast); }
+#page-att-shift-batch .ssw-tbl tbody tr td.ssw-tbl__day--editable:hover { background: var(--color-hover); }
+
+/* ============== 근무스케줄 배치 — 선택 작업 바 (selbar) ==============
    구성원 선택 전 안내문구 / 선택 후 [근무조 일괄 변경] 액션 표시줄. */
 .selbar {
   display: flex; align-items: center; gap: 12px;
@@ -1052,7 +1081,7 @@ textarea.input {
 .selbar__divider { width: 1px; height: 16px; background: var(--color-divider); flex: 0 0 auto; }
 .selbar__spacer { flex: 1 1 auto; }
 
-/* ============== 근무조 현황 — 월간 매트릭스 (이름 | 소속 2열 고정) ==============
+/* ============== 근무스케줄 현황 — 월간 매트릭스 (이름 | 소속 2열 고정) ==============
    border-collapse: collapse 는 position:sticky(th/td) 와 충돌해 헤더/고정열이
    스크롤에 따라 떠나가므로, 이 매트릭스만 separate 로 전환(셀별 1px 보더 유지). */
 .shift-grid--id2 { border-collapse: separate; border-spacing: 0; }
@@ -1333,7 +1362,7 @@ textarea.input {
   color: var(--color-brand-primary);
 }
 
-/* 임직원 리스트 아이템 — 「임직원별」 뷰의 좌측 리스트 (연차/근무조 현황) */
+/* 임직원 리스트 아이템 — 「임직원별」 뷰의 좌측 리스트 (연차/근무스케줄 현황) */
 .att-emp-list-item {
   width: 100%;
   text-align: left;
@@ -1389,6 +1418,19 @@ textarea.input {
   padding: 16px 20px 24px;
   background: var(--color-surface-alt);
 }
+/* 근무정책 설정 — 툴바 + 그리드(데이터 행만 스크롤) 표준 레이아웃(식권 정산과 동일).
+   카드 박스/이중 스크롤 제거: body 는 자체 스크롤 없이 flex 컬럼, 데이터 행만 .grid-scroll 로 스크롤. */
+#page-att-work-policy .att-page__body {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+}
+/* 두 탭(부서별 근무정책 설정 / 근무조 설정) 툴바 높이 통일 —
+   근무조 설정은 버튼(.btn--sm)이 있어 자연 높이가 크고, 부서별 근무정책 설정은
+   카운트 텍스트만 있어 낮음. min-height 로 버튼 유무와 무관하게 동일 높이 보장. */
+#page-att-work-policy .toolbar { min-height: 52px; }
 
 /* 신청 현황 모달 — 탭 */
 .att-applist-tabs {

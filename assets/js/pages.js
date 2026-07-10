@@ -2267,6 +2267,91 @@
     };
   })();
 
+  /* ============ 근태 조직도 (App.AttOrg) — 시스템 > 권한 관리 부서 트리(App.OrgTree) 단일 소스 ============
+   * 근태 모듈(근무정책 설정 / 근무스케줄 배치 / 근무스케줄 현황 / 근태 현황)이 임직원 관리(HRInfoMgmt)의 자체
+   * 부서 마스터 대신 본 조직도를 사용해, 권한 관리 부서 트리 구성과 100% 동일한 팀 구성을 노출한다.
+   * App.HRInfoMgmt 와 동일한 시그니처(deptName/deptIdOf/deptParentId/empsInDept/deptTreeHTML)를 제공한다.
+   * 노드 키(id) 기준으로 동작하며, 구성원(emp.dept)도 동일한 부서 id 를 쓴다. */
+  App.AttOrg = (function () {
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+    const ROOT_NAME = '(주)성원애드피아';
+    function roots() { return App.OrgTree || []; }
+    /* id -> { id, name, parentId, children:[id], type } */
+    function index() {
+      const map = { C0: { id: 'C0', name: ROOT_NAME, parentId: null, children: roots().map(n => n.id), type: 'root' } };
+      (function walk(nodes, parentId) {
+        nodes.forEach(n => {
+          const kids = n.children || [];
+          map[n.id] = { id: n.id, name: n.name, parentId: parentId, children: kids.map(k => k.id),
+            type: kids.length ? 'hq' : (parentId === 'C0' ? 'team' : 'part') };
+          if (kids.length) walk(kids, n.id);
+        });
+      })(roots(), 'C0');
+      return map;
+    }
+    function node(id) { return index()[id] || null; }
+    function subtreeIds(id) {
+      const idx = index(); const acc = new Set([id]);
+      (function collect(x) { (idx[x] ? idx[x].children : []).forEach(c => { acc.add(c); collect(c); }); })(id);
+      return acc;
+    }
+    function deptName(id) { const n = node(id); return n ? n.name : ''; }
+    function deptIdOf(nameOrId) {
+      const idx = index();
+      if (idx[nameOrId]) return nameOrId;
+      const hit = Object.keys(idx).find(k => idx[k].name === nameOrId);
+      return hit || '';
+    }
+    function deptParentId(id) { const n = node(id); return n ? n.parentId : null; }
+    function empsInDept(emps, deptId) {
+      if (!deptId || deptId === 'C0') return (emps || []).slice();
+      const ids = subtreeIds(deptId);
+      return (emps || []).filter(e => ids.has(e.dept));
+    }
+    function icon(type) { return type === 'root' ? '🏢' : type === 'hq' ? '🏛️' : type === 'team' ? '👥' : '📄'; }
+    function deptTreeHTML(selectedId, opts) {
+      opts = opts || {}; const idx = index(); const sel = selectedId || 'C0';
+      const direct = {};
+      if (Array.isArray(opts.emps)) opts.emps.forEach(e => { if (e.dept) direct[e.dept] = (direct[e.dept] || 0) + 1; });
+      function count(id) { if (id === 'C0') return (opts.emps || []).length; let n = 0; subtreeIds(id).forEach(x => { n += direct[x] || 0; }); return n; }
+      function render(id, isRoot) {
+        const d = idx[id]; if (!d) return '';
+        const kids = d.children || []; const hasKids = kids.length > 0;
+        const cnt = count(id); const isSel = sel === id;
+        const openCls = opts.collapsed ? (isRoot ? 'is-open' : (hasKids ? '' : 'is-leaf')) : ((isRoot || hasKids) ? 'is-open' : 'is-leaf');
+        const cls = ['tree__node', openCls, isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
+        const countLabel = isRoot ? `전체 ${cnt}명` : `${cnt}명`;
+        return `<li class="${cls}" data-id="${esc(id)}" data-type="${esc(d.type)}">
+          <div class="tree__row">
+            <span class="tree__toggle">${(isRoot || hasKids) ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' : ''}</span>
+            <span class="tree__icon">${icon(d.type)}</span>
+            <span class="tree__label">${esc(d.name)} <span class="tree__count">${countLabel}</span></span>
+          </div>
+          ${(isRoot || hasKids) ? `<ul>${kids.map(k => render(k, false)).join('')}</ul>` : ''}
+        </li>`;
+      }
+      return render('C0', true);
+    }
+    /* 구성원 배치용 leaf 부서(팀/파트) id 목록 — HQ(자식 보유) 및 root 제외 */
+    function leafDepts() { const idx = index(); return Object.keys(idx).filter(k => k !== 'C0' && (!idx[k].children || !idx[k].children.length)); }
+    /* 최상위 조직(본부/팀) — 회사(C0) 직속 노드. 업무보고 등 본부 단위 그룹핑용. { id, name } */
+    function topDepts() { const idx = index(); return (idx.C0.children || []).map(id => ({ id: id, name: idx[id].name })); }
+    /* 부서 순서 목록 — 트리 순회 순서 + 깊이(level)·부모·유형. 근무정책 설정의 nested 들여쓰기 표시에 사용.
+       (App.HRInfoMgmt.deptsOrdered 와 동일 시그니처: { id, name, parentId, type, level }) */
+    function deptsOrdered() {
+      const idx = index(); const out = [];
+      (function walk(pid, level) {
+        (idx[pid] ? idx[pid].children : []).forEach(cid => {
+          const c = idx[cid];
+          out.push({ id: c.id, name: c.name, parentId: c.parentId, type: c.type, level: level });
+          walk(cid, level + 1);
+        });
+      })('C0', 0);
+      return out;
+    }
+    return { deptName, deptIdOf, deptParentId, empsInDept, deptTreeHTML, leafDepts, subtreeIds, topDepts, deptsOrdered };
+  })();
+
   App.MaterialCodes = (function () {
     // 원자재 = 용지 (스노우지/모조지/켄트지/판지/아트지/머메이드/랑데뷰/레자크) — 색상·평량 무작위
     // 부자재 = 포장재·인쇄/표시 (기존 유지)

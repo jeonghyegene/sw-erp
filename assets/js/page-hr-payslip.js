@@ -38,6 +38,17 @@
     if (!isFinite(n) || n === 0) return '0';
     return Math.round(n).toLocaleString();
   }
+  /* 표시 전용 날짜 포맷 (데이터/키 변형 금지 — 화면 렌더 시점에서만 사용) */
+  function fmtD(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})[-./](\d{2})[-./](\d{2})/);
+    return m ? m[1].slice(2) + '/' + m[2] + '/' + m[3] : s;
+  }
+  function fmtYM(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})[-./](\d{2})/);
+    return m ? m[1].slice(2) + '/' + m[2] : s;
+  }
 
   /* ============ 공제 항목 라벨 (정산 화면과 동일 순서) ============ */
   const DEDUCT_LABELS = [
@@ -408,8 +419,8 @@
           </table>
           <table class="payslip__head-tbl">
             <tbody>
-              <tr><th>지급일</th><td>${esc(meta.payDate || '-')}</td></tr>
-              <tr><th>귀속연월</th><td>${esc((meta.accruedMonth || '').replace('-', '.'))}</td></tr>
+              <tr><th>지급일</th><td>${esc(fmtD(meta.payDate) || '-')}</td></tr>
+              <tr><th>귀속연월</th><td>${esc(fmtYM(meta.accruedMonth || ''))}</td></tr>
             </tbody>
           </table>
         </div>

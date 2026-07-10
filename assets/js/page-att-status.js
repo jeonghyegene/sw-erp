@@ -33,7 +33,7 @@
   /* =========================================================
    *  승인된 근무조 변경 오버라이드 (전자결재 승인 결과의 단일 진실원)
    *    - 근무조 변경 신청이 전자결재에서 승인되면 approve() 로 기간 내 평일에 오버라이드가 기록된다.
-   *    - 근무조 현황(주간/월간)·근무조 배치가 이 레이어를 기본편성 위에 얹어 표시한다.
+   *    - 근무스케줄 현황(주간/월간)·근무스케줄 배치가 이 레이어를 기본편성 위에 얹어 표시한다.
    *    - 우선순위: 승인 오버라이드 > 매니저 편성 > 기본편성.
    * ========================================================= */
   App.AttShiftOverrides = App.AttShiftOverrides || (function () {
@@ -93,7 +93,7 @@
     };
     return API;
   })();
-  const ME_SHIFT = 'WTD01';   /* 본인 근무코드 — 인사팀 사용 가능 근무코드(전부서 공통) 기준 결정값 */
+  const ME_SHIFT = 'WTD01';   /* 본인 근무조 — 인사팀 사용 가능 근무조(전부서 공통) 기준 결정값 */
   /* 본인 직군 — 인사팀 = 사무직. 사무직이 휴일근무하면 대체 휴가가 발생한다. */
   const ME_JOBCAT = 'office';
   /* 대체 휴가 — 사무직 본인이 휴일근무 1일당 1일씩 발생(mock). earned: 발생 누계 / used: 사용 누계.
@@ -297,7 +297,11 @@
    *   각 화면 진입 시 EMP_LIST/DEPTS 를 임직원 관리 기준으로 재구성한다(같은 배열 인스턴스 유지). */
   const EMP_LIST = [];
   const DEPTS = [];
-  /* 근무코드 배정 풀 — 근무코드 마스터(App.AttShifts) 코드와 일치해야 함. 주간 7 + 야간 1 라운드로빈. */
+  /* 근태 조직도 통일 — 구성원을 권한 관리 부서 트리(App.OrgTree) 의 팀/파트로 결정적 재배치.
+     App.AttOrg.leafDepts() 가 있으면 그 목록을, 없으면 동일 구성의 폴백 목록을 사용(로드 순서 무관). */
+  const ATT_DEPT_POOL_FALLBACK = ['임원실','감사팀','개발1팀','개발2팀','회계팀','인사총무팀','자산관리팀','홍보팀','CS파트','고객지원파트','영업파트','접수파트','디자인파트','MD팀','구매팀','VIP관리팀','영업팀','생산연구소','생산관리팀','출력팀','옵셋인쇄팀','재단포장파트','가공1팀','가공2팀','가공3팀','출고팀','IT연구소'];
+  function attDeptPool() { const L = (window.App && App.AttOrg && App.AttOrg.leafDepts) ? App.AttOrg.leafDepts() : []; return (L && L.length) ? L : ATT_DEPT_POOL_FALLBACK; }
+  /* 근무조 배정 풀 — 근무조 마스터(App.AttShifts) 코드와 일치해야 함. 주간 7 + 야간 1 라운드로빈. */
   const _SHIFT_POOL = ['WTD01','WTD02','WTD03','WTD04','WTD05','WTD06','WTD07','WTN01'];
   let _empSig = null;
   function syncEmpList() {
@@ -311,9 +315,10 @@
     active.forEach((r, i) => EMP_LIST.push({
       id: r.id,
       name: r.name || ((r.fname || '') + (r.gname || '')),
-      dept: r.dept || '',
+      dept: (function () { const pool = attDeptPool(); return pool[i % pool.length]; })(),   /* 권한 관리 부서 트리 기준 재배치 */
       rank: r.rank || '',
       position: r.position || '',
+      photoUrl: r.photoUrl || '',
       shift: _SHIFT_POOL[i % _SHIFT_POOL.length],
     }));
     /* 부서 목록 — 명단의 distinct 부서(등장 순서) */
@@ -344,6 +349,20 @@
   function fmtDateDow(dateStr) {
     const d = parseYMD(dateStr);
     return `${pad2(d.getFullYear() % 100)}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}(${DOW_KO[d.getDay()]})`;
+  }
+  /* ===== 표시 전용 날짜 포맷 (데이터/키에는 절대 사용하지 않음) =====
+     ISO 'YYYY-MM-DD' → 'YY/MM/DD', 일시 'YYYY-MM-DD HH:MM' → 'YY/MM/DD   HH:MM'(공백 3칸) */
+  function fmtDisp(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/);
+    if (!m) return s;
+    const d = `${m[1].slice(2)}/${m[2]}/${m[3]}`;
+    return m[4] ? `${d}   ${m[4]}` : d;
+  }
+  /* 표시 전용 — 'YYYY-MM' → 'YY/MM' */
+  function fmtYM(s) {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})/);
+    return m ? `${m[1].slice(2)}/${m[2]}` : s;
   }
 
   /* =========================================================
@@ -629,8 +648,8 @@
     if (!canCancel(app)) { window.toast && window.toast('취소할 수 없는 상태입니다. (시작일이 지났거나 승인 상태가 아님)', 'warning'); return; }
     const label = app.codeLabel || codeLabel(app.code) || '근태/휴가';
     const period = app.dateFrom
-      ? (app.dateFrom === app.dateTo ? app.dateFrom : `${app.dateFrom} ~ ${app.dateTo}`)
-      : (app.date || '');
+      ? (app.dateFrom === app.dateTo ? fmtDisp(app.dateFrom) : `${fmtDisp(app.dateFrom)} ~ ${fmtDisp(app.dateTo)}`)
+      : (fmtDisp(app.date) || '');
     const finish = () => {
       app.status = 'cancelReq';
       app.statusReason = '취소 신청(결재 진행)';
@@ -873,7 +892,7 @@
 
   /* 좌측 조직도 — 임직원 관리(App.HRInfoMgmt) 의 트리를 단일 소스로 재사용(구조 100% 동일).
      인원 수만 근태 모듈 EMP_LIST 기준으로 집계. selectedDeptId 'C0'=전체. */
-  function HRI() { return window.App && App.HRInfoMgmt; }
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
   function renderOrgTree() {
     const h = HRI();
     return (h && h.deptTreeHTML) ? h.deptTreeHTML(STATE.selectedDeptId, { emps: EMP_LIST }) : '';
@@ -931,7 +950,7 @@
     return `
       <div class="att-tb">
         <div class="att-tb__left">
-          <div class="att-tb__title">${STATE.ym.replace('-', '.')}</div>
+          <div class="att-tb__title">${fmtYM(STATE.ym)}</div>
           <div class="att-tb__nav">
             <button type="button" data-att-ym-prev aria-label="${isWeek ? '이전 주' : '이전 달'}">‹</button>
             <button type="button" data-att-today>오늘</button>
@@ -1214,7 +1233,7 @@
     const dates = weekDates(currentWeekMonday());
     if (!emps.length || !dates.length) { window.toast && window.toast('집계할 데이터가 없습니다.', 'warning'); return; }
     const months = Array.from(new Set(dates.map(d => d.slice(0, 7))));
-    const head = ['사번', '부서', '직급', '이름', '근무일자', '근무코드', '출근', '퇴근', '지각(분)', '조퇴(분)', '결근', '연장(h)', '야간(h)', '야간연장(h)', '휴일(h)', '비고'];
+    const head = ['사번', '부서', '직급', '이름', '근무일자', '근무조', '출근', '퇴근', '지각(분)', '조퇴(분)', '결근', '연장(h)', '야간(h)', '야간연장(h)', '휴일(h)', '비고'];
     const body = [];
     emps.forEach(e => {
       const recMap = {};
@@ -1293,8 +1312,8 @@
         <div class="toolbar">
           <div class="toolbar__left"><span class="toolbar__count">총 <strong>${rows.length}</strong>명</span></div>
           <div class="toolbar__right" style="display:flex;gap:6px;">
-            <button class="btn btn--sm" type="button" data-att-dept-month-dl title="부서 소속 직원들의 ${esc(STATE.ym.replace('-', '.'))} 근태 요약을 1개 파일로 다운로드">${dlIcon} 월 근태 집계 다운로드</button>
-            <button class="btn btn--sm" type="button" data-att-dept-detail-dl title="부서 소속 직원별 ${esc(STATE.ym.replace('-', '.'))} 근태 상세내역을 직원별 섹션으로 1개 파일에 다운로드">${dlIcon} 직원별 근태 상세내역 다운로드</button>
+            <button class="btn btn--sm" type="button" data-att-dept-month-dl title="부서 소속 직원들의 ${esc(fmtYM(STATE.ym))} 근태 요약을 1개 파일로 다운로드">${dlIcon} 월 근태 집계 다운로드</button>
+            <button class="btn btn--sm" type="button" data-att-dept-detail-dl title="부서 소속 직원별 ${esc(fmtYM(STATE.ym))} 근태 상세내역을 직원별 섹션으로 1개 파일에 다운로드">${dlIcon} 직원별 근태 상세내역 다운로드</button>
           </div>
         </div>
         <div class="grid-wrap">
@@ -1320,7 +1339,7 @@
                 ${rows.map(r => `
                   <tr>
                     <td>${esc(r.emp.id)}</td>
-                    <td><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.emp.name)}</a></td>
+                    <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(r.emp.dept || r.emp.position || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && (r.emp.position || r.emp.rank)) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${(r.emp.position || r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.position || r.emp.rank)}</span>` : ''}</span>` : ''}</div></td>
                     <td>${r.shift ? `<span class="pill pill--info">${esc(r.shift.label || r.shift.code)}</span>` : '-'}</td>
                     <td style="text-align:right;">${r.st.workDays}</td>
                     <td style="text-align:right;white-space:nowrap;">${r.st.lateCnt > 0 ? `<a href="#" data-att-le="late" data-att-le-emp="${esc(r.emp.id)}" title="지각 기록 보기" style="color:var(--color-warning);font-weight:var(--fw-medium);">${r.st.lateCnt}회 (${r.st.lateMin}분)</a>` : '<span style="color:var(--color-text-muted);">0회</span>'}</td>
@@ -1369,8 +1388,7 @@
         tot.abs += m.abs; tot.otExtra += m.otExtra; tot.otNight += m.otNight;
         tot.otNightExtra += m.otNightExtra; tot.otHoliday += m.otHoliday;
 
-        const dd = parseYMD(ds);
-        const dateTxt = `${pad2(dd.getFullYear() % 100)}.${pad2(dd.getMonth() + 1)}.${pad2(dd.getDate())}(${DOW_KO[dd.getDay()]})`;
+        const dateTxt = fmtDateDow(ds);
         /* 비고 — 4종(연차/휴일/근무조 변경/결근)만 텍스트로 표기 */
         const bigoTxt = weekBigo(r);
         const bigo = bigoTxt
@@ -1785,7 +1803,7 @@
         e.preventDefault();
         const eid = leCell.dataset.attLeEmp;
         const emp = EMP_LIST.find(x => x.id === eid);
-        openLateEarlyModal({ name: emp && emp.name, periodLabel: STATE.ym.replace('-', '.'), recs: getRecords(eid, STATE.ym), kind: leCell.dataset.attLe });
+        openLateEarlyModal({ name: emp && emp.name, periodLabel: fmtYM(STATE.ym), recs: getRecords(eid, STATE.ym), kind: leCell.dataset.attLe });
         return;
       }
       /* 다운로드 — 부서 월 집계 */
@@ -2110,7 +2128,7 @@
         matName: label,
         customReasons: [label],
         defaultReason: label,
-        title: `${docLabel} 신청 — ${label} (${d.dateFrom}${d.dateFrom !== d.dateTo ? ' ~ ' + d.dateTo : ''})`,
+        title: `${docLabel} 신청 — ${label} (${fmtDisp(d.dateFrom)}${d.dateFrom !== d.dateTo ? ' ~ ' + fmtDisp(d.dateTo) : ''})`,
         content: d.reason.trim(),
         payload: { attAppId: rec.id, code: d.code, dateFrom: d.dateFrom, dateTo: d.dateTo },
         onSubmit(aprRec) {
@@ -2365,7 +2383,7 @@
         matName: d.reason.trim(),
         customReasons: OT_REASONS[d.otKind],
         defaultReason: d.reasonCode,
-        title: `${docName} — ${d.date} ${d.startTime}~${d.endTime} (인정 ${_fmtMin(rcg.netMin)})`,
+        title: `${docName} — ${fmtDisp(d.date)} ${d.startTime}~${d.endTime} (인정 ${_fmtMin(rcg.netMin)})`,
         content: `[${d.reasonCode}] ${d.reason.trim()}\n신청 ${_fmtMin(rcg.rawMin)}${rcg.breakDeduct ? ` · 휴게 차감 ${_fmtMin(rcg.breakDeduct)}` : ''} · 인정 ${_fmtMin(rcg.netMin)}${d.mealChecked ? `\n식대 체크 — 승인 시 식권 ${OT_MEAL_VOUCHER_WON.toLocaleString()}원 지급` : ''}`,
         payload: { attAppId: rec.id, otKind: d.otKind, date: d.date, startTime: d.startTime, endTime: d.endTime, reasonCode: d.reasonCode, mealChecked: d.mealChecked },
         onSubmit() {
@@ -2388,18 +2406,41 @@
     if (!sh) return '';
     return `${sh.start}~${sh.end}${sh.isNight ? ' · 야간' : ''}`;
   }
-  function _availShifts() {
-    if (!App.AttShifts) return [];
-    return App.AttShifts.forDept ? App.AttShifts.forDept(ME_DEPT) : App.AttShifts.list();
+  /* 부서 사용 가능 근무조 — 부서별 근무정책 설정(codes) 우선, 없으면 근무조 마스터 useDepts 폴백 */
+  function _deptAllowedCodes(dept) {
+    const P = App.AttWorkPolicy;
+    if (P && P.deptPolicy) { const c = (P.deptPolicy(dept).codes || []); if (c.length) return c.slice(); }
+    return (App.AttShifts && App.AttShifts.forDept) ? App.AttShifts.forDept(dept).map(s => s.code) : [];
   }
+  function _availShifts() {
+    const codes = _deptAllowedCodes(ME_DEPT);
+    if (codes.length) return codes.map(c => (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(c) : null).filter(Boolean);
+    return App.AttShifts ? (App.AttShifts.forDept ? App.AttShifts.forDept(ME_DEPT) : App.AttShifts.list()) : [];
+  }
+  /* 변경 신청 가능 시작일 — 현재 날짜 기준 익월 1일 */
+  function _nextMonthFirst() {
+    const [y, m] = TODAY.split('-').map(Number);
+    let ny = y, nm = m + 1; if (nm > 12) { nm = 1; ny++; }
+    return `${ny}-${pad2(nm)}-01`;
+  }
+  /* 기간(개월) 종료일 — 시작일이 속한 달부터 N개월의 마지막 날 */
+  function _periodEnd(startYMD, months) {
+    const [y, m] = startYMD.split('-').map(Number);
+    let ny = y, nm = m + months; while (nm > 12) { nm -= 12; ny++; }
+    const last = new Date(ny, nm - 1, 0);   /* (시작월 + N)의 0일 = 마지막 대상월 말일 */
+    return `${last.getFullYear()}-${pad2(last.getMonth() + 1)}-${pad2(last.getDate())}`;
+  }
+  const SHIFTCHG_PERIODS = [3, 6, 9, 12];
   function openShiftChangeModal() {
     const avail = _availShifts();
     const target = (avail.find(s => s.code !== ME_SHIFT) || avail[0] || {}).code || '';
+    const from = _nextMonthFirst();
     STATE.shiftChgDraft = {
       fromShift: ME_SHIFT,
       toShift: target,
-      dateFrom: STATE.selectedDate || TODAY,
-      dateTo:   STATE.selectedDate || TODAY,
+      period: 3,
+      dateFrom: from,
+      dateTo: _periodEnd(from, 3),
       reason: '',
     };
     renderShiftChangeModal();
@@ -2413,12 +2454,14 @@
     const d = STATE.shiftChgDraft;
     const cur = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(d.fromShift) : null;
     const avail = _availShifts();
+    const periodChips = SHIFTCHG_PERIODS.map(p =>
+      `<button class="chip-choice__item ${d.period === p ? 'is-active' : ''}" type="button" data-sc-period="${p}">${p}개월</button>`).join('');
     body.innerHTML = `
       <div class="att-apply__form">
         <div class="att-apply__row">
           <div class="att-apply__lbl">현재 근무조</div>
           <div class="att-apply__val">
-            <span class="pill ${cur && cur.isNight ? 'pill--night' : 'pill--info'}">${esc(cur ? (cur.label || cur.code) : d.fromShift)}</span>
+            <span class="pill ${cur && cur.isNight ? 'pill--purple' : 'pill--info'}">${esc(cur ? (cur.label || cur.code) : d.fromShift)}</span>
             <span class="t-muted" style="margin-left:8px;font-size:var(--fs-sm);">${cur ? esc(cur.code + ' · ' + _shiftTimeLabel(cur)) : ''}</span>
           </div>
         </div>
@@ -2432,10 +2475,9 @@
         </div>
         <div class="att-apply__row">
           <div class="att-apply__lbl">변경 기간 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val att-apply__val--inline">
-            <input type="date" class="input" id="att-shiftchg-from" value="${esc(d.dateFrom)}" />
-            <span class="t-muted" style="margin:0 6px;">~</span>
-            <input type="date" class="input" id="att-shiftchg-todate" value="${esc(d.dateTo)}" />
+          <div class="att-apply__val" style="flex-direction:column;align-items:stretch;gap:8px;">
+            <div class="chip-choice">${periodChips}</div>
+            <div class="form-help">현재 날짜 기준 <strong style="color:var(--color-text);">익월 1일</strong>부터 적용 · 대상 기간 <strong style="color:var(--color-text);">${esc(fmtDisp(d.dateFrom))} ~ ${esc(fmtDisp(d.dateTo))}</strong></div>
           </div>
         </div>
         <div class="att-apply__row">
@@ -2452,15 +2494,15 @@
     const d = STATE.shiftChgDraft;
     const toEl = modal.querySelector('#att-shiftchg-to');
     if (toEl) toEl.addEventListener('change', () => { d.toShift = toEl.value; });
-    const f = modal.querySelector('#att-shiftchg-from');
-    const t = modal.querySelector('#att-shiftchg-todate');
     const r = modal.querySelector('#att-shiftchg-reason');
-    if (f) f.addEventListener('input', () => { d.dateFrom = f.value; });
-    if (t) t.addEventListener('input', () => { d.dateTo = t.value; });
     if (r) r.addEventListener('input', () => { d.reason = r.value; });
     if (!modal.dataset.attShiftchgBound) {
       modal.dataset.attShiftchgBound = '1';
-      modal.addEventListener('click', e => { if (e.target === modal) closeModalEl('modal-att-shiftchg'); });
+      modal.addEventListener('click', e => {
+        if (e.target === modal) { closeModalEl('modal-att-shiftchg'); return; }
+        const pc = e.target.closest('[data-sc-period]');
+        if (pc) { const dr = STATE.shiftChgDraft; dr.period = Number(pc.dataset.scPeriod); dr.dateFrom = _nextMonthFirst(); dr.dateTo = _periodEnd(dr.dateFrom, dr.period); renderShiftChangeModal(); return; }
+      });
       modal.querySelectorAll('[data-modal-close], [data-att-shiftchg-cancel]').forEach(b => b.addEventListener('click', () => closeModalEl('modal-att-shiftchg')));
       const ok = modal.querySelector('[data-att-shiftchg-submit]');
       if (ok) ok.addEventListener('click', submitShiftChange);
@@ -2470,15 +2512,14 @@
     const d = STATE.shiftChgDraft;
     if (!d.toShift) { window.toast && window.toast('변경할 근무조를 선택해 주세요.', 'warning'); return; }
     if (d.toShift === d.fromShift) { window.toast && window.toast('현재 근무조와 다른 근무조를 선택해 주세요.', 'warning'); return; }
-    if (!d.dateFrom || !d.dateTo) { window.toast && window.toast('변경 기간을 입력해 주세요.', 'warning'); return; }
-    if (d.dateFrom > d.dateTo) { window.toast && window.toast('기간이 올바르지 않습니다.', 'warning'); return; }
+    if (!d.period) { window.toast && window.toast('변경 기간을 선택해 주세요.', 'warning'); return; }
     if (!d.reason || !d.reason.trim()) { window.toast && window.toast('변경 사유를 입력해 주세요.', 'warning'); return; }
     closeModalEl('modal-att-shiftchg');
     const fromSh = App.AttShifts && App.AttShifts.get(d.fromShift);
     const toSh   = App.AttShifts && App.AttShifts.get(d.toShift);
     const fromLabel = fromSh ? (fromSh.label || d.fromShift) : d.fromShift;
     const toLabel   = toSh   ? (toSh.label   || d.toShift)   : d.toShift;
-    const period = d.dateFrom === d.dateTo ? d.dateFrom : `${d.dateFrom} ~ ${d.dateTo}`;
+    const period = `${fmtDisp(d.dateFrom)} ~ ${fmtDisp(d.dateTo)} (${d.period}개월)`;
     if (typeof App.openSystemApprovalModal === 'function') {
       App.openSystemApprovalModal({
         docName: '근무조 변경 신청',
@@ -2491,7 +2532,7 @@
         defaultReason: '교대 조정',
         title: `근무조 변경 신청 — ${fromLabel} → ${toLabel} (${period})`,
         content: `${fromLabel} → ${toLabel}\n기간: ${period}\n사유: ${d.reason.trim()}`,
-        payload: { fromShift: d.fromShift, toShift: d.toShift, dateFrom: d.dateFrom, dateTo: d.dateTo },
+        payload: { fromShift: d.fromShift, toShift: d.toShift, dateFrom: d.dateFrom, dateTo: d.dateTo, months: d.period },
         onSubmit() { window.toast && window.toast('근무조 변경 신청이 상신되었습니다.', 'success'); },
       });
     } else {
@@ -2561,8 +2602,8 @@
             ${list.map(a => {
               const stat = APP_STATUSES[a.status] || { label: a.status, tone: 'muted' };
               const dateCol = listKind === 'ot'
-                ? `${esc(a.date)} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
-                : (a.dateFrom === a.dateTo ? esc(a.dateFrom) : `${esc(a.dateFrom)} ~ ${esc(a.dateTo)}`);
+                ? `${esc(fmtDisp(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
+                : (a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : `${esc(fmtDisp(a.dateFrom))} ~ ${esc(fmtDisp(a.dateTo))}`);
               const codeCol = listKind === 'ot'
                 ? `<span class="pill ${a.otKind === 'holiday' ? 'pill--warning' : 'pill--info'}">${a.otKind === 'holiday' ? '휴일근무' : '연장근무'}</span> <small class="t-muted">${esc(a.reasonCode)}</small>`
                 : `<span class="pill pill--info">${esc(a.codeLabel || codeLabel(a.code))}</span>`;
@@ -2573,7 +2614,7 @@
                   <td>${dateCol}</td>
                   <td>${esc(a.reason)}</td>
                   <td><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
-                  <td>${esc(a.submittedAt)}</td>
+                  <td>${esc(fmtDisp(a.submittedAt))}</td>
                   <td><button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button></td>
                 </tr>
               `;
@@ -2620,7 +2661,7 @@
     const periodRow = a.kind === 'ot'
       ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">일자/시간</div>
-           <div class="fm-tbl__value">${esc(a.date)} ${esc(a.startTime)} ~ ${esc(a.endTime)}</div>
+           <div class="fm-tbl__value">${esc(fmtDisp(a.date))} ${esc(a.startTime)} ~ ${esc(a.endTime)}</div>
          </div>
          ${typeof a.recognizedMin === 'number' ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">인정 시간</div>
@@ -2635,7 +2676,7 @@
          </div>` : ''}`
       : `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">신청 기간</div>
-           <div class="fm-tbl__value">${a.dateFrom === a.dateTo ? esc(a.dateFrom) : esc(a.dateFrom) + ' ~ ' + esc(a.dateTo)}</div>
+           <div class="fm-tbl__value">${a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : esc(fmtDisp(a.dateFrom)) + ' ~ ' + esc(fmtDisp(a.dateTo))}</div>
          </div>`;
     const codeRow = a.kind === 'ot'
       ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
@@ -2655,7 +2696,7 @@
         <div class="att-doc-apr__name">${esc(s.name)}</div>
         <div class="att-doc-apr__status">
           <span class="pill pill--${s.status === '결재' ? 'success' : s.status === '반려' ? 'danger' : 'warning'}">${esc(s.status)}</span>
-          ${s.at ? `<small class="t-muted" style="margin-left:6px;">${esc(s.at)}</small>` : ''}
+          ${s.at ? `<small class="t-muted" style="margin-left:6px;">${esc(fmtDisp(s.at))}</small>` : ''}
         </div>
       </div>
     `).join('');
@@ -2681,9 +2722,9 @@
         </div>
         <div class="fm-tbl__row fm-tbl__row--2" style="grid-template-columns:110px 1fr 110px 1fr;">
           <div class="fm-tbl__label">상신 일시</div>
-          <div class="fm-tbl__value">${esc(a.submittedAt || '-')}</div>
+          <div class="fm-tbl__value">${esc(fmtDisp(a.submittedAt) || '-')}</div>
           <div class="fm-tbl__label">처리 일시</div>
-          <div class="fm-tbl__value">${esc(a.decidedAt || '-')}</div>
+          <div class="fm-tbl__value">${esc(fmtDisp(a.decidedAt) || '-')}</div>
         </div>
       </div>
       <div style="margin-top:14px;">
@@ -2890,7 +2931,7 @@
           <button type="button" data-att-emp-ym-today>오늘</button>
           <button type="button" data-att-emp-ym-next aria-label="다음 달">›</button>
         </div>
-        <div class="att-tb__title">${ym.replace('-', '.')}</div>
+        <div class="att-tb__title">${fmtYM(ym)}</div>
         <div class="att-tb__views">
           <button type="button" data-att-emp-view="cal"  class="${view === 'cal'  ? 'is-active' : ''}">캘린더</button>
           <button type="button" data-att-emp-view="dash" class="${view === 'dash' ? 'is-active' : ''}">대시보드</button>
@@ -2982,7 +3023,7 @@
     }).join('');
     return `
       <div class="table-card table-card--mt">
-        <div class="table-card__cap"><strong>${ym.replace('-', '.')} 근태 상세내역</strong>${STATE.modalDailyFilter ? `<span class="pill pill--warning" style="font-size:11px;">${STATE.modalDailyFilter === 'late' ? '지각' : '조퇴'}만 보기</span><button type="button" class="btn btn--xs" data-att-emp-le-clear>필터 해제</button>` : ''}<span class="t-muted" style="font-size:var(--fs-xs);">${filtered.length}일</span><span class="table-card__cap-spacer"></span><button class="btn btn--xs" type="button" data-att-modal-daily-dl="${esc(empId)}" title="${ym.replace('-', '.')} 근태 상세내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 근태 상세내역 다운로드</button></div>
+        <div class="table-card__cap"><strong>${fmtYM(ym)} 근태 상세내역</strong>${STATE.modalDailyFilter ? `<span class="pill pill--warning" style="font-size:11px;">${STATE.modalDailyFilter === 'late' ? '지각' : '조퇴'}만 보기</span><button type="button" class="btn btn--xs" data-att-emp-le-clear>필터 해제</button>` : ''}<span class="t-muted" style="font-size:var(--fs-xs);">${filtered.length}일</span><span class="table-card__cap-spacer"></span><button class="btn btn--xs" type="button" data-att-modal-daily-dl="${esc(empId)}" title="${fmtYM(ym)} 근태 상세내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 근태 상세내역 다운로드</button></div>
         <div class="table-card__body">
         <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
           <thead>
@@ -3025,8 +3066,8 @@
       const typeSub  = isOt ? (a.reasonCode || '') : (a.reason || '');
       const typeCol  = `${esc(typeMain)}${typeSub ? `<span class="t-muted">/${esc(typeSub)}</span>` : ''}`;
       const dateCol = isOt
-        ? `${esc(a.date)} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
-        : (a.dateFrom === a.dateTo ? esc(a.dateFrom) : `${esc(a.dateFrom)} ~ ${esc(a.dateTo)}`);
+        ? `${esc(fmtDisp(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
+        : (a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : `${esc(fmtDisp(a.dateFrom))} ~ ${esc(fmtDisp(a.dateTo))}`);
       return `
         <tr class="is-clickable" data-att-emp-app-row="${esc(a.id)}">
           <td style="text-align:right;">${n - i}</td>
@@ -3037,7 +3078,7 @@
           <td style="word-break:keep-all;overflow-wrap:anywhere;">${esc(a.reason)}</td>
           <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
           <td style="word-break:keep-all;overflow-wrap:anywhere;">${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
-          <td style="white-space:nowrap;">${esc(a.submittedAt)}</td>
+          <td style="white-space:nowrap;">${esc(fmtDisp(a.submittedAt))}</td>
           <td style="text-align:center;"><button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button></td>
         </tr>`;
     }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
@@ -3049,7 +3090,7 @@
             <button type="button" data-att-emp-ym-today>오늘</button>
             <button type="button" data-att-emp-ym-next aria-label="다음 달">›</button>
           </div>
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${ym.replace('-', '.')}</div>
+          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
         </div>
         <button class="btn btn--sm" type="button" data-att-modal-apps-dl="${esc(empId)}" title="신청 내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 신청내역 다운로드</button>
       </div>
@@ -3120,7 +3161,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${i + 1}</td>
           <td>${esc(r.emp.id)}</td>
-          <td><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.emp.name)}</a></td>
+          <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(r.emp.dept || r.emp.position || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && (r.emp.position || r.emp.rank)) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${(r.emp.position || r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.position || r.emp.rank)}</span>` : ''}</span>` : ''}</div></td>
           <td>${esc(r.emp.dept)}</td>
           <td style="text-align:right;">${valCell(r)}</td>
         </tr>`).join('')
@@ -3129,7 +3170,7 @@
     const body = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span class="pill pill--info">${esc(meta.label)}</span>
-        <span class="t-muted" style="font-size:var(--fs-sm);">${esc(scopeName)} · ${STATE.ym.replace('-', '.')} · 대상 ${rows.length}명</span>
+        <span class="t-muted" style="font-size:var(--fs-sm);">${esc(scopeName)} · ${fmtYM(STATE.ym)} · 대상 ${rows.length}명</span>
       </div>
       <div class="table-card">
         <div class="table-card__body">
@@ -3156,7 +3197,7 @@
   App.AttStatus = {
     EMP_LIST,
     DEPTS,
-    /* 임직원 관리 명단과 재동기화 — 연차/근무조 현황 진입 시 호출. 변경 시 true 반환 */
+    /* 임직원 관리 명단과 재동기화 — 연차/근무스케줄 현황 진입 시 호출. 변경 시 true 반환 */
     syncEmpList,
     ATT_GROUPS, HOL_GROUPS,
     APP_STATUSES,

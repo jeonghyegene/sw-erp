@@ -76,9 +76,15 @@
    *   ...m spread 로 원본 모든 필드 보존 (docsSent / docsSentDate / contractSentDate / status 등도 함께).
    *   인사관리 전용 추가 필드(deptId/photo/color/address/emergency) 만 합성. */
   function makeEmployees() {
-    const members = (window.App && App.HRInfoMgmt && App.HRInfoMgmt.list) ? App.HRInfoMgmt.list()
-                  : (window.App && App.HRMembers   && App.HRMembers.list)   ? App.HRMembers.list()
-                  : [];
+    const useMgmt = !!(window.App && App.HRInfoMgmt && App.HRInfoMgmt.list);
+    let members = useMgmt ? App.HRInfoMgmt.list()
+                : (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list()
+                : [];
+    /* 임직원 현황 카드 등록 자격 필터 — 계정 등록완료 + 근로계약 서명완료(유효, 만료 임박 포함).
+       도급직은 근로계약 해당없음이라 계정 등록만으로 대상. (자격 헬퍼 미로드 시 폴백: 전체 노출) */
+    if (useMgmt && typeof App.HRInfoMgmt.canRegisterCard === 'function') {
+      members = members.filter(m => App.HRInfoMgmt.canRegisterCard(m));
+    }
     return members.map((m, i) => {
       const deptId = DEPT_NAME_TO_ID[m.dept] || 'C0';
       const dept = DEPTS.find(d => d.id === deptId);
@@ -154,6 +160,12 @@
     if (s === null || s === undefined) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  /* 표시 전용 날짜 포맷 — ISO(YYYY-MM-DD) → YY/MM/DD (SWADPIA §1). 데이터 key/비교/정렬엔 사용 금지. */
+  function dispYmd(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[1].slice(2)}/${m[2]}/${m[3]}` : String(s);
   }
   function children(parentId) {
     return DEPTS.filter(d => d.parentId === parentId && (STATE.showInactive || d.active !== false));
@@ -764,7 +776,7 @@
     const personal = fmSection('신상사항',
       fmRow([{ label:'사번', value: emp.id }, { label:'성명(한글)', value: emp.name }]) +
       fmRow([{ label:'성명(영문)', value: emp.name.replace(/[가-힣]/g, '') || 'HONG GIL DONG' }, { label:'성명(한자)', value: '洪吉童' }]) +
-      fmRow([{ label:'생년월일', value: emp.birth }, { label:'입사일', value: emp.joinDate }]) +
+      fmRow([{ label:'생년월일', value: dispYmd(emp.birth) }, { label:'입사일', value: dispYmd(emp.joinDate) }]) +
       fmRow([{ label:'소속', value: emp.deptName }, { label:'직무', value: emp.job }]) +
       fmRow([{ label:'직위', value: emp.rank }, { label:'직책', value: emp.position || '-' }]) +
       fmRow([{ label:'근무형태', value: '정규직' }, { label:'사업장', value: '본사' }]) +
@@ -778,8 +790,8 @@
       <table class="tbl tbl--striped">
         <thead><tr><th>학교명</th><th>학과명</th><th>입학년월</th><th>졸업년월</th><th>졸업여부</th></tr></thead>
         <tbody>
-          <tr><td>서울대학교</td><td>경영학과</td><td>2008.03</td><td>2012.02</td><td>졸업</td></tr>
-          <tr><td>한국고등학교</td><td>-</td><td>2005.03</td><td>2008.02</td><td>졸업</td></tr>
+          <tr><td>서울대학교</td><td>경영학과</td><td>08/03</td><td>12/02</td><td>졸업</td></tr>
+          <tr><td>한국고등학교</td><td>-</td><td>05/03</td><td>08/02</td><td>졸업</td></tr>
         </tbody>
       </table>
     </section>`;
@@ -790,7 +802,7 @@
       <table class="tbl tbl--striped">
         <thead><tr><th>회사명</th><th>기간</th><th>최종직위</th><th>담당업무</th><th>퇴직일</th></tr></thead>
         <tbody>
-          <tr><td>전 직장 (주)A</td><td>2012.03 ~ 2016.02</td><td>대리</td><td>${esc(emp.job)}</td><td>2016.02.28</td></tr>
+          <tr><td>전 직장 (주)A</td><td>12/03 ~ 16/02</td><td>대리</td><td>${esc(emp.job)}</td><td>16/02/28</td></tr>
         </tbody>
       </table>
     </section>`;
@@ -801,8 +813,8 @@
       <table class="tbl tbl--striped">
         <thead><tr><th>종류</th><th>등급</th><th>취득일</th><th>발행기관</th></tr></thead>
         <tbody>
-          <tr><td>정보처리기사</td><td>-</td><td>2015-06-30</td><td>한국산업인력공단</td></tr>
-          <tr><td>운전면허</td><td>1종 보통</td><td>2009-03-15</td><td>도로교통공단</td></tr>
+          <tr><td>정보처리기사</td><td>-</td><td>15/06/30</td><td>한국산업인력공단</td></tr>
+          <tr><td>운전면허</td><td>1종 보통</td><td>09/03/15</td><td>도로교통공단</td></tr>
         </tbody>
       </table>
     </section>`;
@@ -825,8 +837,8 @@
       <table class="tbl tbl--striped">
         <thead><tr><th>발령일</th><th>구분</th><th>발령상태</th><th>이전</th><th>이후</th></tr></thead>
         <tbody>
-          <tr><td>${esc(emp.joinDate)}</td><td>입사</td><td>${emp.active ? '재직' : '퇴직'}</td><td>-</td><td>${esc(emp.deptName)} ${esc(emp.rank)}</td></tr>
-          <tr><td>2024-01-01</td><td>승진</td><td>재직</td><td>대리</td><td>${esc(emp.rank)}</td></tr>
+          <tr><td>${esc(dispYmd(emp.joinDate))}</td><td>입사</td><td>${emp.active ? '재직' : '퇴직'}</td><td>-</td><td>${esc(emp.deptName)} ${esc(emp.rank)}</td></tr>
+          <tr><td>24/01/01</td><td>승진</td><td>재직</td><td>대리</td><td>${esc(emp.rank)}</td></tr>
         </tbody>
       </table>
     </section>`;
@@ -837,7 +849,7 @@
       <table class="tbl tbl--striped">
         <thead><tr><th>발생일</th><th>경조내용</th><th>휴가일</th><th>경조금</th><th>화환비</th></tr></thead>
         <tbody>
-          <tr><td>2019.08.29</td><td>부친상</td><td>5일</td><td>400,000원</td><td>45,000원</td></tr>
+          <tr><td>19/08/29</td><td>부친상</td><td>5일</td><td>400,000원</td><td>45,000원</td></tr>
         </tbody>
       </table>
     </section>`;
@@ -883,8 +895,8 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>관계</th><th>성명</th><th>성별</th><th>생년월일</th><th>동거유무</th></tr></thead>
           <tbody>
-            <tr><td>배우자</td><td>홍OO</td><td>여</td><td>1991-04-15</td><td>Y</td></tr>
-            <tr><td>자녀</td><td>홍△△</td><td>남</td><td>2018-08-22</td><td>Y</td></tr>
+            <tr><td>배우자</td><td>홍OO</td><td>여</td><td>91/04/15</td><td>Y</td></tr>
+            <tr><td>자녀</td><td>홍△△</td><td>남</td><td>18/08/22</td><td>Y</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -892,7 +904,7 @@
       // ■병역사항
       html += fmSection('병역사항',
         fmRow([{ label:'병역구분', value:'군필' }, { label:'군별', value:'육군' }]) +
-        fmRow([{ label:'계급', value:'병장' }, { label:'병역기간', value:'2010.03 ~ 2012.02' }])
+        fmRow([{ label:'계급', value:'병장' }, { label:'병역기간', value:'10/03 ~ 12/02' }])
       );
     }
 
@@ -918,7 +930,7 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>기준일</th><th>구분</th><th>기본급</th><th>시간외수당</th><th>월급여</th><th>연봉</th></tr></thead>
           <tbody>
-            <tr><td>2026-01-01</td><td>정기</td><td>4,200,000</td><td>800,000</td><td>5,000,000</td><td>54,000,000</td></tr>
+            <tr><td>26/01/01</td><td>정기</td><td>4,200,000</td><td>800,000</td><td>5,000,000</td><td>54,000,000</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -929,7 +941,7 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>변동일</th><th>구분</th><th>변동 전</th><th>변동 후</th><th>시급</th></tr></thead>
           <tbody>
-            <tr><td>2026.01.01</td><td>정기인상</td><td>50,400,000</td><td>54,000,000</td><td>25,000</td></tr>
+            <tr><td>26/01/01</td><td>정기인상</td><td>50,400,000</td><td>54,000,000</td><td>25,000</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -940,8 +952,8 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>귀속년월</th><th>구분</th><th>초과근무</th><th>기타수당</th><th>총지급액</th><th>공제액</th><th>실지급액</th></tr></thead>
           <tbody>
-            <tr><td>2026-04</td><td>급여</td><td>250,000</td><td>550,000</td><td>5,000,000</td><td>620,000</td><td>4,380,000</td></tr>
-            <tr><td>2026-03</td><td>급여</td><td>180,000</td><td>470,000</td><td>4,850,000</td><td>610,000</td><td>4,240,000</td></tr>
+            <tr><td>26/04</td><td>급여</td><td>250,000</td><td>550,000</td><td>5,000,000</td><td>620,000</td><td>4,380,000</td></tr>
+            <tr><td>26/03</td><td>급여</td><td>180,000</td><td>470,000</td><td>4,850,000</td><td>610,000</td><td>4,240,000</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -968,8 +980,8 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>월별</th><th>지각(분)</th><th>조퇴(분)</th><th>결근(일)</th></tr></thead>
           <tbody>
-            <tr><td>2026-04</td><td>0</td><td>0</td><td>0</td></tr>
-            <tr><td>2026-03</td><td>15</td><td>0</td><td>0</td></tr>
+            <tr><td>26/04</td><td>0</td><td>0</td><td>0</td></tr>
+            <tr><td>26/03</td><td>15</td><td>0</td><td>0</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -980,7 +992,7 @@
         <table class="tbl tbl--striped">
           <thead><tr><th>구분</th><th>종류</th><th>통보일</th><th>결과</th><th>사유</th></tr></thead>
           <tbody>
-            <tr><td>포상</td><td>최우수사원선정</td><td>2025-12-20</td><td>성과급 500,000</td><td>-</td></tr>
+            <tr><td>포상</td><td>최우수사원선정</td><td>25/12/20</td><td>성과급 500,000</td><td>-</td></tr>
           </tbody>
         </table>
       </section>`;
@@ -989,14 +1001,14 @@
     // ■퇴직연금현황
     if (showPayroll) {
       html += fmSection('퇴직연금현황',
-        fmRow([{ label:'퇴직연금 총누계액', value:'18,400,000원' }, { label:'중도정산일', value:'2018.12' }])
+        fmRow([{ label:'퇴직연금 총누계액', value:'18,400,000원' }, { label:'중도정산일', value:'18/12' }])
       );
     }
 
     // ■퇴직사항 (퇴직자만 의미있음)
     if (!emp.active) {
       html += fmSection('퇴직사항',
-        fmRow([{ label:'퇴직일', value:'2025-12-31' }, { label:'퇴직사유', value:'개인사정' }])
+        fmRow([{ label:'퇴직일', value:'25/12/31' }, { label:'퇴직사유', value:'개인사정' }])
       );
     }
 
@@ -1317,9 +1329,23 @@
     move:   { label: '이동',    cls: 'pill--soft-warning', tl: 'tl-item--warning' },
     retype: { label: '구분변경', cls: 'pill--soft-warning', tl: '' },
     active: { label: '상태변경', cls: 'pill',               tl: '' },
+    shift:  { label: '근무조변경', cls: 'pill--soft-blue',   tl: '' },
   };
   function cloneDepts() { return DEPTS.map(d => Object.assign({}, d)); }
   function deptNameById(list, id) { const d = list.find(x => x.id === id); return d ? d.name : '—'; }
+  /* 근무조 코드 → 표시 라벨(예: WTD05 → E조). 미지정은 '미지정'. */
+  function shiftLabelOf(code) {
+    if (!code) return '미지정';
+    const A = window.App || {};
+    const s = (A.AttShifts && A.AttShifts.get) ? A.AttShifts.get(code) : null;
+    return s ? (s.label || code) : code;
+  }
+  /* 모달 진입 시 DEPTS 각 노드에 기본 근무조(deptMeta 저장값)를 실어 diff/변경건수 추적 대상에 포함 */
+  function syncNodeDefaultShifts() {
+    const A = window.App || {};
+    const get = (A.AttWorkPolicy && A.AttWorkPolicy.rawDeptDefaultShift) ? A.AttWorkPolicy.rawDeptDefaultShift : null;
+    DEPTS.forEach(d => { d.defaultShift = get ? (get(d.name) || '') : (d.defaultShift || ''); });
+  }
   /* baseline ↔ 현재 DEPTS 비교 → 변경 항목 배열 */
   function diffOrg(base, cur) {
     const changes = [];
@@ -1338,6 +1364,7 @@
       if ((b.parentId || '') !== (d.parentId || '')) changes.push({ kind: 'move', name: d.name, detail: `${deptNameById(base, b.parentId)} → ${deptNameById(cur, d.parentId)}` });
       if (b.type !== d.type) changes.push({ kind: 'retype', name: d.name, detail: `${deptTypeLabel(b.type)} → ${deptTypeLabel(d.type)}` });
       if ((b.active !== false) !== (d.active !== false)) changes.push({ kind: 'active', name: d.name, detail: d.active !== false ? '비활성 → 활성' : '활성 → 비활성' });
+      if ((b.defaultShift || '') !== (d.defaultShift || '')) changes.push({ kind: 'shift', name: d.name, detail: `${shiftLabelOf(b.defaultShift)} → ${shiftLabelOf(d.defaultShift)}` });
     });
     return changes;
   }
@@ -1363,7 +1390,10 @@
     const typeSel = document.getElementById('emp-dept-type-select');
     const nameChanged = nameEl && (nameEl.value || '').trim() !== (node.name || '');
     const typeChanged = typeSel && typeSel.style.display !== 'none' && typeSel.value && typeSel.value !== node.type;
-    return !!(nameChanged || typeChanged);
+    /* 기본 근무조 변경도 [저장] 노출 대상 — select 값이 노드 작업값과 다르면 dirty */
+    const dfSel = document.getElementById('emp-dept-default-shift');
+    const defaultChanged = dfSel && dfSel.value !== (node.defaultShift || '');
+    return !!(nameChanged || typeChanged || defaultChanged);
   }
   function updateNodeSaveVisibility() {
     const saveBtn = document.querySelector('#emp-dept-foot [data-emp-dept-save]');
@@ -1459,6 +1489,7 @@
       '[data-emp-dept-save]', '[data-emp-dept-delete]', '[data-emp-dept-toggle-active]',
       '[data-emp-dept-create]', '[data-emp-dept-cancel]', '[data-emp-dept-move-up]', '[data-emp-dept-move-down]',
       '[data-emp-org-save]', '#emp-dept-name', '#emp-dept-type-select', '#emp-dept-parent-select',
+      '#emp-dept-default-shift',
     ];
     sels.forEach(s => modal.querySelectorAll(s).forEach(el => { el.disabled = !!locked; }));
     const tree = modal.querySelector('#emp-dept-tree');
@@ -1670,6 +1701,20 @@
       }
     }
 
+    /* 기본 근무조 — 근무조 설정(App.AttShifts) 마스터에서 선택. 부서(부서명) 기준 저장. 회사(root)는 미적용. */
+    const dfShiftField = document.getElementById('emp-dept-default-shift-field');
+    const dfShiftEl = document.getElementById('emp-dept-default-shift');
+    if (dfShiftField) dfShiftField.style.display = isRoot ? 'none' : '';
+    if (dfShiftEl && !isRoot) {
+      const A = window.App || {};
+      const master = (A.AttShifts && A.AttShifts.list) ? A.AttShifts.list() : [];
+      /* 모달 세션 동안은 node.defaultShift 가 작업 기준값(변경건수 diff 대상) */
+      const cur = node.defaultShift || '';
+      dfShiftEl.innerHTML = `<option value="" disabled${cur ? '' : ' selected'}>선택하세요</option>` + master.map(s =>
+        `<option value="${esc(s.code)}"${s.code === cur ? ' selected' : ''}>${esc(s.code)} · ${esc(s.label || s.code)} (${esc(s.start)}~${esc(s.end)}${s.isNight ? ' · 야간' : ''})</option>`
+      ).join('');
+    }
+
     /* 상태 + 인원 */
     const statusEl  = document.getElementById('emp-dept-status');
     const memberEl  = document.getElementById('emp-dept-member-count');
@@ -1750,6 +1795,7 @@
 
   function openDeptManageModal() {
     /* 진입 시점의 조직 상태를 baseline 으로 스냅샷 — 이후 변경분을 diff 로 추적 */
+    syncNodeDefaultShifts();
     DEPT_BASELINE = cloneDepts();
     clearDeptSelection();
     renderNTree();
@@ -1807,6 +1853,18 @@
     if (typeSel && typeSel.style.display !== 'none' && typeSel.value) {
       node.type = typeSel.value;
     }
+    /* 기본 근무조 필수 — 미선택 시 추가 차단, 최종 부서명 기준으로 저장 */
+    const dfSel = document.getElementById('emp-dept-default-shift');
+    const dfCode = dfSel ? dfSel.value : '';
+    if (!dfCode) {
+      window.toast && window.toast('기본 근무조를 선택해주세요.', 'warning');
+      dfSel && dfSel.focus();
+      return;
+    }
+    node.defaultShift = dfCode;
+    if (window.App && App.AttWorkPolicy && App.AttWorkPolicy.setDeptDefaultShift) {
+      App.AttWorkPolicy.setDeptDefaultShift(node.name, dfCode);
+    }
     DEPT_MGR.mode = 'edit';
     renderNTree();
     renderDeptDetail();
@@ -1833,13 +1891,29 @@
       nameEl?.focus();
       return;
     }
+    /* 기본 근무조 필수 — 미선택 시 저장 차단 */
+    const dfSel = document.getElementById('emp-dept-default-shift');
+    const dfCode = dfSel ? dfSel.value : '';
+    if (!dfCode) {
+      window.toast && window.toast('기본 근무조를 선택해주세요.', 'warning');
+      dfSel && dfSel.focus();
+      return;
+    }
+    const A = window.App || {};
+    /* 노드 작업값 기준으로 기본 근무조 변경 여부 판정 (변경건수 diff 반영) */
+    const defaultChanged = dfCode !== (node.defaultShift || '');
     let changed = false;
     if (v !== node.name) { node.name = v; changed = true; }
     if (typeSel && typeSel.style.display !== 'none' && typeSel.value && typeSel.value !== node.type) {
       node.type = typeSel.value;
       changed = true;
     }
-    if (changed) {
+    /* 노드에 기본 근무조 반영(변경건수 추적) + 최종 부서명 기준으로 저장소 반영 */
+    node.defaultShift = dfCode;
+    if (A.AttWorkPolicy && A.AttWorkPolicy.setDeptDefaultShift) {
+      A.AttWorkPolicy.setDeptDefaultShift(node.name, dfCode);
+    }
+    if (changed || defaultChanged) {
       renderNTree();
       renderDeptDetail();
       if (document.getElementById('hr-emp-tree')) renderTreeOnly();
@@ -1991,6 +2065,12 @@
           renderDeptDetail();
         }
       });
+    }
+
+    /* 기본 근무조 select 변경 — 즉시 저장하지 않고 [저장] 버튼을 노출(실제 반영은 [저장] 시) */
+    const dfShiftSel = document.getElementById('emp-dept-default-shift');
+    if (dfShiftSel) {
+      dfShiftSel.addEventListener('change', updateNodeSaveVisibility);
     }
   }
 

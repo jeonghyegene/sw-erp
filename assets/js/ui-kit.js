@@ -1443,4 +1443,13 @@
     window.App.closeImageLightbox = close;
   })();
 
+  /* ============ Chip Choice — 단일 선택 데모 (data-chip-group 스코프) ============ */
+  document.addEventListener('click', function (e) {
+    const item = e.target.closest('.chip-choice__item');
+    if (!item || item.disabled) return;
+    const group = item.closest('[data-chip-group]');
+    if (group) group.querySelectorAll('.chip-choice__item').forEach(x => x.classList.remove('is-active'));
+    item.classList.add('is-active');
+  });
+
 })();

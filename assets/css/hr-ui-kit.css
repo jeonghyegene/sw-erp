@@ -1292,6 +1292,49 @@ textarea.doc-editor__paper {
   color: var(--color-text);
   letter-spacing: 0.05em;
 }
+/* 아래(■ 아 래 ■) 구분선 — 전문(前文)과 본문 조항 사이 */
+.doc-paper__divider {
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-weight: var(--fw-semibold);
+  margin: 6px 0 14px;
+  color: var(--color-text);
+}
+/* 조항 하단 부가 주석(※ …) — 자동종료·자동갱신·예외 안내 등 */
+.doc-paper__note {
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+  padding-left: 24px;
+}
+/* 내용 확인 및 동의 (서명) — 조항 하단 우측 확인란 */
+.doc-paper__confirm {
+  text-align: right;
+  font-size: var(--fs-md);
+  color: var(--color-text-sub);
+  margin: 2px 0 12px;
+}
+.doc-paper__confirm em {
+  display: inline-block;
+  width: 120px;
+  border-bottom: 1px solid var(--color-border);
+  margin: 0 6px;
+  font-style: normal;
+}
+/* 전 셀 중앙 정렬 표 (근로시간 교대조 표 등) */
+.doc-paper__tbl--center th,
+.doc-paper__tbl--center td { text-align: center; }
+.doc-paper__tbl--center th { width: auto; }
+/* 임금 구성 표 — 항목 / 금액(우측) / 산정식, 합계행 강조 */
+.doc-paper__tbl--wage thead th { text-align: center; width: auto; background: #EEF1F6; }
+.doc-paper__tbl--wage tbody td:nth-child(2) { text-align: right; white-space: nowrap; }
+.doc-paper__tbl--wage tr.is-total th,
+.doc-paper__tbl--wage tr.is-total td {
+  background: var(--color-surface-alt);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+}
 
 /* ==================== Signature Block (인라인 서명 블록 — 문서 본문 하단)
    - 계약서 마지막에 박히는 갑/을 서명 영역. 이름 + 사번/대표명 + 서명 자리.

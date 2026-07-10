@@ -1,5 +1,5 @@
 /* =========================================================
- * Page: 근태 > 근태/스케줄 > 근무조 현황
+ * Page: 근태 > 근태/스케줄 > 근무스케줄 현황
  *
  *  본문 — 부서 팀원들의 월별 근무조 배정표.
  *    팀장이 본인 부서 인원의 일별 근무조(A/B/.../휴무)를 지정하고 제출한다.
@@ -80,12 +80,12 @@
     const emps = (App.AttStatus && App.AttStatus.EMP_LIST) || App.Employees || [];
     return emps.some(e => e && e.shift === code);
   }
-  /* 근무코드 근태 산정 기준 재계산 — 출근/퇴근/간식(휴게)로부터 총 근무·연장·심야시간·주야 구분 산출.
+  /* 근무조 근태 산정 기준 재계산 — 출근/퇴근/간식(휴게)로부터 총 근무·연장·심야시간·주야 구분 산출.
      · workHours : 총 근무시간 (출~퇴 - 간식). 'H:MM'
      · breakMin  : 간식(휴게) 총 분 (1+2 합산)
      · otMin     : 연장시간 분 — 1일 소정근로 8시간 초과분
      · nightMin  : 심야시간 분 — 22:00~06:00 겹침 (간식 제외 총 구간 기준)
-     · isNight   : 심야시간 포함 시 야간 근무코드로 분류 */
+     · isNight   : 심야시간 포함 시 야간 근무조로 분류 */
   const DAILY_STD_MIN = 8 * 60;
   function recompute(f) {
     const total = diffHours(f.start, f.end);
@@ -102,13 +102,13 @@
   /* 근무시간유형(D=주간 / N=야간) — 심야 겹침 여부로 결정 */
   function workTypeChar(f) { return f.isNight ? 'N' : 'D'; }
 
-  /* ============ Mock 근무코드 ============
-   *   근무코드 = 출·퇴근/총 근무시간/연장·심야·간식(휴게) 등 근태 산정 기준의 단위.
+  /* ============ Mock 근무조 ============
+   *   근무조 = 출·퇴근/총 근무시간/연장·심야·간식(휴게) 등 근태 산정 기준의 단위.
    *   · code  : 시스템 자동 채번 'WT + 근무시간유형(D 주간 / N 야간) + 일련번호(2자리)'.
    *             주간 08개(WTD01~WTD08), 야간 02개(WTN01~WTN02). (심야 22~06 겹침으로 D/N 분류)
-   *   · label : 근무코드 명(사람이 읽는 이름). 코드와 별개 namespace — 배치/현황 등 타 화면은 label 로 표기.
+   *   · label : 근무조 명(사람이 읽는 이름). 코드와 별개 namespace — 배치/현황 등 타 화면은 label 로 표기.
    *   · workHours / breakMin / otMin / nightMin : recompute() 로 산출되는 근태 산정값.
-   *   · isGlobalDefault : 전사 기본 근무코드(부서 신설 시 상위 조직 없으면 상속) — 정확히 1개. */
+   *   · isGlobalDefault : 전사 기본 근무조(부서 신설 시 상위 조직 없으면 상속) — 정확히 1개. */
   function makeMock() {
     /* 사용 부서는 App.Employees 의 실제 부서명과 일치해야 함 (배정표에서 행 매핑) */
     const rows = [
@@ -120,24 +120,50 @@
       { code: 'WTD06', label: 'F조', useDepts: ['출고팀','재단포장파트'],   start: '09:30', end: '18:30', breakStart: '12:00', breakEnd: '13:00', breakStart2: '',      breakEnd2: '' },
       { code: 'WTD07', label: 'G조', useDepts: [],                          start: '09:00', end: '19:00', breakStart: '12:00', breakEnd: '13:00', breakStart2: '',      breakEnd2: '' },
       { code: 'WTD08', label: 'H조', useDepts: [],                          start: '12:00', end: '21:00', breakStart: '18:00', breakEnd: '19:00', breakStart2: '',      breakEnd2: '' },
+      /* 데모 — 과거 사용 후 배정 해제된 미사용 가능한 근무조(사용 부서 없음). 편집·삭제 불가, 사용 재개만 가능. */
+      { code: 'WTD09', label: '단축조(구)', useDepts: [],                    start: '09:00', end: '15:00', breakStart: '12:00', breakEnd: '13:00', breakStart2: '',      breakEnd2: '', active: false, hist: true, startedAt: '2024-09-01' },
       { code: 'WTN01', label: 'I조', useDepts: ['가공1팀','가공2팀','가공3팀'], start: '19:00', end: '06:30', breakStart: '00:00', breakEnd: '01:00', breakStart2: '05:00', breakEnd2: '05:30' },
       { code: 'WTN02', label: 'J조', useDepts: ['출력팀','옵셋인쇄팀','출고팀'], start: '19:30', end: '07:30', breakStart: '00:00', breakEnd: '01:00', breakStart2: '05:00', breakEnd2: '05:30' },
     ];
-    rows.forEach(r => { r.memberCount = 0; if (r.active === undefined) r.active = true; recompute(r); });   /* workHours/otMin/nightMin/isNight 산출 + 사용 상태 기본 '사용' */
+    rows.forEach(r => {
+      r.memberCount = 0;
+      if (r.active === undefined) r.active = true;   /* 사용 상태 기본 '사용' */
+      if (!r.startedAt) r.startedAt = '2025-07-01';  /* 사용 시작일(등록/최초 사용) */
+      if (!r.usageLog) r.usageLog = [];              /* 사용/미사용 상태 변경 이력 */
+      if (!r.color) r.color = 'gray';                /* 근무조 색상 기본값 — 회색(사용자가 상세에서 지정) */
+      recompute(r);
+    });
     return rows;
   }
 
-  /* 근무코드 전자결재 승인자(mock) — 추가/삭제/미사용 결재 승인 주체 */
+  /* 근무조 색상 팔레트 — 기본 회색 + 빨·주·노·초·파·남·보·검(파스텔 톤). 근무조 명 옆 컬러칩 · 스케줄 시각 구분. */
+  const SHIFT_COLORS = [
+    { key: 'gray',   label: '기본', hex: '#DDE1E6' },
+    { key: 'red',    label: '빨강', hex: '#F6C9CB' },
+    { key: 'orange', label: '주황', hex: '#FBD9B0' },
+    { key: 'yellow', label: '노랑', hex: '#F5E7A3' },
+    { key: 'green',  label: '초록', hex: '#C2E5C6' },
+    { key: 'blue',   label: '파랑', hex: '#BFD7F0' },
+    { key: 'navy',   label: '남색', hex: '#AEB8E0' },
+    { key: 'purple', label: '보라', hex: '#D8C7EC' },
+    { key: 'black',  label: '검정', hex: '#A7AEBB' },
+  ];
+  function colorHexOf(key) { const c = SHIFT_COLORS.find(x => x.key === key); return c ? c.hex : SHIFT_COLORS[0].hex; }
+
+  /* 근무조 전자결재 승인자(mock) — 추가/삭제/미사용 결재 승인 주체 */
   const APPROVER = '김상무';
-  /* 변경 이력 시드 — 데모용. 사용 중이던 C조(WTD03)를 미사용 처리한 상태로 시작. */
+  /* 변경 이력 시드 — 데모용. 삭제/미사용/재개만 전자결재·이력 대상(추가는 자유·미기록).
+     WTD09(단축조·구)는 배정 해제 후 미사용 처리된 상태와 정합. WTN03(K조)은 삭제되어 목록에 없음. */
   function seedChangeLog() {
-    const w3 = STATE.shifts.find(s => s.code === 'WTD03');
-    if (w3) w3.active = false;
     STATE.codeChangeLog = [
-      { at: '26/05/27   14:20', code: 'WTD03', label: 'C조', type: '미사용', reason: '개발팀 근무형태 통합으로 미사용 전환', by: HR_NAME, approver: APPROVER },
-      { at: '26/04/18   09:35', code: 'WTN02', label: 'J조', type: '추가',   reason: '야간 2교대 신설 (출/퇴근 19:30~07:30)', by: HR_NAME, approver: APPROVER },
-      { at: '26/03/02   11:10', code: 'WTD06', label: 'F조', type: '추가',   reason: '출고팀 근무시간 분리 신설', by: HR_NAME, approver: APPROVER },
-      { at: '26/02/14   16:45', code: 'WTN03', label: 'K조', type: '삭제',   reason: '배정 이력 없는 야간조 정리', by: HR_NAME, approver: APPROVER },
+      { at: '26/05/27   14:20', code: 'WTD09', label: '단축조(구)', type: '비활성', reason: '단축근무 폐지로 비활성화', by: HR_NAME, approver: APPROVER },
+      { at: '26/02/14   16:45', code: 'WTN03', label: 'K조',        type: '삭제',   reason: '배정 이력 없는 야간조 정리', by: HR_NAME, approver: APPROVER },
+    ];
+    /* WTD09 활성/비활성 변경 시드 — 사용 이력 모달의 상태 변경 타임라인 */
+    const w9 = STATE.shifts.find(s => s.code === 'WTD09');
+    if (w9) w9.usageLog = [
+      { at: '24/09/01', status: '활성',   reason: '신규 등록', by: HR_NAME, approver: APPROVER },
+      { at: '26/05/27', status: '비활성', reason: '단축근무 폐지로 비활성화', by: HR_NAME, approver: APPROVER },
     ];
   }
 
@@ -146,24 +172,28 @@
     shifts: [],
     editingCode: null,       /* null = 신규, code = 수정 */
     form: null,
-    /* 근무코드 수정 이력 — { code: [ { at(수정일시), by(수정자), effDate(적용시작일), reason(사유), changes:[{field,label,from,to}] } ] } */
+    /* 근무조 수정 이력 — { code: [ { at(수정일시), by(수정자), effDate(적용시작일), reason(사유), changes:[{field,label,from,to}] } ] } */
     shiftHistory: {},
-    /* 근무코드 변경 이력(전자결재 대상) — [{ at(변경일시), code(대상 근무코드), label, type:'추가'|'삭제'|'미사용'|'재개', reason(변경 사유), by(변경자), approver(승인자) }] (최신순) */
+    /* 근무조 변경 이력(전자결재 대상) — [{ at(변경일시), code(대상 근무조), label, type:'추가'|'삭제'|'미사용'|'재개', reason(변경 사유), by(변경자), approver(승인자) }] (최신순) */
     codeChangeLog: [],
     /* 추가 모달 — 변경 사유(전자결재 상신 시 필수) */
     addMeta: { reason: '' },
     /* 삭제/미사용/재개 전자결재 상태 — { type, code, label, reason, error } */
     codeAct: null,
-    /* 수정 모달 상태 — 부서 연결 근무코드 수정 시 필수 입력 (적용 시작일/사유) + 인라인 검증 에러 */
+    /* 수정 모달 상태 — 부서 연결 근무조 수정 시 필수 입력 (적용 시작일/사유) + 인라인 검증 에러 */
     editMeta: { reason: '', effDate: '' },
     editErrors: {},
-    /* 배정표 — 부서별 근무조 현황과 동일 구조(조직도 + 주간/월간 소프트카드) + 편집 */
+    /* 배정표 — 부서별 근무스케줄 현황과 동일 구조(조직도 + 주간/월간 소프트카드) + 편집 */
     ym:        '2026-05',
-    viewMode:  'month',      /* 'week' | 'month' — 현황 화면과 동일 토글 */
+    viewMode:  'week',       /* 'week'(디폴트) | 'month' — 부서별 주간 뷰가 기본 */
     selectedDeptId: null,    /* 좌측 조직도 선택 부서 id (첫 렌더 시 첫 부서로 자동) */
+    /* 근무스케줄 배치 변경 이력 — [{ at(일시), dept, type('근무스케줄 배치'|'근무조 변경'|'기타'), content(상세 내용), by(처리자) }] (최신순) */
+    assignLog: null,
+    /* 근무조 변경 모달 draft — { scope:'1week'|'2weeks'|'dates', dateFrom, dateTo, shift, type, content } */
+    changeDraft: null,
     weekStart: null,         /* 주간 뷰 현재 주 월요일(YYYY-MM-DD). null=오늘 기준 */
     treeCollapsed: true,     /* 좌측 조직도 접힘 여부 */
-    plan:      {},           /* { 'empId|YYYY-MM-DD': 근무코드 | '-' } — 일자별 편성(현황과 동일 키) */
+    plan:      {},           /* { 'empId|YYYY-MM-DD': 근무조 | '-' } — 일자별 편성(현황과 동일 키) */
     dept:      null,         /* (구) 호환용 — 미사용 */
     weekPlan:  {},           /* (구) 호환용 — 미사용 */
     selected:  new Set(),    /* 일괄 적용 대상으로 체크된 사원 id */
@@ -178,17 +208,70 @@
     },
   };
 
+  /* 근무스케줄 배치 변경 이력 시드 — 데모용(초기 세팅 / 월 배치 / 팀원 변경 각 1건). 최신순. */
+  function seedAssignLog() {
+    STATE.assignLog = [
+      { at: '26/05/26   09:12', dept: '가공1팀', type: '근무조 변경', content: '이수민 5/27~5/31 야간(I조)으로 조정 — 설비 점검 대응', by: HR_NAME },
+      { at: '26/05/01   14:40', dept: '가공1팀', type: '근무스케줄 배치', content: '6월 정기 근무스케줄 배치(주간/야간 2교대 로테이션)', by: HR_NAME },
+      { at: '26/04/28   10:05', dept: '가공1팀', type: '기타', content: '공휴일(5/5) 대체 근무일 지정', by: HR_NAME },
+    ];
+  }
+
   function ensureLoaded() {
     if (!STATE.shifts.length) { STATE.shifts = makeMock(); seedChangeLog(); }
+    if (STATE.assignLog === null) seedAssignLog();
     promotePending();   /* 적용일이 도래한 예정 변경을 반영 */
   }
-  /* 사용 이력 있음 판정 — 직원 배정·부서 정책 연결·팀 사용지정(useDepts) 중 하나라도 있으면 사용 중.
-     사용 중이면 출/퇴근·휴게 잠금 + 삭제 불가(미사용 처리만) — 근무코드 생성 기준 불변 원칙. */
-  function codeInUse(code) {
-    if (!code) return false;
-    if (shiftConnected(code)) return true;
+  /* 현재 이 근무조를 사용 중인 부서 — 부서별 근무정책 연결 + 직원 배정 + (시드)useDepts 합집합.
+     '사용 부서' pill 표기와 미사용/삭제/편집 제한 판정의 단일 소스. */
+  function usingDeptsOf(code) {
+    if (!code) return [];
+    ensureLoaded();
     const s = STATE.shifts.find(x => x.code === code);
-    return !!(s && s.useDepts && s.useDepts.length);
+    const set = new Set([].concat((s && s.useDepts) || []).filter(Boolean));
+    const WP = window.App && App.AttWorkPolicy;
+    if (WP && WP.deptsUsingCode) { try { WP.deptsUsingCode(code).forEach(d => d && set.add(d)); } catch (e) { /* noop */ } }
+    allEmps().forEach(e => { if (e && e.shift === code && e.dept) set.add(e.dept); });
+    return Array.from(set);
+  }
+  /* 사용 중인 부서 있음 — 있으면 미사용 처리·삭제·편집 불가(부서에서 먼저 해제해야 함). */
+  function codeInUse(code) { return usingDeptsOf(code).length > 0; }
+  /* 사용 이력 있음 — 현재 사용 중이거나 과거 사용 후 해제된(hist) 코드. 삭제 불가·기준(출/퇴근·휴게) 잠금. */
+  function codeHasHistory(code) {
+    if (codeInUse(code)) return true;
+    const s = STATE.shifts.find(x => x.code === code);
+    return !!(s && s.hist);
+  }
+  /* 근무조 상태/가능 액션 통합 판정 (정책 단일 소스)
+     · status : 'pending'(승인대기) | 'inuse'(사용 부서 ≥1 = 사용 중) | 'unused'(사용 부서 0 = 미사용) — 사용 부서 수 기준(파생)
+     · active : 활성/비활성(별도 축). 비활성 = 배치 후보에서 제외(폐기). 상태 뱃지와 무관한 마커로 표기
+     · everUsed : 한번이라도 근무스케줄 배치(근태 산정)에 사용됨 → 수정·삭제 불가 (사용 이력)
+     · isDefault : 전사 기본 근무조 → 수정·삭제·비활성화 모두 불가
+     · canEdit/canDelete : 사용 부서 0 + 기본 아님 + 사용 이력 없음 + 활성 + 대기 아님
+     · canDeactivate(비활성화) : 사용 부서 0 + 활성 + 기본/대기 아님
+     · canActivate(활성화) : 비활성 코드 재사용 */
+  function codeFlags(code) {
+    ensureLoaded();
+    const s = STATE.shifts.find(x => x.code === code) || null;
+    const inUse = usingDeptsOf(code).length > 0;                /* 현재 사용 부서 있음 → 사용/미사용 판정 */
+    const gd = STATE.shifts.find(x => x.isGlobalDefault);
+    const isDefault = !!(s && s.isGlobalDefault) || !!(gd && gd.code === code);
+    const usedBefore = !!(s && s.hist);                          /* 과거 사용 이력(현재 미배치) */
+    const everUsed = inUse || usedBefore;                        /* 한번이라도 근무스케줄 배치(근태 산정)에 사용됨 → 수정·삭제 불가 */
+    const active = !s || s.active !== false;                     /* 활성/비활성(별도 축) — 비활성 = 배치 후보 제외(폐기) */
+    const pending = !!(s && s.pendingChange);                    /* 삭제·비활성화 승인대기 */
+    return {
+      code: code, s: s, inUse: inUse, isDefault: isDefault, everUsed: everUsed, active: active, pending: pending,
+      /* 수정/삭제 — 사용 이력 없고, 사용 부서 없고, 활성 상태일 때만 */
+      canEdit:       active && !inUse && !usedBefore && !isDefault && !pending,
+      canDelete:     active && !inUse && !usedBefore && !isDefault && !pending,
+      /* 비활성화 — 사용 부서 0 + 활성 상태 (기본/대기 아님) */
+      canDeactivate: active && !inUse && !isDefault && !pending,
+      /* 활성화 — 비활성 코드 재사용 */
+      canActivate:   !active && !pending && !isDefault,
+      /* 상태 뱃지 = 사용 부서 수 기준(파생). 활성/비활성은 별도 마커. */
+      status: pending ? 'pending' : (inUse ? 'inuse' : 'unused'),
+    };
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
   function daysInMonth(ym) {
@@ -206,9 +289,9 @@
     return list.filter(e => e.dept === dept);
   }
 
-  /* 해당 부서에서 사용 가능한 근무조만 (useDepts 미지정 = 전부서 공통) */
+  /* 해당 부서에서 사용 가능한 근무조만 (useDepts 미지정 = 전부서 공통). 미사용 처리된 코드는 편성 후보에서 제외. */
   function availShifts(dept) {
-    return STATE.shifts.filter(s => !s.useDepts || !s.useDepts.length || s.useDepts.includes(dept));
+    return STATE.shifts.filter(s => s.active !== false && (!s.useDepts || !s.useDepts.length || s.useDepts.includes(dept)));
   }
 
   /* 월을 달력 주차(일요일 시작)로 분할. 각 주차에 평일수(weekdayCount) 부여 — 근무일 합계용 */
@@ -230,8 +313,8 @@
     return weeks;
   }
 
-  /* ============ 부서별 근무조 현황과 동일 소스·표기 헬퍼 ============ */
-  function HRI() { return window.App && App.HRInfoMgmt; }
+  /* ============ 부서별 근무스케줄 현황과 동일 소스·표기 헬퍼 ============ */
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
   function allEmps() {
     if (App.AttStatus && App.AttStatus.EMP_LIST && App.AttStatus.EMP_LIST.length)
       return App.AttStatus.EMP_LIST.map(e => ({ id: e.id, name: e.name, dept: e.dept, rank: e.rank || '', position: e.position || '', shift: e.shift || 'WTD01' }));
@@ -263,6 +346,8 @@
     return weeks;
   }
   function mmdd(ds) { const p = ds.split('-'); return `${p[1]}/${p[2]}`; }
+  /* 연-월 표시 전용 — 'YYYY-MM' → 'YY/MM' (SWADPIA §1). 값/키는 ISO 유지, 표기점에서만 사용. */
+  function fmtYM(ym) { const s = String(ym || ''); return /^\d{4}-\d{2}/.test(s) ? `${s.slice(2, 4)}/${s.slice(5, 7)}` : s; }
 
   /* ============ 편성 산출 — 근무정책 설정 반영(현황과 동일 basePlanCode) ============ */
   function basePlanCode(emp, dateStr) {
@@ -310,13 +395,13 @@
       <div class="ssw-tbl__nm"><div class="ssw-tbl__nm-top"><span class="ssw-tbl__name">${esc(emp.name)}</span></div>${sub ? `<div class="ssw-tbl__nm-sub">${sub}</div>` : ''}</div>
     </div></td>`;
   }
-  /* 편집 select 옵션 — 부서 사용 근무코드 + 휴무 */
+  /* 편집 select 옵션 — 부서 사용 가능한 근무조 + 휴무 */
   function optionsHTML(deptName, val) {
     const codes = deptAllowedCodes(deptName);
     return `<option value="-" ${val === '-' ? 'selected' : ''}>휴무</option>` +
       codes.map(c => { const s = App.AttShifts && App.AttShifts.get(c); return `<option value="${esc(c)}" ${val === c ? 'selected' : ''}>${esc(c)} ${esc(s ? (s.label || '') : '')}</option>`; }).join('');
   }
-  /* ============ 상단 근무정책·사용 근무코드 배너 (현황과 동일 .po-info) ============ */
+  /* ============ 상단 근무정책·사용 가능한 근무조 배너 (현황과 동일 .po-info) ============ */
   function policyPillHTML(policy) { return policy === 'shift' ? '<span class="pill pill--purple">교대근무</span>' : '<span class="pill pill--info">통상근무</span>'; }
   function codeInlineHTML(code) { const s = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null; const lbl = s ? (s.label || code) : code; const tm = s ? `<span class="t-muted" style="font-weight:var(--fw-regular);">${esc(s.start)}~${esc(s.end)}</span>` : ''; return `<span class="ss-codeitem"><span class="po-info__code">${esc(code)}</span> ${esc(lbl)} ${tm}</span>`; }
   function renderPolicyBar(deptName) {
@@ -327,13 +412,13 @@
     return `<div class="po-info" style="min-height:34px;width:max-content;max-width:100%;flex:0 0 auto;">
       <span class="po-info__pill"><span class="po-info__pill-label">근무정책</span><span class="po-info__pill-value">${policyPillHTML(cfg.policy)}</span></span>
       <span class="po-info__sep">|</span>
-      <span class="po-info__pill"><span class="po-info__pill-label">사용 근무코드</span><span class="po-info__pill-value">${codeVal}</span></span>
+      <span class="po-info__pill"><span class="po-info__pill-label">사용 가능한 근무조</span><span class="po-info__pill-value">${codeVal}</span></span>
     </div>`;
   }
   /* ============ 주간 뷰 — 성명 1열 + 날짜 열(일자별 편집) ============ */
   function renderWeekView(deptName, emps) {
     const dates = weekDates7(currentWeekStart());
-    const dayHead = dates.map(ds => { const dt = parseYMD(ds); const wd = dt.getDay(); const cls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : ''; return `<th class="ssw-tbl__day ${cls}"><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}.${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`; }).join('');
+    const dayHead = dates.map(ds => { const dt = parseYMD(ds); const wd = dt.getDay(); const cls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : ''; return `<th class="ssw-tbl__day ${cls}"><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}/${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`; }).join('');
     const rows = emps.map(emp => {
       const cells = dates.map(ds => {
         const dt = parseYMD(ds); const wd = dt.getDay(); const cls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
@@ -376,7 +461,7 @@
   }
 
   /* =========================================================
-   *  VIEW — 근무조 배치 (부서별 근무조 현황과 동일 구조 + 편집)
+   *  VIEW — 근무스케줄 배치 (부서별 근무스케줄 현황과 동일 구조 + 편집)
    * ========================================================= */
   const CHEV_L = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
   const CHEV_R = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
@@ -427,8 +512,8 @@
     }
 
     let titleHTML;
-    if (isWeek) { const ds = weekDates7(currentWeekStart()); const a = parseYMD(ds[0]), b = parseYMD(ds[6]); const f = d => `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`; titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`; }
-    else titleHTML = `<div class="att-tb__title">${STATE.ym.replace('-', '.')}</div>`;
+    if (isWeek) { const ds = weekDates7(currentWeekStart()); const a = parseYMD(ds[0]), b = parseYMD(ds[6]); const f = d => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`; titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`; }
+    else titleHTML = `<div class="att-tb__title">${fmtYM(STATE.ym)}</div>`;
     const submitted = STATE.status === 'submitted';
     const statusPill = submitted ? `<span class="pill pill--success">제출 완료${STATE.submittedAt ? ` · ${esc(STATE.submittedAt)}` : ''}</span>` : `<span class="pill pill--warning">작성중</span>`;
     const scopeChip = deptName ? `<div class="att-target-chip" style="cursor:default;"><span class="att-target-chip__name">${esc(deptName)}</span><span class="att-target-chip__meta">${scopeEmps(deptId).length}명</span></div>` : '';
@@ -439,7 +524,7 @@
       <header class="att-page__head">
         <div class="att-tb">
           <div class="att-tb__left">
-            <button class="page-bar__back" type="button" data-shift-back title="근무조 현황으로 돌아가기">${CHEV_L}근무조 현황</button>
+            <button class="page-bar__back" type="button" data-shift-back title="근무스케줄 현황으로 돌아가기">${CHEV_L}근무스케줄 현황</button>
             ${expander}
             ${titleHTML}
             <div class="att-tb__nav">
@@ -452,6 +537,7 @@
           <div style="flex:1;display:flex;justify-content:center;">${modeToggle}</div>
           <div class="att-tb__right">
             ${statusPill}
+            <button class="btn btn--sm" type="button" data-shift-assign-log title="근무스케줄 배치·변경 이력">변경 이력</button>
             <button class="btn btn--sm" type="button" data-shift-copy title="원본 월의 편성을 대상 월로 복사합니다">월 단위 복사</button>
             <button class="btn btn--sm btn--primary" type="button" data-shift-act="submit">${submitted ? '재제출' : '제출'}</button>
           </div>
@@ -480,7 +566,7 @@
 
     pageEl.addEventListener('click', e => {
       if (e.target.closest('[data-shift-back]')) {
-        if (App.Tabs && typeof App.Tabs.open === 'function') App.Tabs.open({ id: 'att-shift-status', label: '근무조 현황', page: 'page-att-shift-status' });
+        if (App.Tabs && typeof App.Tabs.open === 'function') App.Tabs.open({ id: 'att-shift-status', label: '근무스케줄 현황', page: 'page-att-shift-status' });
         return;
       }
       if (e.target.closest('[data-shift-tree-toggle]')) { STATE.treeCollapsed = !STATE.treeCollapsed; renderMain(pageEl); return; }
@@ -500,16 +586,18 @@
         if (!deptName) { window.toast && window.toast('편성할 부서를 먼저 선택해 주세요.', 'warning'); return; }
         const resubmit = STATE.status === 'submitted';
         const q = resubmit
-          ? `${STATE.ym.replace('-', '.')} ${deptName} 근무조 편성을 다시 제출하시겠습니까?`
-          : `${STATE.ym.replace('-', '.')} ${deptName} 근무조 편성을 제출하시겠습니까? 제출 후에도 수정·재제출할 수 있습니다.`;
+          ? `${fmtYM(STATE.ym)} ${deptName} 근무스케줄 편성을 다시 제출하시겠습니까?`
+          : `${fmtYM(STATE.ym)} ${deptName} 근무스케줄 편성을 제출하시겠습니까? 제출 후에도 수정·재제출할 수 있습니다.`;
         if (!confirm(q)) return;
         STATE.status = 'submitted';
-        STATE.submittedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
-        window.toast && window.toast(`${deptName} 근무조 편성 ${resubmit ? '재제출' : '제출'} 완료`, 'success');
+        const _now = new Date();
+        STATE.submittedAt = `${pad2(_now.getFullYear() % 100)}/${pad2(_now.getMonth() + 1)}/${pad2(_now.getDate())}   ${pad2(_now.getHours())}:${pad2(_now.getMinutes())}`;
+        window.toast && window.toast(`${deptName} 근무스케줄 편성 ${resubmit ? '재제출' : '제출'} 완료`, 'success');
         renderMain(pageEl);
         return;
       }
       if (e.target.closest('[data-shift-copy]')) { openCopyModal(pageEl); return; }
+      if (e.target.closest('[data-shift-assign-log]')) { openAssignLogModal(); return; }
       if (e.target.closest('[data-bulk-open]')) { openBulkModal(pageEl); return; }
       if (e.target.closest('[data-wk-bulk-clear]')) { STATE.selected.clear(); renderMain(pageEl); return; }
     });
@@ -544,47 +632,80 @@
     if (STATE.status === 'submitted') { STATE.status = 'draft'; STATE.submittedAt = ''; }
   }
 
-  /* 선택 일괄 적용 — 체크된 사원의 대상 주차(또는 전체)를 선택 근무조로 설정 */
-  function applyBulk(pageEl) {
-    const ids = Array.from(STATE.selected);
-    if (!ids.length) return;
-    const weeks = monthWeeks(STATE.ym);
-    const targets = STATE.bulkWeek === 'all' ? weeks : weeks.filter(w => String(w.idx) === String(STATE.bulkWeek));
-    const O = App.AttShiftOverrides;
-    ids.forEach(id => targets.forEach(w => w.dates.forEach(ds => { if (O && O.get && O.get(id, ds)) return; /* 승인일 보존 */ STATE.plan[`${id}|${ds}`] = STATE.bulkShift; })));
-    clearSubmitted();
-    renderMain(pageEl);
-    const shiftLabel = STATE.bulkShift === '-' ? '휴무' : shiftShortName(STATE.bulkShift);
-    const weekLabel  = STATE.bulkWeek === 'all' ? '전체 주차' : `${Number(STATE.bulkWeek) + 1}주차`;
-    window.toast && window.toast(`${ids.length}명 · ${weekLabel} → ${shiftLabel} 적용 완료`, 'success');
+  /* ============ 변경 범위 → 대상 평일 날짜 배열 (주말 제외) ============
+     · '1week'  — 현재 주(월~금)
+     · '2weeks' — 현재 주 + 다음 주(월~금)
+     · 'dates'  — dateFrom~dateTo 범위의 평일 */
+  function scopeDates(scope, dateFrom, dateTo) {
+    const out = [];
+    if (scope === 'dates') {
+      if (!dateFrom || !dateTo || dateFrom > dateTo) return out;
+      let cur = parseYMD(dateFrom); const end = parseYMD(dateTo);
+      while (cur <= end) { const wd = cur.getDay(); if (wd !== 0 && wd !== 6) out.push(ymdOf(cur)); cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1); }
+      return out;
+    }
+    const weeks = scope === '2weeks' ? 2 : 1;
+    const base = parseYMD(currentWeekStart());   /* 월요일 */
+    for (let w = 0; w < weeks; w++) {
+      for (let i = 0; i < 5; i++) {              /* 월~금 */
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + w * 7 + i);
+        out.push(ymdOf(d));
+      }
+    }
+    return out;
+  }
+  /* 범위 라벨 — 이력·토스트 표기용 */
+  function scopeRangeLabel(d) {
+    const dates = scopeDates(d.scope, d.dateFrom, d.dateTo);
+    if (!dates.length) return '-';
+    const a = dates[0], b = dates[dates.length - 1];
+    const prefix = d.scope === '2weeks' ? '2주' : d.scope === '1week' ? '1주' : '특정 일자';
+    return `${prefix} (${mmdd(a)}~${mmdd(b)})`;
+  }
+  /* 근무스케줄 배치 변경 이력 기록 (최신순) */
+  function logAssign(dept, type, content) {
+    ensureLoaded();
+    STATE.assignLog.unshift({ at: nowStamp(), dept: dept || '', type: type || '근무조 변경', content: content || '', by: HR_NAME });
   }
 
-  /* ============ 근무조 일괄 변경 모달 — 선택 구성원 × 대상 주차 × 근무조 ============ */
+  /* 선택 일괄 적용 — 체크된 사원 × 변경 범위(1주/2주/특정 일자) → 선택 근무조로 편성 + 이력 기록 */
+  function applyBulk(pageEl) {
+    const ids = Array.from(STATE.selected);
+    const d = STATE.changeDraft;
+    if (!ids.length || !d) return false;
+    const dates = scopeDates(d.scope, d.dateFrom, d.dateTo);
+    if (!dates.length) {
+      const err = document.querySelector('#modal-shift-bulk [data-bulk-err]');
+      if (err) { err.textContent = '변경할 기간을 올바르게 선택해 주세요.'; err.hidden = false; }
+      return false;
+    }
+    const O = App.AttShiftOverrides;
+    ids.forEach(id => dates.forEach(ds => { if (O && O.get && O.get(id, ds)) return; /* 승인일 보존 */ STATE.plan[`${id}|${ds}`] = d.shift; }));
+    /* 이력 기록 — 유형 칩 + 상세 내용(없으면 자동 요약) */
+    const deptName = deptNameOf(STATE.selectedDeptId);
+    const shiftLabel = d.shift === '-' ? '휴무' : `${d.shift} ${shiftShortName(d.shift)}`;
+    const rangeLabel = scopeRangeLabel(d);
+    const content = (d.content && d.content.trim())
+      ? d.content.trim()
+      : `${ids.length}명 · ${rangeLabel} → ${shiftLabel}`;
+    logAssign(deptName, d.type, content);
+    clearSubmitted();
+    renderMain(pageEl);
+    window.toast && window.toast(`${ids.length}명 · ${rangeLabel} → ${shiftLabel} 적용 완료`, 'success');
+    return true;
+  }
+
+  /* ============ 근무조 변경 모달 — 선택 구성원 × 변경 범위 × 근무조 + 유형 칩 + 상세 내용 ============ */
   function ensureBulkModal() {
     if (document.getElementById('modal-shift-bulk')) return;
     const html = `
 <div class="modal-backdrop" id="modal-shift-bulk">
-  <div class="modal" style="width:92vw;max-width:460px;">
+  <div class="modal" style="width:92vw;max-width:520px;">
     <div class="modal__header">
-      <div class="modal__title">근무조 일괄 변경</div>
+      <div class="modal__title">근무조 변경</div>
       <button class="modal__close" type="button" data-bulk-close aria-label="닫기">✕</button>
     </div>
-    <div class="modal__body" style="padding:18px 20px;">
-      <div style="background:var(--color-active);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:var(--fs-sm);color:var(--color-text-sub);">
-        선택 <strong data-bulk-count style="color:var(--color-brand-primary);">0</strong>명 · <strong data-bulk-dept style="color:var(--color-text);"></strong> 구성원에게 적용합니다.
-      </div>
-      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
-          <div class="fm-tbl__label">대상 주차</div>
-          <div class="fm-tbl__value"><select class="select" data-bulk-week style="width:100%;"></select></div>
-        </div>
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
-          <div class="fm-tbl__label">근무조</div>
-          <div class="fm-tbl__value"><select class="select" data-bulk-shift style="width:100%;"></select></div>
-        </div>
-      </div>
-      <div class="form-help" style="margin-top:10px;">대상 주차의 평일 전체가 선택한 근무조로 변경됩니다. (주말은 휴무 유지)</div>
-    </div>
+    <div class="modal__body" style="padding:18px 20px;" data-bulk-body></div>
     <div class="modal__footer">
       <button class="btn" type="button" data-bulk-close>취소</button>
       <button class="btn btn--primary" type="button" data-bulk-apply>적용</button>
@@ -597,37 +718,100 @@
     const modal = document.getElementById('modal-shift-bulk');
     modal.addEventListener('click', e => {
       if (e.target === modal || e.target.closest('[data-bulk-close]')) { closeModalEl('modal-shift-bulk'); return; }
+      /* 변경 범위 칩 (단일 선택) */
+      const scopeChip = e.target.closest('[data-scope-val]');
+      if (scopeChip) { STATE.changeDraft.scope = scopeChip.dataset.scopeVal; renderBulkBody(); return; }
+      /* 유형 칩 (단일 선택) */
+      const typeChip = e.target.closest('[data-type-val]');
+      if (typeChip) { STATE.changeDraft.type = typeChip.dataset.typeVal; renderBulkBody(); return; }
       if (e.target.closest('[data-bulk-apply]')) {
-        applyBulk(document.getElementById('page-att-shift'));
-        closeModalEl('modal-shift-bulk');
+        if (applyBulk(document.getElementById('page-att-shift'))) closeModalEl('modal-shift-bulk');
         return;
       }
     });
     modal.addEventListener('change', e => {
-      const bw = e.target.closest('[data-bulk-week]');
-      if (bw) { STATE.bulkWeek = bw.value; return; }
       const bs = e.target.closest('[data-bulk-shift]');
-      if (bs) { STATE.bulkShift = bs.value; return; }
+      if (bs) { STATE.changeDraft.shift = bs.value; return; }
+      const df = e.target.closest('[data-bulk-from]');
+      if (df) { STATE.changeDraft.dateFrom = df.value; const err = modal.querySelector('[data-bulk-err]'); if (err) err.hidden = true; return; }
+      const dt = e.target.closest('[data-bulk-to]');
+      if (dt) { STATE.changeDraft.dateTo = dt.value; const err = modal.querySelector('[data-bulk-err]'); if (err) err.hidden = true; return; }
     });
+    modal.addEventListener('input', e => {
+      const c = e.target.closest('[data-bulk-content]');
+      if (c) { STATE.changeDraft.content = c.value; return; }
+    });
+  }
+  const SCOPE_CHIPS = [{ v: '1week', l: '1주 단위' }, { v: '2weeks', l: '2주 단위' }, { v: 'dates', l: '특정 일자' }];
+  const TYPE_CHIPS  = ['근무스케줄 배치', '근무조 변경', '기타'];
+  function renderBulkBody() {
+    const modal = document.getElementById('modal-shift-bulk');
+    const body = modal && modal.querySelector('[data-bulk-body]');
+    if (!body) return;
+    const d = STATE.changeDraft;
+    const deptName = deptNameOf(STATE.selectedDeptId);
+    const codes = deptAllowedCodes(deptName);
+    const rangeLabel = d.scope === 'dates' ? '' : scopeRangeLabel(d);
+    const scopeChipsHTML = SCOPE_CHIPS.map(c =>
+      `<button class="chip-choice__item ${d.scope === c.v ? 'is-active' : ''}" type="button" data-scope-val="${c.v}">${c.l}</button>`).join('');
+    const typeChipsHTML = TYPE_CHIPS.map(t =>
+      `<button class="chip-choice__item ${d.type === t ? 'is-active' : ''}" type="button" data-type-val="${esc(t)}">${esc(t)}</button>`).join('');
+    const dateFields = d.scope === 'dates'
+      ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+           <input type="date" class="input" data-bulk-from value="${esc(d.dateFrom || '')}" style="max-width:170px;">
+           <span class="t-muted">~</span>
+           <input type="date" class="input" data-bulk-to value="${esc(d.dateTo || '')}" style="max-width:170px;">
+         </div>`
+      : `<div class="form-help" style="margin-top:8px;">대상 기간: <strong style="color:var(--color-text);">${esc(rangeLabel)}</strong> · 평일만 적용 (주말 휴무 유지)</div>`;
+    body.innerHTML = `
+      <div style="background:var(--color-active);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:var(--fs-sm);color:var(--color-text-sub);">
+        선택 <strong style="color:var(--color-brand-primary);">${STATE.selected.size}</strong>명 · <strong style="color:var(--color-text);">${esc(deptName || '-')}</strong> 구성원에게 적용합니다.
+      </div>
+      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
+          <div class="fm-tbl__label">변경 범위</div>
+          <div class="fm-tbl__value" style="flex-direction:column;align-items:stretch;gap:0;">
+            <div class="chip-choice">${scopeChipsHTML}</div>
+            ${dateFields}
+          </div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
+          <div class="fm-tbl__label">근무조</div>
+          <div class="fm-tbl__value">
+            <select class="select" data-bulk-shift style="width:100%;">
+              <option value="-" ${d.shift === '-' ? 'selected' : ''}>휴무</option>
+              ${codes.map(c => { const s = App.AttShifts && App.AttShifts.get(c); return `<option value="${esc(c)}" ${d.shift === c ? 'selected' : ''}>${esc(c)} ${esc(s ? (s.label || '') : '')}</option>`; }).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
+          <div class="fm-tbl__label">유형 <span style="color:var(--color-danger);">*</span></div>
+          <div class="fm-tbl__value"><div class="chip-choice">${typeChipsHTML}</div></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
+          <div class="fm-tbl__label">상세 내용</div>
+          <div class="fm-tbl__value">
+            <textarea class="input" data-bulk-content rows="2" placeholder="변경 사유·상세 내용을 입력하세요" style="width:100%;height:56px;min-height:56px;resize:vertical;">${esc(d.content || '')}</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="field-error" data-bulk-err hidden style="margin-top:10px;"></div>`;
   }
   function openBulkModal(pageEl) {
     if (!STATE.selected.size) { window.toast && window.toast('먼저 대상 구성원을 선택해 주세요.', 'warning'); return; }
     const deptName = deptNameOf(STATE.selectedDeptId);
-    ensureBulkModal();
-    const modal = document.getElementById('modal-shift-bulk');
-    const weeks = monthWeeks(STATE.ym);
     const codes = deptAllowedCodes(deptName);
-    /* 현재 부서·월에 맞춰 기본값 보정 */
-    if (STATE.bulkShift !== '-' && codes.indexOf(STATE.bulkShift) < 0) STATE.bulkShift = codes.length ? codes[0] : '-';
-    if (STATE.bulkWeek !== 'all' && !weeks.find(w => String(w.idx) === String(STATE.bulkWeek))) STATE.bulkWeek = 'all';
-    modal.querySelector('[data-bulk-count]').textContent = STATE.selected.size;
-    modal.querySelector('[data-bulk-dept]').textContent = deptName || '-';
-    modal.querySelector('[data-bulk-week]').innerHTML = `
-      <option value="all" ${STATE.bulkWeek === 'all' ? 'selected' : ''}>전체 주차</option>
-      ${weeks.map(w => `<option value="${w.idx}" ${String(STATE.bulkWeek) === String(w.idx) ? 'selected' : ''}>${w.idx + 1}주차 (${mmdd(w.dates[0])}~${mmdd(w.dates[w.dates.length - 1])})</option>`).join('')}`;
-    modal.querySelector('[data-bulk-shift]').innerHTML = `
-      <option value="-" ${STATE.bulkShift === '-' ? 'selected' : ''}>휴무</option>
-      ${codes.map(c => { const s = App.AttShifts && App.AttShifts.get(c); return `<option value="${esc(c)}" ${STATE.bulkShift === c ? 'selected' : ''}>${esc(c)} ${esc(s ? (s.label || '') : '')}</option>`; }).join('')}`;
+    /* draft 초기화 — 현재 주 1주 범위, 부서 첫 근무조, 유형 기본 '근무조 변경' */
+    const wk = weekDates7(currentWeekStart());
+    STATE.changeDraft = {
+      scope: '1week',
+      dateFrom: wk[0], dateTo: wk[4],
+      shift: codes.length ? codes[0] : '-',
+      type: '근무조 변경',
+      content: '',
+    };
+    ensureBulkModal();
+    renderBulkBody();
     openModalEl('modal-shift-bulk');
   }
 
@@ -665,7 +849,7 @@
     STATE.submittedAt = '';
     STATE.selected.clear();
     renderMain(pageEl);
-    window.toast && window.toast(`${srcYm.replace('-', '.')} 편성을 ${dstYm.replace('-', '.')}(으)로 복사했습니다.`, 'success');
+    window.toast && window.toast(`${fmtYM(srcYm)} 편성을 ${fmtYM(dstYm)}(으)로 복사했습니다.`, 'success');
     return true;
   }
 
@@ -675,7 +859,7 @@
     for (let d = fromD; d <= toD; d++) {
       const t = shiftMonth(STATE.ym, d);
       const tag = d === -1 ? ' · 지난달' : d === 0 ? ' · 이번 달' : d === 1 ? ' · 다음 달' : '';
-      out.push(`<option value="${t}" ${t === sel ? 'selected' : ''}>${t.replace('-', '.')}${tag}</option>`);
+      out.push(`<option value="${t}" ${t === sel ? 'selected' : ''}>${fmtYM(t)}${tag}</option>`);
     }
     return out.join('');
   }
@@ -737,7 +921,7 @@
         </div>
         <div style="display:flex;gap:7px;">
           <span style="color:var(--color-brand-primary);">·</span>
-          <span>일자별 근무조 편성이 대상 월에 <strong style="color:var(--color-text);">그대로 복사</strong>됩니다.</span>
+          <span>일자별 근무스케줄 편성이 대상 월에 <strong style="color:var(--color-text);">그대로 복사</strong>됩니다.</span>
         </div>
         <div style="display:flex;gap:7px;margin-top:3px;">
           <span style="color:var(--color-brand-primary);">·</span>
@@ -800,11 +984,11 @@
     host.innerHTML = `
       <div class="toolbar" style="border-bottom:1px solid var(--color-divider);">
         <div class="toolbar__left">
-          <span style="color:var(--color-text-muted);font-size:var(--fs-sm);">총 <strong>${list.length}</strong>개 근무코드</span>
+          <span style="color:var(--color-text-muted);font-size:var(--fs-sm);">총 <strong>${list.length}</strong>개 근무조</span>
         </div>
         <div class="toolbar__right">
           <button class="btn btn--sm btn--primary" type="button" data-shift-act="add">
-            ${(window.Icons && window.Icons.plus) || '+'} 근무코드 추가
+            ${(window.Icons && window.Icons.plus) || '+'} 근무조 추가
           </button>
         </div>
       </div>
@@ -812,8 +996,8 @@
         <table class="shift-tbl">
           <thead>
             <tr>
-              <th style="width:80px;">근무코드</th>
-              <th style="min-width:140px;">근무코드 명</th>
+              <th style="width:80px;">근무조</th>
+              <th style="min-width:140px;">근무조 명</th>
               <th style="width:64px;text-align:center;">구분</th>
               <th style="width:72px;text-align:center;">출근</th>
               <th style="width:72px;text-align:center;">퇴근</th>
@@ -825,7 +1009,7 @@
           </thead>
           <tbody>
             ${list.length === 0
-              ? `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--color-text-muted);">등록된 근무코드가 없습니다.</td></tr>`
+              ? `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--color-text-muted);">등록된 근무조가 없습니다.</td></tr>`
               : list.map(renderShiftRow).join('')}
           </tbody>
         </table>
@@ -855,9 +1039,9 @@
   }
 
   /* =========================================================
-   *  MODAL: 근무코드 추가/수정
+   *  MODAL: 근무조 추가/수정
    * ========================================================= */
-  /* 근무코드 자동 채번 — 'WT' + 근무시간유형(D/N) + 유형별 일련번호(2자리).
+  /* 근무조 자동 채번 — 'WT' + 근무시간유형(D/N) + 유형별 일련번호(2자리).
      유형은 폼의 심야 겹침(isNight)으로 결정되며, 시간 수정 시 실시간으로 재채번한다.
      excludeCode 는 수정 중인 자기 코드(중복 제외)용. */
   function channelCode(f, excludeCode) {
@@ -884,6 +1068,7 @@
       isNight:     false,
       memberCount: 0,
       active:      true,
+      color:       'gray',
     };
     recompute(f);
     f.code = channelCode(f);   /* 주간 09~18 → WTD0X */
@@ -891,7 +1076,7 @@
   }
 
   /* ============ 운영 중 수정 — 부서 연결 판정 / 수정 이력 ============ */
-  /* 부서에 연결된 근무코드인지 — 직원 배정(shiftInUse) 또는 부서별 근무코드 설정 연결.
+  /* 부서에 연결된 근무조인지 — 직원 배정(shiftInUse) 또는 부서별 근무조 설정 연결.
      연결된 코드 수정 시 적용 시작일·사유 필수, 변경은 적용일 이후 근무부터 반영(소급 없음). */
   function shiftConnected(code) {
     if (!code) return false;
@@ -901,7 +1086,7 @@
   }
   /* 수정 이력 비교 대상 필드 */
   const HIST_FIELDS = [
-    ['label', '근무코드 명'], ['start', '출근'], ['end', '퇴근'],
+    ['label', '근무조 명'], ['start', '출근'], ['end', '퇴근'],
     ['breakStart', '휴게1 시작'], ['breakEnd', '휴게1 종료'],
     ['breakStart2', '휴게2 시작'], ['breakEnd2', '휴게2 종료'],
   ];
@@ -930,7 +1115,7 @@
     STATE.editErrors = {};
     STATE.editMeta = { reason: '', effDate: TODAY };   /* 적용 시작일 기본=오늘, 과거 불가 */
     if (code) {
-      /* 수정 = 인-페이지 화면. 호출 맥락(근무조 배치 모달)에서는 모달 본문에 렌더. */
+      /* 수정 = 인-페이지 화면. 호출 맥락(근무스케줄 배치 모달)에서는 모달 본문에 렌더. */
       openEditFromMaster(code);
     } else {
       STATE.form = newDefaults();
@@ -972,39 +1157,64 @@
       <select class="select" id="${idp}-m" style="width:68px;"${d}>${ms}</select></span>`;
   }
 
-  /* ----- 공용 폼 HTML (추가 모달 / 수정 화면 공용) — 코드·명·출퇴근(10분 select)·휴게·요약 ----- */
-  function editorFormHTML(f, locked) {
+  /* ----- 공용 폼 HTML (추가 모달 / 수정 화면 공용) — 코드·명·출퇴근(10분 select)·휴게·요약.
+     depts(배열) 전달 시 맨 아래 '사용 부서' 행 추가(상세 화면 전용 — 모든 사용 부서 표시). ----- */
+  /* 잠금(읽기 전용) 상세에서 휴게시간을 값만 표시 — '12:00~13:00 · 17:00~17:30 (60분)' */
+  function breakDisplayHTML(f) {
+    const brk = [];
+    if (f.breakStart && f.breakEnd)   brk.push(`${esc(f.breakStart)}~${esc(f.breakEnd)}`);
+    if (f.breakStart2 && f.breakEnd2) brk.push(`${esc(f.breakStart2)}~${esc(f.breakEnd2)}`);
+    return brk.length
+      ? `${brk.join(' · ')} <span class="t-muted" style="font-size:11px;">(${f.breakMin || 0}분)</span>`
+      : '<span class="t-muted">-</span>';
+  }
+  /* 근무조 색상 — 상세/추가 폼 맨 아래 별도 섹션(근태 산정과 무관한 cosmetic).
+     withApply=true(근무조 상세)면 선택 색상이 저장값(savedColor)과 다를 때만 [적용] 버튼 노출. */
+  function colorSectionHTML(f, withApply, savedColor) {
+    const cur = f.color || 'gray';
+    const changed = withApply && cur !== (savedColor || 'gray');
+    const swatches = SHIFT_COLORS.map(c => {
+      const sel = cur === c.key;
+      return `<button type="button" data-shift-color="${c.key}" title="${esc(c.label)}" aria-label="${esc(c.label)}" style="width:24px;height:24px;padding:0;border-radius:50%;background:${c.hex};border:2px solid ${sel ? 'var(--color-brand-primary)' : 'transparent'};box-shadow:0 0 0 1px var(--color-border);cursor:pointer;"></button>`;
+    }).join('');
+    return `
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--color-divider);display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <span style="font-weight:var(--fw-semibold);font-size:var(--fs-sm);color:var(--color-text);flex:0 0 auto;">색상</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1;">${swatches}</div>
+        ${changed ? '<button class="btn btn--primary btn--sm" type="button" data-shift-color-apply style="flex:0 0 auto;">적용</button>' : ''}
+      </div>`;
+  }
+  function editorFormHTML(f, locked, depts) {
     const row2GT = 'grid-template-columns:110px 1fr 110px 1fr;';
     const row1GT = 'grid-template-columns:110px 1fr;';
     const REQ = '<span style="color:var(--color-danger);">*</span>';
     const hasB2 = !!(f.breakStart2 && f.breakEnd2);
-    return `
-      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
-        <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
-          <div class="fm-tbl__label">근무코드</div>
-          <div class="fm-tbl__value" style="gap:8px;align-items:center;">
-            <span data-shift-code style="display:inline-block;padding:5px 12px;background:var(--color-surface-alt);border:1px solid var(--color-divider);border-radius:var(--radius-sm);font-weight:var(--fw-bold);color:var(--color-brand-primary);letter-spacing:0.02em;">${esc(f.code || '-')}</span>
-          </div>
-          <div class="fm-tbl__label">근무코드 명 ${REQ}</div>
-          <div class="fm-tbl__value">
-            <input class="input" type="text" id="shift-f-label" value="${esc(f.label)}" placeholder="예: 주간 표준조" style="width:100%;" />
-          </div>
-        </div>
-        <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
-          <div class="fm-tbl__label">출근 ${REQ}</div>
-          <div class="fm-tbl__value">${timeSelectHTML('shift-f-start', f.start, locked)}</div>
-          <div class="fm-tbl__label">퇴근 ${REQ}</div>
-          <div class="fm-tbl__value" style="gap:8px;align-items:center;">${timeSelectHTML('shift-f-end', f.end, locked)}</div>
-        </div>
+    const deptsRow = depts
+      ? `
         <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
-          <div class="fm-tbl__label">휴게시간</div>
-          <div class="fm-tbl__value" style="flex-direction:column;align-items:stretch;gap:6px;">
+          <div class="fm-tbl__label">사용 부서</div>
+          <div class="fm-tbl__value">
+            ${depts.length
+              ? `<span style="line-height:1.6;word-break:keep-all;">${esc(depts.join(', '))}</span>`
+              : '<span class="t-muted">없음</span>'}
+          </div>
+        </div>`
+      : '';
+    /* 잠금(수정 불가) 상세 — 근무조 명·출근·퇴근·휴게시간은 input 없이 값만 표시. 편집 가능 시 입력 컨트롤. */
+    const labelCell = locked
+      ? `<span style="font-weight:var(--fw-medium);color:var(--color-text);">${esc(f.label || '-')}</span>`
+      : `<input class="input" type="text" id="shift-f-label" value="${esc(f.label)}" placeholder="예: 주간 표준조" style="width:100%;" />`;
+    const startCell = locked ? `<span style="color:var(--color-text);">${esc(f.start || '-')}</span>` : timeSelectHTML('shift-f-start', f.start, locked);
+    const endCell   = locked ? `<span style="color:var(--color-text);">${esc(f.end || '-')}</span>`   : timeSelectHTML('shift-f-end', f.end, locked);
+    const breakBlock = locked
+      ? `<span style="color:var(--color-text);">${breakDisplayHTML(f)}</span>`
+      : `<div style="display:flex;flex-direction:column;align-items:stretch;gap:6px;width:100%;">
             <div style="display:flex;align-items:center;gap:6px;">
               <span class="t-muted" style="width:36px;flex:0 0 auto;font-size:var(--fs-xs);">1회</span>
               ${breakTimeSelectHTML('shift-f-b1s', f.breakStart, locked)}
               <span class="t-muted">~</span>
               ${breakTimeSelectHTML('shift-f-b1e', f.breakEnd, locked)}
-              ${(hasB2 || locked) ? '' : `<button class="btn btn--sm" type="button" data-break-add style="margin-left:8px;">+ 휴게 추가</button>`}
+              ${hasB2 ? '' : `<button class="btn btn--sm" type="button" data-break-add style="margin-left:8px;">+ 휴게 추가</button>`}
             </div>
             ${hasB2 ? `
               <div style="display:flex;align-items:center;gap:6px;">
@@ -1012,9 +1222,28 @@
                 ${breakTimeSelectHTML('shift-f-b2s', f.breakStart2, locked)}
                 <span class="t-muted">~</span>
                 ${breakTimeSelectHTML('shift-f-b2e', f.breakEnd2, locked)}
-                ${locked ? '' : `<button class="btn btn--sm btn--soft-danger" type="button" data-break-remove style="margin-left:8px;">삭제</button>`}
+                <button class="btn btn--sm btn--soft-danger" type="button" data-break-remove style="margin-left:8px;">삭제</button>
               </div>` : ''}
+          </div>`;
+    return `
+      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+        <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
+          <div class="fm-tbl__label">근무조</div>
+          <div class="fm-tbl__value" style="gap:8px;align-items:center;">
+            <span data-shift-code style="display:inline-block;padding:5px 12px;background:var(--color-surface-alt);border:1px solid var(--color-divider);border-radius:var(--radius-sm);font-weight:var(--fw-bold);color:var(--color-brand-primary);letter-spacing:0.02em;">${esc(f.code || '-')}</span>
           </div>
+          <div class="fm-tbl__label">근무조 명 ${REQ}</div>
+          <div class="fm-tbl__value">${labelCell}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
+          <div class="fm-tbl__label">출근 ${REQ}</div>
+          <div class="fm-tbl__value">${startCell}</div>
+          <div class="fm-tbl__label">퇴근 ${REQ}</div>
+          <div class="fm-tbl__value" style="gap:8px;align-items:center;">${endCell}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
+          <div class="fm-tbl__label">휴게시간</div>
+          <div class="fm-tbl__value"${(!locked && hasB2) ? ' style="flex-direction:column;align-items:stretch;gap:6px;"' : ''}>${breakBlock}</div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
           <div class="fm-tbl__label">근무시간 요약</div>
@@ -1022,10 +1251,11 @@
             <div data-shift-summary style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;width:100%;"></div>
           </div>
         </div>
+        ${deptsRow}
       </div>`;
   }
 
-  /* ===== 근무코드 추가 = 모달 ===== */
+  /* ===== 근무조 추가 = 모달 ===== */
   function renderAddModal() {
     const modal = document.getElementById('modal-shift-editor');
     if (!modal) return;
@@ -1033,34 +1263,19 @@
     const foot = modal.querySelector('#shift-editor-footer');
     const titleEl = modal.querySelector('#shift-editor-title');
     if (!body || !foot) return;
-    if (titleEl) titleEl.textContent = '근무코드 추가';
+    if (titleEl) titleEl.textContent = '근무조 추가';
     const errs = STATE.editErrors || {};
     body.innerHTML = editorFormHTML(STATE.form, false)
-      + (errs.dup ? `<div class="field-error" style="margin:10px 0 0;">${esc(errs.dup)}</div>` : '')
-      + `
-      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form" style="margin-top:12px;">
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
-          <div class="fm-tbl__label">변경 사유 <span style="color:var(--color-danger);">*</span></div>
-          <div class="fm-tbl__value" style="flex-direction:column;align-items:stretch;gap:4px;">
-            <textarea class="input${errs.addReason ? ' is-invalid' : ''}" id="shift-f-reason" rows="2" placeholder="예: 신규 교대조 편성" style="width:100%;height:52px;min-height:52px;resize:vertical;">${esc(STATE.addMeta.reason || '')}</textarea>
-            ${errs.addReason ? `<span class="field-error">${esc(errs.addReason)}</span>` : ''}
-          </div>
-        </div>
-      </div>
-      <div class="form-help" style="margin-top:8px;line-height:1.5;">근무코드 <strong>추가</strong>는 전자결재 대상입니다. 상신 후 승인되면 등록되며, 변경 이력에 기록됩니다.</div>`;
+      + colorSectionHTML(STATE.form, false)
+      + (errs.dup ? `<div class="field-error" style="margin:10px 0 0;">${esc(errs.dup)}</div>` : '');
     foot.innerHTML = `
       <span style="flex:1;"></span>
       <button class="btn" type="button" data-shift-cancel>취소</button>
-      <button class="btn btn--primary" type="button" data-shift-save>전자결재 상신</button>`;
+      <button class="btn btn--primary" type="button" data-shift-save>추가</button>`;
     foot.style.display = 'flex';
     modal.querySelectorAll('[data-shift-cancel], [data-modal-close]').forEach(b => b.addEventListener('click', closeEditor));
     const saveBtn = modal.querySelector('[data-shift-save]');
     if (saveBtn) saveBtn.addEventListener('click', saveAdd);
-    const reasonEl = body.querySelector('#shift-f-reason');
-    if (reasonEl) reasonEl.addEventListener('input', () => {
-      STATE.addMeta.reason = reasonEl.value;
-      if (STATE.editErrors.addReason) { STATE.editErrors.addReason = ''; reasonEl.classList.remove('is-invalid'); }
-    });
     if (!modal.dataset.shiftBound) {
       modal.dataset.shiftBound = '1';
       modal.addEventListener('click', e => { if (e.target === modal) closeEditor(); });
@@ -1070,7 +1285,7 @@
   }
   function openAddModal() { renderAddModal(); openModalEl('modal-shift-editor'); }
 
-  /* ===== 근무코드 수정 = 인-페이지 화면 (호출자가 제공한 host 컨테이너에 렌더 — 앱 레이아웃 유지) ===== */
+  /* ===== 근무조 수정 = 인-페이지 화면 (호출자가 제공한 host 컨테이너에 렌더 — 앱 레이아웃 유지) ===== */
   let _editHost = null, _editBack = null;
   /* hostEl 안에 수정 화면(헤더 + 폼 + 하단 액션)을 렌더. opts.onBack: 목록/취소/저장완료 시 호출(그리드 복귀). */
   function renderEditInto(hostEl, code, opts) {
@@ -1097,58 +1312,76 @@
       ${rows ? `<div style="margin-top:8px;font-size:var(--fs-sm);">${rows}</div>` : ''}
     </div>`;
   }
-  /* 사용 중 근무코드 잠금 안내 — 출/퇴근·휴게 수정 불가 + 신규 추가 유도 (근무코드 생성 기준 불변 원칙) */
-  function lockedNoticeHTML() {
-    return `<div style="margin-bottom:14px;padding:12px 14px;background:var(--color-surface-alt);border:1px solid var(--color-info);border-radius:var(--radius-sm);line-height:1.55;">
-      <div style="font-weight:var(--fw-semibold);color:var(--color-text);font-size:var(--fs-sm);">사용 이력이 있는 근무코드입니다. 출·퇴근 시간과 휴게시간은 변경할 수 없습니다.</div>
-      <div style="color:var(--color-text-sub);font-size:var(--fs-xs);margin-top:4px;">
-        휴게시간도 급여 산정 기준에 포함되므로, 출·퇴근이 같아도 휴게가 다르면 별도의 근무코드입니다.
-        새로운 기준이 필요하면 기존 코드를 수정하지 말고
-        <button class="btn btn--xs" type="button" data-shift-add-new style="vertical-align:baseline;">+ 신규 근무코드 추가</button>
-        로 등록하세요.
-      </div>
+  /* 잠금 안내 — 수정/삭제/미사용 불가 사유를 한 줄로 간결하게 + 신규 추가 액션. */
+  function lockedNoticeHTML(fl) {
+    const reason = fl.isDefault
+      ? '기본 근무조는 수정·삭제·비활성화할 수 없습니다.'
+      : (fl.pending
+          ? '전자결재 승인 대기 중입니다.'
+          : (!fl.active
+              ? '비활성 상태입니다. 활성화 후 이용할 수 있습니다.'
+              : (fl.inUse
+                  ? '사용 중인 부서가 있어 수정·삭제할 수 없습니다.'
+                  : '근무스케줄에 사용된 이력이 있어 수정·삭제할 수 없습니다.')));
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:var(--fs-sm);color:var(--color-text-sub);">
+      <span style="flex:1;">${esc(reason)}</span>
+      <button class="btn btn--xs" type="button" data-shift-add-new style="flex:0 0 auto;">+ 신규 근무조 추가</button>
     </div>`;
+  }
+  /* 상태 뱃지(사용 부서 수 기준) + 비활성/사용 이력 마커(별도 축). */
+  function statusBadgeHTML(fl) {
+    if (fl.status === 'pending') return `<span class="pill pill--warning" style="white-space:nowrap;">승인대기</span>`;
+    if (fl.status === 'inuse')   return `<span class="pill pill--success" style="white-space:nowrap;">사용 중</span>`;
+    return `<span class="pill pill--muted" style="white-space:nowrap;">미사용</span>`;
+  }
+  /* 활성/비활성 · 사용 이력 마커 — 상태 뱃지와 별개. 비활성 우선(폐기), 그 외 사용 이력(현재 미배치) 표시. */
+  function codeMarkersHTML(fl) {
+    if (!fl.active) return `<span class="pill pill--slate" style="white-space:nowrap;" title="비활성 — 근무스케줄 배치 후보에서 제외됨(폐기)">비활성</span>`;
+    if (fl.everUsed && !fl.inUse) return `<span class="pill pill--brown" style="white-space:nowrap;" title="근무스케줄에 사용된 이력이 있어 수정·삭제 불가">사용 이력</span>`;
+    return '';
   }
   function renderEditView() {
     const host = _editHost, f = STATE.form;
     if (!host || !f) return;
     const src = STATE.shifts.find(s => s.code === (STATE.editingCode || f.code));
-    const used = codeInUse(f.code);                       /* 사용 이력 있음 → 시간 잠금·삭제 불가 */
-    const active = !src || src.active !== false;           /* 사용/미사용 상태 */
-    const statusPill = !used
-      ? `<span class="pill pill--muted" style="white-space:nowrap;">미사용(이력 없음)</span>`
-      : (active ? `<span class="pill pill--success" style="white-space:nowrap;">사용 중</span>`
-                : `<span class="pill pill--muted" style="white-space:nowrap;">미사용</span>`);
-    /* 좌측 액션 — 사용 이력 없음: 삭제 / 사용 중: 미사용 처리 / 미사용 상태: 사용 재개 (모두 전자결재 대상) */
-    let leftBtns;
-    if (!used)        leftBtns = `<button class="btn btn--danger btn--sm" type="button" data-shift-delete>삭제</button>`;
-    else if (active)  leftBtns = `<button class="btn btn--soft-danger btn--sm" type="button" data-shift-deactivate>미사용 처리</button>`;
-    else              leftBtns = `<button class="btn btn--sm" type="button" data-shift-reactivate>사용 재개</button>`;
+    const fl = codeFlags(f.code);
+    const locked = !fl.canEdit;                            /* 수정 불가 → 읽기 전용(명칭·출퇴근·휴게 잠금) */
+    /* 잠긴 코드는 읽기 전용 상세 — 좌측: 사용 이력. 우측: 활성화/비활성화 (닫기 없음 — 상단 '← 목록'으로 복귀).
+       편집 가능 코드 — 좌측: 삭제 + 사용 이력. 우측: 취소/저장. */
+    const footerActions = locked
+      ? `<button class="btn btn--sm" type="button" data-shift-history>사용 이력</button>
+         <span style="flex:1;"></span>
+         ${fl.canDeactivate ? '<button class="btn btn--soft-danger btn--sm" type="button" data-shift-deact>비활성화</button>' : ''}
+         ${fl.canActivate ? '<button class="btn btn--primary btn--sm" type="button" data-shift-react>활성화</button>' : ''}`
+      : `${fl.canDelete ? '<button class="btn btn--danger btn--sm" type="button" data-shift-delete>삭제</button>' : ''}
+         <button class="btn btn--sm" type="button" data-shift-history>사용 이력</button>
+         <span style="flex:1;"></span>
+         <button class="btn btn--sm" type="button" data-shift-back>취소</button>
+         <button class="btn btn--primary btn--sm" type="button" data-shift-save-edit>저장</button>`;
     host.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <button class="btn btn--sm" type="button" data-shift-back>← 목록</button>
-        <h3 style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);color:var(--color-text);">근무코드 수정</h3>
-        <span class="t-muted" style="font-size:var(--fs-sm);">${esc(f.code)}${f.label ? ` · ${esc(f.label)}` : ''}</span>
-        ${statusPill}
+        <h3 style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);color:var(--color-text);">근무조 ${locked ? '상세' : '수정'}</h3>
+        ${statusBadgeHTML(fl)}
+        ${codeMarkersHTML(fl)}
       </div>
-      ${used ? lockedNoticeHTML() : ''}
+      ${locked ? lockedNoticeHTML(fl) : ''}
       ${src && src.pending ? pendingNoticeHTML(src.pending) : ''}
-      <div>${editorFormHTML(f, used)}</div>
+      <div>${editorFormHTML(f, locked, usingDeptsOf(f.code))}</div>
+      ${colorSectionHTML(f, true, src ? src.color : 'gray')}
       <div style="display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--color-divider);">
-        ${leftBtns}
-        <span style="flex:1;"></span>
-        <button class="btn btn--sm" type="button" data-shift-back>취소</button>
-        <button class="btn btn--primary btn--sm" type="button" data-shift-save-edit>저장</button>
+        ${footerActions}
       </div>`;
     if (!host.dataset.shiftEditBound) {
       host.dataset.shiftEditBound = '1';
       host.addEventListener('click', e => {
         if (e.target.closest('[data-shift-add-new]')) { closeEdit(); openEditor(null); return; }
-        if (e.target.closest('[data-shift-back]')) { closeEdit(); return; }
-        if (e.target.closest('[data-shift-delete]'))     { openCodeApproval('삭제'); return; }
-        if (e.target.closest('[data-shift-deactivate]')) { openCodeApproval('미사용'); return; }
-        if (e.target.closest('[data-shift-reactivate]')) { openCodeApproval('재개'); return; }
+        if (e.target.closest('[data-shift-color-apply]')) { applyColorChange(); return; }
         if (e.target.closest('[data-shift-history]')) { openHistoryModal(STATE.editingCode); return; }
+        if (e.target.closest('[data-shift-deact]')) { requestCodeChange('비활성', STATE.editingCode); return; }
+        if (e.target.closest('[data-shift-react]')) { requestCodeChange('활성', STATE.editingCode); return; }
+        if (e.target.closest('[data-shift-back]')) { closeEdit(); return; }
+        if (e.target.closest('[data-shift-delete]')) { requestCodeChange('삭제', STATE.editingCode); return; }
         if (e.target.closest('[data-shift-save-edit]')) { onEditSaveClick(); return; }
       });
     }
@@ -1162,13 +1395,22 @@
     const cb = _editBack; _editBack = null;
     if (cb) cb();
   }
-  /* 근무조 배치의 근무조 설정 모달에서 편집 — 모달 본문(shift-master-body)에 인-페이지 수정 화면 렌더 */
+  /* 색상만 적용 — 근무조 상세 화면 하단 [적용] 버튼. 근태 산정과 무관(cosmetic)해 사용/잠금과 무관하게 즉시 저장. */
+  function applyColorChange() {
+    const code = STATE.editingCode, f = STATE.form;
+    if (!code || !f) return;
+    const src = STATE.shifts.find(s => s.code === code);
+    if (src) src.color = f.color;
+    window.toast && window.toast(`근무조 ${code} 색상이 변경되었습니다.`, 'success');
+    refreshAfterChange();
+  }
+  /* 근무스케줄 배치의 근무조 설정 모달에서 편집 — 모달 본문(shift-master-body)에 인-페이지 수정 화면 렌더 */
   function openEditFromMaster(code) {
     const host = document.getElementById('shift-master-body');
     if (host) renderEditInto(host, code, { onBack: renderMasterTable });
   }
-  /* 저장 클릭 — 사용 중 근무코드는 출/퇴근·휴게가 잠겨 명칭 등만 반영, 즉시 저장.
-     (기준 변경은 신규 근무코드 추가로만 가능 — 기존 코드 수정 금지 원칙) */
+  /* 저장 클릭 — 사용 중 근무조는 출/퇴근·휴게가 잠겨 명칭 등만 반영, 즉시 저장.
+     (기준 변경은 신규 근무조 추가로만 가능 — 기존 코드 수정 금지 원칙) */
   function onEditSaveClick() {
     const f = STATE.form;
     if (!validateBasics(f)) return;
@@ -1198,10 +1440,10 @@
         at: nowStamp(), by: HR_NAME, effDate: meta.effDate, reason: meta.reason, changes: changes,
       });
       window.toast && window.toast(
-        `근무코드 ${code}(${f.label}) ${scheduled ? '변경 예약됨' : '수정됨'} · ${fmtDateDot(meta.effDate)}부터 적용`,
+        `근무조 ${code}(${f.label}) ${scheduled ? '변경 예약됨' : '수정됨'} · ${fmtDateDot(meta.effDate)}부터 적용`,
         'success');
     } else {
-      window.toast && window.toast(`근무코드 ${code}(${f.label}) 저장됨`, 'success');
+      window.toast && window.toast(`근무조 ${code}(${f.label}) 저장됨`, 'success');
     }
     closeEdit();
     refreshAfterChange();
@@ -1227,7 +1469,7 @@
     el.innerHTML = `
       <div class="modal" style="width:92vw;max-width:520px;">
         <div class="modal__header">
-          <div class="modal__title">근무코드 수정 적용</div>
+          <div class="modal__title">근무조 수정 적용</div>
           <button class="modal__close" type="button" data-sc-close aria-label="닫기">✕</button>
         </div>
         <div class="modal__body" data-sc-body style="padding:18px 20px;"></div>
@@ -1268,7 +1510,7 @@
           </div>
         </div>
       </div>
-      <div class="form-help" style="margin-top:10px;line-height:1.5;">부서에 연결된 근무코드입니다. 변경 내용은 <strong>적용 시작일 이후 근무</strong>부터 반영되며, 이전 근태 데이터에는 소급되지 않습니다.</div>`;
+      <div class="form-help" style="margin-top:10px;line-height:1.5;">부서에 연결된 근무조입니다. 변경 내용은 <strong>적용 시작일 이후 근무</strong>부터 반영되며, 이전 근태 데이터에는 소급되지 않습니다.</div>`;
   }
   function openSaveConfirm() {
     ensureSaveConfirm();
@@ -1304,7 +1546,7 @@
     el.innerHTML = `
       <div class="modal modal--lg" style="width:94vw;max-width:840px;max-height:86vh;display:flex;flex-direction:column;">
         <div class="modal__header">
-          <div class="modal__title" data-hist-title>수정 이력</div>
+          <div class="modal__title" data-hist-title>사용 이력</div>
           <button class="modal__close" type="button" data-hist-close aria-label="닫기">✕</button>
         </div>
         <div class="modal__body" data-hist-body style="flex:1;min-height:0;overflow:auto;padding:16px 20px;"></div>
@@ -1313,49 +1555,47 @@
     document.body.appendChild(el);
     el.addEventListener('click', e => { if (e.target === el || e.target.closest('[data-hist-close]')) el.classList.remove('is-open'); });
   }
+  /* 사용 이력 — 이 근무조의 근태 산정 사용 여부 + 사용 시작일 + 활성/비활성 변경 이력. (현재 사용 부서는 상세 화면 폼에 표시) */
   function openHistoryModal(code) {
     ensureHistoryModal();
     const el = document.getElementById('shift-history-modal');
     const s = STATE.shifts.find(x => x.code === code);
-    const hist = STATE.shiftHistory[code] || [];
-    el.querySelector('[data-hist-title]').textContent = `수정 이력 — ${code}${s && s.label ? ` (${s.label})` : ''}`;
-    /* 적용 시작일이 미도래(> 오늘)한 변경은 아직 반영되지 않은 '적용 예정' 상태 */
-    const hasPending = hist.some(h => h.effDate && h.effDate > TODAY);
-    const noticeHTML = hasPending
-      ? `<div style="margin-bottom:12px;padding:11px 14px;background:var(--color-surface-alt);border:1px solid var(--color-warning);border-radius:var(--radius-sm);font-size:var(--fs-sm);color:var(--color-text-sub);line-height:1.55;">
-          <strong style="color:var(--color-text);">적용 예정</strong> 항목은 적용 시작일이 아직 도래하지 않아 반영되지 않았습니다. 그때까지는 <strong style="color:var(--color-text);">변경 이전 값</strong>이 유지됩니다.
-        </div>`
-      : '';
-    el.querySelector('[data-hist-body]').innerHTML = hist.length ? `
-      ${noticeHTML}
+    if (!s) return;
+    const everUsed = codeHasHistory(code);
+    const log = (s.usageLog || []).slice().reverse();   /* 최신순 */
+    el.querySelector('[data-hist-title]').textContent = `사용 이력 — ${code}${s.label ? ` (${s.label})` : ''}`;
+    const usedText = everUsed
+      ? '<span class="pill pill--slate">있음</span> <span class="t-muted" style="font-size:var(--fs-xs);">근태 산정에 사용됨</span>'
+      : '<span class="pill pill--muted">없음</span>';
+    const statusPill = (st) => st === '비활성'
+      ? '<span class="pill pill--slate">비활성</span>'
+      : '<span class="pill pill--success">활성</span>';
+    const logHTML = log.length ? `
       <div class="shift-tbl-wrap" style="border:1px solid var(--color-divider);border-radius:var(--radius-sm);">
-        <table class="shift-tbl" style="min-width:max-content;">
+        <table class="shift-tbl" style="width:100%;">
           <thead><tr>
-            <th style="min-width:130px;">수정일시</th>
-            <th style="width:72px;">수정자</th>
-            <th style="width:88px;text-align:center;">적용 시작일</th>
-            <th style="width:80px;text-align:center;">상태</th>
-            <th style="min-width:220px;">변경 항목 (전 → 후)</th>
-            <th style="min-width:140px;">수정 사유</th>
+            <th style="width:96px;text-align:center;">일자</th>
+            <th style="width:72px;text-align:center;">상태</th>
+            <th>사유</th>
+            <th style="width:70px;">처리자</th>
           </tr></thead>
           <tbody>
-            ${hist.map(h => {
-              const applied = !(h.effDate && h.effDate > TODAY);
-              const statusPill = applied
-                ? '<span class="pill pill--success" style="white-space:nowrap;">적용됨</span>'
-                : '<span class="pill pill--warning" style="white-space:nowrap;">적용 예정</span>';
-              return `<tr>
-              <td style="white-space:nowrap;">${esc(h.at)}</td>
-              <td style="white-space:nowrap;">${esc(h.by)}</td>
-              <td style="text-align:center;white-space:nowrap;">${esc(fmtDateDot(h.effDate))}</td>
-              <td style="text-align:center;">${statusPill}</td>
-              <td>${(h.changes && h.changes.length) ? h.changes.map(c => `<div style="white-space:nowrap;"><span class="t-muted">${esc(c.label)}</span> ${esc(c.from)} <span style="color:var(--color-brand-primary);">→</span> <strong>${esc(c.to)}</strong></div>`).join('') : '<span class="t-muted">-</span>'}</td>
+            ${log.map(h => `<tr>
+              <td style="text-align:center;white-space:nowrap;">${esc(h.at)}</td>
+              <td style="text-align:center;">${statusPill(h.status)}</td>
               <td style="white-space:normal;word-break:keep-all;">${esc(h.reason || '-')}</td>
-            </tr>`;
-            }).join('')}
+              <td style="white-space:nowrap;">${esc(h.by || '-')}</td>
+            </tr>`).join('')}
           </tbody>
         </table>
-      </div>` : `<div style="text-align:center;padding:30px;color:var(--color-text-muted);">수정 이력이 없습니다.</div>`;
+      </div>` : `<div class="t-muted" style="font-size:var(--fs-sm);">상태 변경 이력이 없습니다.</div>`;
+    el.querySelector('[data-hist-body]').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;font-size:var(--fs-sm);">
+        <span style="display:flex;gap:8px;align-items:center;"><span class="t-muted" style="width:84px;flex:0 0 auto;">사용 이력</span>${usedText}</span>
+        <span style="display:flex;gap:8px;align-items:center;"><span class="t-muted" style="width:84px;flex:0 0 auto;">사용 시작일</span><strong>${esc(fmtDateDot(s.startedAt))}</strong></span>
+      </div>
+      <div style="font-weight:var(--fw-semibold);font-size:var(--fs-sm);margin-bottom:8px;">활성/비활성 변경 이력</div>
+      ${logHTML}`;
     el.classList.add('is-open');
     document.body.style.overflow = 'hidden';
   }
@@ -1413,20 +1653,30 @@
     if (addBreak) addBreak.addEventListener('click', () => { f.breakStart2 = '17:00'; f.breakEnd2 = '17:30'; rerender(); });
     const rmBreak = root.querySelector('[data-break-remove]');
     if (rmBreak) rmBreak.addEventListener('click', () => { f.breakStart2 = ''; f.breakEnd2 = ''; rerender(); });
+    /* 색상 — 코드별 컬러칩 선택. 색상은 근태 산정과 무관(cosmetic)하므로 사용/잠금 여부와 무관하게 변경 가능.
+       선택은 form(f)에만 반영하고 재렌더로 하이라이트. 상세 화면은 [적용] 버튼(applyColorChange)으로 확정 저장,
+       추가 모달은 [추가] 저장 시 함께 반영. */
+    root.querySelectorAll('[data-shift-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        f.color = btn.dataset.shiftColor;
+        rerender();
+      });
+    });
   }
 
   function validateBasics(f) {
-    if (!f.label || !f.label.trim()) { window.toast && window.toast('근무코드 명을 입력해 주세요.', 'warning'); return false; }
+    if (!f.label || !f.label.trim()) { window.toast && window.toast('근무조 명을 입력해 주세요.', 'warning'); return false; }
     if (!f.start || !f.end) { window.toast && window.toast('출근·퇴근 시간을 입력해 주세요.', 'warning'); return false; }
     return true;
   }
 
-  /* 변경 이력 기록 — 추가/삭제/미사용/재개 (전자결재 승인 결과). 대상코드·유형·사유·변경자·변경일시·승인자. */
-  function logCodeChange(code, label, type, reason) {
-    STATE.codeChangeLog.unshift({ at: nowStamp(), code: code, label: label || '', type: type, reason: reason || '', by: HR_NAME, approver: APPROVER });
+  /* 변경 이력 기록 — 삭제/미사용/재개 (전자결재 승인 결과). 대상코드·유형·사유·변경자·변경일시·승인자.
+     (근무조 추가는 자유·미기록 — 전자결재 대상 아님) */
+  function logCodeChange(code, label, type, reason, approver) {
+    STATE.codeChangeLog.unshift({ at: nowStamp(), code: code, label: label || '', type: type, reason: reason || '', by: HR_NAME, approver: approver || APPROVER });
   }
 
-  /* 두 근무코드의 생성 기준(출·퇴근·휴게) 동일 여부 — 휴게시간도 급여 산정 기준이라 identity 에 포함.
+  /* 두 근무조의 생성 기준(출·퇴근·휴게) 동일 여부 — 휴게시간도 급여 산정 기준이라 identity 에 포함.
      출·퇴근이 같아도 휴게가 다르면 별개 코드 / 셋 다 같으면 완전 동일 기준(중복). */
   function sameCriteria(a, b) {
     return a.start === b.start && a.end === b.end
@@ -1434,50 +1684,88 @@
       && (a.breakStart2 || '') === (b.breakStart2 || '') && (a.breakEnd2 || '') === (b.breakEnd2 || '');
   }
 
-  /* 추가 저장 (모달) — 신규 채번 후 등록. 추가는 전자결재 대상 → 변경 사유 필수 + 변경 이력 기록. */
+  /* 추가 저장 (모달) — 추가는 자유(전자결재·이력 대상 아님). 동일 기준 중복만 차단하고 즉시 등록. */
   function saveAdd() {
     const f = STATE.form;
     if (!validateBasics(f)) return;
-    const reason = (STATE.addMeta.reason || '').trim();
     STATE.editErrors = STATE.editErrors || {};
     STATE.editErrors.dup = '';
     /* 동일 기준(출·퇴근·휴게 전부 일치) 중복 방지 — 기준이 다르면(휴게만 달라도) 신규 허용 */
     const dup = STATE.shifts.find(s => sameCriteria(s, f));
-    if (dup) { STATE.editErrors.dup = `동일한 출·퇴근·휴게 기준의 근무코드 ${dup.code}(${dup.label || dup.code})가 이미 있습니다. 기존 근무코드를 사용하세요.`; renderAddModal(); return; }
-    if (!reason) { STATE.editErrors.addReason = '변경 사유를 입력해 주세요.'; renderAddModal(); return; }
+    if (dup) { STATE.editErrors.dup = `동일한 출·퇴근·휴게 기준의 근무조 ${dup.code}(${dup.label || dup.code})가 이미 있습니다. 기존 근무조를 사용하세요.`; renderAddModal(); return; }
     recompute(f);
     f.code = channelCode(f);   /* 최종 채번 확정 (WT+D/N+일련번호) */
     f.active = true;
     STATE.shifts.push(deepClone(f));
     STATE.shifts.sort((a, b) => String(a.code).localeCompare(String(b.code)));
-    logCodeChange(f.code, f.label, '추가', reason);
-    window.toast && window.toast(`근무코드 ${f.code}(${f.label}) 추가 — 전자결재 상신 완료`, 'success');
+    window.toast && window.toast(`근무조 ${f.code}(${f.label}) 추가됨`, 'success');
     closeEditor();
     refreshAfterChange();
   }
 
-  /* ===== 삭제 / 미사용 처리 / 재개 — 전자결재 사유 모달 (공용) ===== */
-  function ensureCodeApproval() {
+  /* ===== 삭제 / 비활성화 — 사유 입력 + 승인 요청 모달 → 승인대기 → 승인 시 반영 ===== */
+  function caTypeWord(t) { return t === '비활성' ? '비활성화' : '삭제'; }
+  /* 상신 접수 — 코드에 pendingChange 를 걸어 '승인대기' 로 표시. 실제 반영은 승인 시(approveCodeChange). */
+  function submitCodeChange(type, code, reason) {
+    const cur = STATE.shifts.find(x => x.code === code);
+    if (!cur) return;
+    cur.pendingChange = { type: type, reason: reason || '', approver: APPROVER, at: nowStamp() };
+    closeEdit();
+    refreshAfterChange();
+    /* mock 결재 승인 — 승인권자 처리 전까지 '승인대기' 홀딩 후 반영 (실서비스는 결재 승인 콜백으로 대체) */
+    setTimeout(() => approveCodeChange(code), 1600);
+  }
+  /* 결재 승인 — 대기 중이던 삭제/비활성화를 실제 반영 + 변경 이력(전자결재) + 활성/비활성 이력 기록. */
+  function approveCodeChange(code) {
+    const cur = STATE.shifts.find(x => x.code === code);
+    if (!cur || !cur.pendingChange) return;
+    const pc = cur.pendingChange;
+    const label = cur.label || code;
+    cur.pendingChange = null;
+    if (pc.type === '삭제') {
+      STATE.shifts = STATE.shifts.filter(x => x.code !== code);
+    } else if (pc.type === '비활성') {
+      cur.active = false;   /* 비활성화 완료 → 배치 후보 제외 */
+      (cur.usageLog = cur.usageLog || []).push({ at: fmtDateDot(TODAY), status: '비활성', reason: pc.reason, by: HR_NAME, approver: pc.approver });
+    }
+    logCodeChange(code, label, pc.type, pc.reason, pc.approver);
+    refreshAfterChange();
+  }
+  /* 활성화 — 비활성 코드를 다시 배치 가능 상태로. 즉시 반영 + 활성/비활성 이력 기록. */
+  function activateCode(code) {
+    ensureLoaded();
+    code = code || STATE.editingCode; if (!code) return;
+    const cur = STATE.shifts.find(x => x.code === code);
+    if (!cur || cur.active !== false) return;
+    cur.active = true;
+    (cur.usageLog = cur.usageLog || []).push({ at: fmtDateDot(TODAY), status: '활성', reason: '활성화', by: HR_NAME, approver: '' });
+    window.toast && window.toast(`근무조 ${code} 활성화됨 — 근무스케줄 배치에 사용할 수 있습니다.`, 'success');
+    closeEdit();
+    refreshAfterChange();
+  }
+
+  /* ----- 삭제/미사용 승인 요청 모달 (사유 입력 + 상신) ----- */
+  function ensureCodeApprovalModal() {
     if (document.getElementById('shift-code-approval')) return;
     const el = document.createElement('div');
     el.className = 'modal-backdrop';
     el.id = 'shift-code-approval';
     el.style.zIndex = '1300';
     el.innerHTML = `
-      <div class="modal" style="width:92vw;max-width:520px;">
+      <div class="modal" style="width:92vw;max-width:480px;">
         <div class="modal__header">
-          <div class="modal__title" data-ca-title>근무코드 변경</div>
+          <div class="modal__title" data-ca-title>근무조 승인 요청</div>
           <button class="modal__close" type="button" data-ca-close aria-label="닫기">✕</button>
         </div>
         <div class="modal__body" data-ca-body style="padding:18px 20px;"></div>
         <div class="modal__footer">
           <button class="btn btn--sm" type="button" data-ca-close>취소</button>
-          <button class="btn btn--primary btn--sm" type="button" data-ca-ok>전자결재 상신</button>
+          <button class="btn btn--primary btn--sm" type="button" data-ca-ok>다음 (전자결재)</button>
         </div>
       </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', e => {
-      if (e.target === el || e.target.closest('[data-ca-close]')) { closeCodeApproval(); return; }
+      if (e.target === el || e.target.closest('[data-ca-close]')) { closeCodeApprovalModal(); return; }
       if (e.target.closest('[data-ca-ok]')) { confirmCodeApproval(); return; }
     });
     el.addEventListener('input', e => {
@@ -1485,60 +1773,82 @@
       if (r && STATE.codeAct) { STATE.codeAct.reason = r.value; if (STATE.codeAct.error) { STATE.codeAct.error = ''; r.classList.remove('is-invalid'); } }
     });
   }
-  function caTypeWord(t) { return t === '재개' ? '사용 재개' : (t === '미사용' ? '미사용 처리' : t); }
   function renderCodeApprovalBody() {
     const a = STATE.codeAct; if (!a) return;
     const el = document.getElementById('shift-code-approval');
-    el.querySelector('[data-ca-title]').textContent = `근무코드 ${caTypeWord(a.type)}`;
-    const guide = a.type === '삭제'
-      ? '사용 이력이 없는 근무코드를 삭제합니다. 삭제 후에는 복구할 수 없습니다.'
-      : (a.type === '미사용'
-          ? '사용 이력이 있어 삭제할 수 없습니다. 미사용 처리하면 이후 근무스케줄 편성에서 선택할 수 없습니다. 기존 배정·근태 데이터는 그대로 유지됩니다.'
-          : '미사용 처리된 근무코드를 다시 사용 상태로 되돌립니다.');
+    const word = caTypeWord(a.type);
+    el.querySelector('[data-ca-title]').textContent = `근무조 ${word} 승인 요청`;
+    const note = a.type === '삭제'
+      ? '삭제 후에는 복구할 수 없습니다.'
+      : '비활성화 시, 부서별 근무정책 설정에서 선택할 수 없습니다.';
     el.querySelector('[data-ca-body]').innerHTML = `
       <div style="margin-bottom:12px;font-size:var(--fs-sm);color:var(--color-text-sub);">
-        대상 근무코드 <strong style="color:var(--color-brand-primary);">${esc(a.code)}</strong>${a.label ? ` <span class="t-muted">(${esc(a.label)})</span>` : ''}
+        대상 근무조 <strong style="color:var(--color-brand-primary);">${esc(a.code)}</strong>${a.label ? ` <span class="t-muted">(${esc(a.label)})</span>` : ''}
       </div>
       <div class="fm-tbl fm-tbl--form">
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
-          <div class="fm-tbl__label">변경 사유 <span style="color:var(--color-danger);">*</span></div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:88px 1fr;">
+          <div class="fm-tbl__label">${word === '삭제' ? '삭제' : '비활성화'} 사유 <span style="color:var(--color-danger);">*</span></div>
           <div class="fm-tbl__value" style="flex-direction:column;align-items:stretch;gap:4px;">
-            <textarea class="input${a.error ? ' is-invalid' : ''}" data-ca-reason rows="2" placeholder="예: 근무형태 개편으로 미사용 전환" style="width:100%;height:56px;min-height:56px;resize:vertical;">${esc(a.reason || '')}</textarea>
+            <textarea class="input${a.error ? ' is-invalid' : ''}" data-ca-reason rows="2" placeholder="사유를 입력해 주세요" style="width:100%;height:60px;min-height:60px;resize:vertical;">${esc(a.reason || '')}</textarea>
             ${a.error ? `<span class="field-error">${esc(a.error)}</span>` : ''}
           </div>
         </div>
       </div>
-      <div class="form-help" style="margin-top:10px;line-height:1.5;">${esc(guide)} 이 작업은 <strong>전자결재 대상</strong>이며 승인 후 변경 이력에 기록됩니다.</div>`;
+      <div class="form-help" style="margin-top:10px;">${esc(note)}</div>`;
   }
-  function openCodeApproval(type) {
-    const code = STATE.editingCode; if (!code) return;
+  function openCodeApprovalModal(type, code) {
+    ensureLoaded();
+    code = code || STATE.editingCode; if (!code) return;
     const s = STATE.shifts.find(x => x.code === code);
-    STATE.codeAct = { type: type, code: code, label: (s && s.label) || code, reason: '', error: '' };
-    ensureCodeApproval();
+    if (!s || s.pendingChange) return;   /* 이미 승인대기면 중복 상신 방지 */
+    STATE.codeAct = { type: type, code: code, label: s.label || code, reason: '', error: '' };
+    ensureCodeApprovalModal();
     renderCodeApprovalBody();
     const el = document.getElementById('shift-code-approval');
     el.classList.add('is-open');
     document.body.style.overflow = 'hidden';
   }
-  function closeCodeApproval() {
+  function closeCodeApprovalModal() {
     const el = document.getElementById('shift-code-approval');
     if (el) el.classList.remove('is-open');
     if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
   }
+  /* 사유 입력 완료 → 시스템 전자결재 모달로 승인 요청(결재선 지정). 상신 시 승인대기. */
   function confirmCodeApproval() {
     const a = STATE.codeAct; if (!a) return;
-    if (!a.reason || !a.reason.trim()) { a.error = '변경 사유를 입력해 주세요.'; renderCodeApprovalBody(); return; }
-    const reason = a.reason.trim();
-    const s = STATE.shifts.find(x => x.code === a.code);
-    if (a.type === '삭제')        { STATE.shifts = STATE.shifts.filter(x => x.code !== a.code); }
-    else if (a.type === '미사용' && s) { s.active = false; }
-    else if (a.type === '재개'   && s) { s.active = true; }
-    logCodeChange(a.code, a.label, a.type, reason);
-    closeCodeApproval();
-    window.toast && window.toast(`근무코드 ${a.code} ${caTypeWord(a.type)} — 전자결재 상신 완료`, 'success');
+    if (!a.reason || !a.reason.trim()) { a.error = `${a.type === '삭제' ? '삭제' : '비활성화'} 사유를 입력해 주세요.`; renderCodeApprovalBody(); return; }
+    const reason = a.reason.trim(), type = a.type, code = a.code, label = a.label;
     STATE.codeAct = null;
-    closeEdit();
-    refreshAfterChange();
+    closeCodeApprovalModal();
+    openApprovalSystemModal(type, code, label, reason);
+  }
+  function openApprovalSystemModal(type, code, label, reason) {
+    const word = caTypeWord(type);
+    const content = type === '삭제'
+      ? `${code}(${label}) 근무조 삭제\n사유: ${reason}\n※ 삭제 후 복구할 수 없습니다.`
+      : `${code}(${label}) 근무조 비활성화\n사유: ${reason}\n※ 비활성화 시, 부서별 근무정책 설정에서 선택 불가 (기존 배정·근태 데이터 유지 · 활성화로 되돌릴 수 있음).`;
+    if (window.App && typeof App.openSystemApprovalModal === 'function') {
+      App.openSystemApprovalModal({
+        docName: `근무조 ${word}`,
+        titlePrefix: `근무조 ${word}`,
+        codeLabel: '근무조',
+        nameLabel: '근무조 명',
+        matCode: code,
+        matName: label,
+        customReasons: [reason, '기타'],
+        defaultReason: reason,
+        title: `근무조 ${word} 승인 요청 — ${code} (${label})`,
+        content: content,
+        payload: { kind: 'shift-code-change', changeType: type, code: code },
+        onSubmit: () => submitCodeChange(type, code, reason),
+      });
+    } else {
+      submitCodeChange(type, code, reason);   /* 결재 모듈 미연결 — 대기 후 자동 승인 */
+    }
+  }
+  function requestCodeChange(type, code) {
+    if (type === '활성') { activateCode(code); return; }
+    openCodeApprovalModal(type, code);
   }
 
   /* 변경 반영 — 마스터 모달/페이지/구독자 갱신 */
@@ -1548,6 +1858,69 @@
     const ps = document.getElementById('page-att-shift');
     if (ps) renderMain(ps);
     notifyShiftChange();
+  }
+
+  /* =========================================================
+   *  근무스케줄 배치 변경 이력 모달 — 일시 | 유형 | 내용 | 처리자
+   * ========================================================= */
+  function assignTypePill(t) {
+    if (t === '근무스케줄 배치') return '<span class="pill pill--info">근무스케줄 배치</span>';
+    if (t === '근무조 변경') return '<span class="pill pill--success">근무조 변경</span>';
+    return `<span class="pill pill--muted">${esc(t || '기타')}</span>`;
+  }
+  function ensureAssignLogModal() {
+    if (document.getElementById('modal-shift-assign-log')) return;
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop';
+    el.id = 'modal-shift-assign-log';
+    el.style.zIndex = '1200';
+    el.innerHTML = `
+      <div class="modal modal--lg" style="width:94vw;max-width:820px;max-height:86vh;display:flex;flex-direction:column;">
+        <div class="modal__header">
+          <div class="modal__title">근무스케줄 배치 변경 이력</div>
+          <button class="modal__close" type="button" data-alog-close aria-label="닫기">✕</button>
+        </div>
+        <div class="modal__body" data-alog-body style="flex:1;min-height:0;overflow:auto;padding:16px 20px;"></div>
+        <div class="modal__footer"><button class="btn btn--sm" type="button" data-alog-close>닫기</button></div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('[data-alog-close]')) {
+        el.classList.remove('is-open');
+        if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
+      }
+    });
+  }
+  function openAssignLogModal() {
+    ensureLoaded();
+    ensureAssignLogModal();
+    const el = document.getElementById('modal-shift-assign-log');
+    const log = STATE.assignLog || [];
+    const rows = log.length
+      ? log.map(h => `
+        <tr>
+          <td style="text-align:center;white-space:nowrap;">${esc(h.at)}</td>
+          <td style="text-align:center;">${assignTypePill(h.type)}</td>
+          <td style="white-space:normal;word-break:keep-all;">${esc(h.content || '-')}${h.dept ? ` <span class="t-muted" style="font-size:var(--fs-xs);">· ${esc(h.dept)}</span>` : ''}</td>
+          <td style="text-align:center;white-space:nowrap;">${esc(h.by || '-')}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--color-text-muted);">변경 이력이 없습니다.</td></tr>`;
+    el.querySelector('[data-alog-body]').innerHTML = `
+      <div class="shift-tbl-wrap" style="border:1px solid var(--color-divider);border-radius:var(--radius-sm);">
+        <table class="shift-tbl" style="width:100%;">
+          <thead>
+            <tr>
+              <th style="width:150px;text-align:center;">일시</th>
+              <th style="width:104px;text-align:center;">유형</th>
+              <th>내용</th>
+              <th style="width:84px;text-align:center;">처리자</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    el.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
   }
 
   /* ============ 모달 공통 ============ */
@@ -1569,38 +1942,50 @@
   App.AttShifts = {
     list:    () => { ensureLoaded(); return STATE.shifts.slice(); },
     get:     (code) => { ensureLoaded(); return STATE.shifts.find(s => s.code === code) || null; },
-    /* 근무코드 명(라벨) — 없으면 코드로 대체. 배치/현황 등 타 화면 표기 공용. */
+    /* 근무조 명(라벨) — 없으면 코드로 대체. 배치/현황 등 타 화면 표기 공용. */
     labelOf: (code) => { const s = App.AttShifts.get(code); return s ? (s.label || code) : code; },
-    /* 부서별로 사용 가능한 근무코드 — 근로계약 작성 시 활용. 미지정(useDepts=[]) 근무코드는 전부서 공통으로 노출. */
+    /* 부서별로 사용 가능한 근무조 — 근로계약 작성 시 활용. 미지정(useDepts=[]) 근무조는 전부서 공통으로 노출. */
     forDept: (dept) => {
       ensureLoaded();
-      return STATE.shifts.filter(s => !s.useDepts || !s.useDepts.length || s.useDepts.includes(dept));
+      return STATE.shifts.filter(s => s.active !== false && (!s.useDepts || !s.useDepts.length || s.useDepts.includes(dept)));
     },
     depts:   () => getDeptList(),
-    /* 근무코드가 직원에게 배정되어 사용 중인지 — 사용 중이면 수정·삭제 불가 */
+    /* 근무조가 직원에게 배정되어 사용 중인지 — 사용 중이면 수정·삭제 불가 */
     inUse:   (code) => shiftInUse(code),
-    /* 부서 연결 여부(직원 배정 또는 부서 근무코드 설정 연결) — 운영 중 수정 시 사유·적용일 필수 판정 */
+    /* 부서 연결 여부(직원 배정 또는 부서 근무조 설정 연결) — 운영 중 수정 시 사유·적용일 필수 판정 */
     connected: (code) => shiftConnected(code),
-    /* 근무코드 수정 이력 — [{ at, by, effDate, reason, changes:[{field,label,from,to}] }] (최신순) */
+    /* 근무조 수정 이력 — [{ at, by, effDate, reason, changes:[{field,label,from,to}] }] (최신순) */
     history: (code) => (STATE.shiftHistory[code] ? STATE.shiftHistory[code].slice() : []),
-    /* 근무코드 변경 이력(전자결재) — [{ at, code, label, type, reason, by, approver }] (최신순). 근무코드 설정 메인 화면 노출용. */
+    /* 근무조 변경 이력(전자결재) — [{ at, code, label, type, reason, by, approver }] (최신순). 근무조 설정 메인 화면 노출용. */
     changeLog: () => { ensureLoaded(); return STATE.codeChangeLog.slice(); },
     /* 사용 상태 — 미사용 처리된 코드는 false. 편성 화면에서 선택 후보 제외용. */
     isActive: (code) => { const s = App.AttShifts.get(code); return !s || s.active !== false; },
-    /* 근무코드 마스터 편집 — '근무정책 설정 > 근무코드 설정' 인라인에서 재사용. modal-shift-editor 열기. */
+    /* 현재 사용 중인 부서 목록 — '사용 부서' 표기 · 미사용/삭제/편집 제한 판정 공용. */
+    usingDepts: (code) => usingDeptsOf(code),
+    /* 근무조 상태/가능 액션 통합 판정 — 근무조 설정 그리드의 상태 뱃지·관리 버튼 단일 소스. */
+    codeFlags: (code) => codeFlags(code),
+    /* 근무조 색상 — 색상 key(gray/red/…)를 파스텔 hex 로. 그리드 컬러칩·스케줄 시각 구분 공용. */
+    colorHex: (key) => colorHexOf(key),
+    /* 사용 중인 부서 있음 — true 면 미사용 처리·삭제·편집 불가. */
+    deptLocked: (code) => codeInUse(code),
+    /* 사용 이력 있음 — true 면 삭제 불가(미사용만)·기준 잠금. */
+    hasHistory: (code) => codeHasHistory(code),
+    /* 그리드에서 삭제/미사용/재개 전자결재 요청 — 에디터 없이 코드 지정 호출. */
+    requestChange: (type, code) => { requestCodeChange(type, code); },
+    /* 근무조 마스터 편집 — '근무정책 설정 > 근무조 설정' 인라인에서 재사용. modal-shift-editor 열기. */
     openEditor: (code) => { ensureLoaded(); openEditor(code || null); },
     /* 수정 화면을 host 컨테이너 안에 인-페이지로 렌더 (앱 레이아웃 유지). opts.onBack: 목록 복귀 콜백. */
     editInto: (hostEl, code, opts) => { ensureLoaded(); renderEditInto(hostEl, code, opts); },
-    /* 전사 기본 근무코드 — 부서 신설 시 상위 조직이 없으면 상속하는 기본값. */
+    /* 전사 기본 근무조 — 부서 신설 시 상위 조직이 없으면 상속하는 기본값. */
     globalDefault: () => { ensureLoaded(); const s = STATE.shifts.find(x => x.isGlobalDefault); return s ? s.code : ''; },
-    /* 전사 기본 근무코드 지정 — 정확히 1개만 유지 (기존 지정 해제 후 설정). */
+    /* 전사 기본 근무조 지정 — 정확히 1개만 유지 (기존 지정 해제 후 설정). */
     setGlobalDefault: (code) => {
       ensureLoaded();
       if (!STATE.shifts.some(s => s.code === code)) return;
       STATE.shifts.forEach(s => { s.isGlobalDefault = (s.code === code); });
       notifyShiftChange();
     },
-    /* 근무코드 마스터 변경(추가/수정/삭제) 시 호출될 콜백 등록 — 인라인 테이블 갱신용. */
+    /* 근무조 마스터 변경(추가/수정/삭제) 시 호출될 콜백 등록 — 인라인 테이블 갱신용. */
     onChange: (cb) => { if (typeof cb === 'function') _changeCbs.push(cb); },
   };
   const _changeCbs = [];

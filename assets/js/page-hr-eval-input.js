@@ -54,9 +54,14 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (데이터 값은 원본 유지) */
+  function fmtD(s) {
+    s = (s === null || s === undefined) ? '' : String(s);
+    return s.length >= 10 ? s.slice(2,4) + '/' + s.slice(5,7) + '/' + s.slice(8,10) : s;
+  }
   function periodText(from, to) {
     if (!from && !to) return '-';
-    return `${from || '?'} ~ ${to || '?'}`;
+    return `${from ? fmtD(from) : '?'} ~ ${to ? fmtD(to) : '?'}`;
   }
   /* avatar — 인사정보카드와 동일 산식: 사번 끝 2자리 % 6 + 1. 이니셜은 성 한 글자. */
   function avColor(emp) {
@@ -368,7 +373,7 @@
     const roundOpts = myRounds.map(r => `<option value="${esc(r.id)}"${r.id === (currentRound && currentRound.id) ? ' selected' : ''}>${esc(r.name)} (${esc(statusName(r.status))})</option>`).join('');
 
     /* 상단 바 — 평가 회차(드롭다운) · 평가 기간 · 진행률 (선택된 회차 기준) */
-    const mmdd = (d) => { if (!d) return '?'; const p = String(d).split('-'); return p.length >= 3 ? `${p[1]}.${p[2]}` : d; };
+    const mmdd = (d) => { if (!d) return '?'; const p = String(d).split('-'); return p.length >= 3 ? `${p[1]}/${p[2]}` : d; };
     let periodVal = '<span class="t-muted">-</span>';
     let progVal   = '<span class="t-muted">-</span>';
     let tasksGridHTML = '';
@@ -978,7 +983,7 @@
           </div>
           <div style="font-size:var(--fs-sm);color:var(--color-text-sub);margin-top:4px;">
             ${esc(t.dept || '-')} · ${esc(t.position || '-')} · ${esc(t.rank || '-')}
-            ${t.joinDate ? ` · 입사 ${esc(t.joinDate)}` : ''}
+            ${t.joinDate ? ` · 입사 ${esc(fmtD(t.joinDate))}` : ''}
           </div>
         </div>
         ${task.isSelf ? `<span class="pill pill--info">본인 평가</span>` : ''}

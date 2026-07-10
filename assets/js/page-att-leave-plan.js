@@ -21,6 +21,8 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
+  /* 표시 전용 — 'YYYY-MM' → 'YY/MM' (데이터/비교값은 원본 ISO 유지) */
+  function fmtYM(s) { s = String(s || ''); return s.length >= 7 ? s.slice(2, 4) + '/' + s.slice(5, 7) : s; }
   function nowHMS() { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
   function ensureDeps() { return App.AttStatus && App.AttStatus.EMP_LIST && App.AttStatus.ME; }
 
@@ -169,7 +171,7 @@
     const planned = myPlannedDays();
     const isYear = STATE.span === 'year';
     const year = parseYM(STATE.ym).y;
-    const title = isYear ? `${year}년` : STATE.ym.replace('-', '.');
+    const title = isYear ? `${year}년` : fmtYM(STATE.ym);
     const nav = isYear
       ? `<button type="button" data-lp-year-prev aria-label="이전 해">‹</button>
          <button type="button" data-lp-today>오늘</button>
@@ -337,10 +339,15 @@
     ];
     const tbody = plans.length ? plans.map(p => {
       const mine = p.empId === meId;
-      const ci = colorIdx(p.empId);
       return `
         <tr>
-          <td><span class="att-plan-dot att-plan-dot--c${ci}"></span>${esc(p.empName)}${mine ? ' <span class="pill pill--info" style="font-size:10px;">본인</span>' : ''}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+              <span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((p.empName || '').slice(0, 1))}</span>
+              <span style="font-weight:var(--fw-medium);white-space:nowrap;">${esc(p.empName)}</span>
+              ${mine ? '<span class="pill pill--info" style="font-size:10px;">본인</span>' : ''}
+            </div>
+          </td>
           <td>${esc(p.dept || '-')}</td>
           <td style="text-align:center;"><span class="pill ${isHalf(p.type) ? 'pill--warning' : 'pill--info'}">${esc(typeLabel(p.type))}</span></td>
           <td>${esc(fmtRange(p))}</td>

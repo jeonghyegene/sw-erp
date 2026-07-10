@@ -20,6 +20,11 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
+  /* 표시 전용 — ISO(YYYY-MM-DD) → YY/MM/DD (원본 데이터/비교 키는 변경하지 않음) */
+  function fmtYMD(s) {
+    return (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s))
+      ? s.slice(2, 4) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : (s == null ? '' : s);
+  }
   function nowHMS() {
     const d = new Date();
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
@@ -58,7 +63,7 @@
   }
 
   function ensureDeps() { return App.AttStatus && App.AttStatus.EMP_LIST; }
-  function HRI() { return window.App && App.HRInfoMgmt; }
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
   /* 조직도 선택 부서(자손 포함) 의 byEmp 행만 */
   function selectedRows() {
     const { byEmp } = getLeave();
@@ -190,7 +195,7 @@
           </div>`;
     /* 월 이동 ‹오늘› — 캘린더로 과거 연차현황을 조회. 부서 선택(또는 팀원) 시 노출 */
     const monthNav = `
-          <div class="att-tb__title">${STATE.calYm.replace('-', '.')}</div>
+          <div class="att-tb__title">${STATE.calYm.slice(2).replace('-', '/')}</div>
           <div class="att-tb__nav">
             <button type="button" data-lv-cal-prev aria-label="이전">‹</button>
             <button type="button" data-lv-cal-today>오늘</button>
@@ -363,7 +368,7 @@
           <button type="button" data-lv-emp-cal-today>오늘</button>
           <button type="button" data-lv-emp-cal-next aria-label="다음 달">›</button>
         </span>
-        <span class="att-tb__title">${STATE.modalCalYm.replace('-', '.')}</span>
+        <span class="att-tb__title">${STATE.modalCalYm.slice(2).replace('-', '/')}</span>
         <div class="att-tb__views">
           <button type="button" data-lv-emp-view="cal"  class="${view === 'cal'  ? 'is-active' : ''}">캘린더</button>
           <button type="button" data-lv-emp-view="dash" class="${view === 'dash' ? 'is-active' : ''}">대시보드</button>
@@ -428,7 +433,7 @@
     const n = list.length;
     const rows = n ? list.map((a, i) => {
       const stat = ST[a.status] || { label: a.status, tone: 'muted' };
-      const dateCol = a.dateFrom === a.dateTo ? esc(a.dateFrom) : `${esc(a.dateFrom)} ~ ${esc(a.dateTo)}`;
+      const dateCol = a.dateFrom === a.dateTo ? esc(fmtYMD(a.dateFrom)) : `${esc(fmtYMD(a.dateFrom))} ~ ${esc(fmtYMD(a.dateTo))}`;
       /* 사용일자 도래 전(신청 시작일 > 오늘) + 인사팀이면 승인/반려 수정 가능 */
       const beforeUse = (a.dateFrom || '') > TODAY;
       const editable = canEdit && beforeUse;
@@ -460,7 +465,7 @@
             <button type="button" data-lv-emp-cal-today>오늘</button>
             <button type="button" data-lv-emp-cal-next aria-label="다음 달">›</button>
           </div>
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${ym.replace('-', '.')}</div>
+          <div class="att-tb__title" style="font-size:var(--fs-lg);">${ym.slice(2).replace('-', '/')}</div>
         </div>
         <button class="btn btn--sm" type="button" data-lv-modal-apps-dl="${esc(me.emp.id)}" title="신청 내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 신청내역 다운로드</button>
       </div>
@@ -675,7 +680,12 @@
                 ${members.map(r => `
                   <tr>
                     <td>${esc(r.emp.id)}</td>
-                    <td><a href="#" data-lv-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.emp.name)}</a></td>
+                    <td>
+                      <div data-lv-emp-open="${esc(r.emp.id)}" style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;">
+                        <span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span>
+                        <span style="font-weight:var(--fw-medium);white-space:nowrap;color:var(--color-brand-primary);">${esc(r.emp.name)}</span>
+                      </div>
+                    </td>
                     <td style="white-space:nowrap;">${esc(r.emp.rank || '-')}</td>
                     <td style="white-space:nowrap;">${esc(r.emp.position || '-')}</td>
                     <td style="text-align:right;color:var(--color-info);">${r.carry}일</td>
@@ -697,7 +707,7 @@
   }
 
   /* ============ 캘린더형 — 팀원별 연차/외근을 월별로 ============ */
-  /* 범례 — 근무조 현황 범례와 동일하게 화면 하단 고정 바(.shift-grid-legend) 로 표시 */
+  /* 범례 — 근무스케줄 현황 범례와 동일하게 화면 하단 고정 바(.shift-grid-legend) 로 표시 */
   function calLegend() {
     const items = [
       ['leave', '연차'], ['half', '반차'], ['trip', '출장'], ['field', '외근'], ['edu', '교육'],

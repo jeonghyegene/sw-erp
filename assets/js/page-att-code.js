@@ -235,7 +235,7 @@
   function html() {
     return `
       <div class="code-mgmt-bar">
-        <div class="code-mgmt-bar__title"><strong>근태코드 설정</strong> <span style="color:var(--color-text-muted);font-size:var(--fs-sm);">· 3단계 계층 코드 (대분류 › 중분류 › 소분류)</span></div>
+        <div class="code-mgmt-bar__title"><strong>근태코드 설정</strong></div>
         <div class="code-mgmt-bar__meta" data-att-meta></div>
       </div>
       <div class="code-mgmt">

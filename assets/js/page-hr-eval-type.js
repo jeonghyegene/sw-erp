@@ -94,6 +94,11 @@
   }
   function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
   function nowDate() { return TODAY; }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (데이터 값은 원본 유지) */
+  function fmtD(s) {
+    s = (s === null || s === undefined) ? '' : String(s);
+    return s.length >= 10 ? s.slice(2,4) + '/' + s.slice(5,7) + '/' + s.slice(8,10) : s;
+  }
   function clamp(n, min, max) { n = Number(n); if (!isFinite(n)) n = 0; return Math.max(min, Math.min(max, n)); }
   function clamp100(n) { return clamp(n, 0, 100); }
   function uid(prefix) { return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
@@ -569,7 +574,7 @@
         <td style="color:var(--color-text-sub);">${esc(summarizeForm(t))}</td>
         <td style="text-align:right;">${applied > 0 ? `<strong>${applied}</strong>건` : '<span class="t-muted">-</span>'}</td>
         <td>${esc(t.updatedBy || '-')}</td>
-        <td>${esc(t.updatedAt || '-')}</td>
+        <td>${t.updatedAt ? esc(fmtD(t.updatedAt)) : '-'}</td>
         <td style="text-align:center;">${kebabHTML}</td>
       </tr>
     `;
@@ -2311,7 +2316,7 @@
         </div>
         <div class="fm-tbl__row fm-tbl__row--1">
           <div class="fm-tbl__label">최종 수정</div>
-          <div class="fm-tbl__value">${esc(t.updatedAt || '-')} <span class="t-muted">· ${esc(t.updatedBy || '-')}</span></div>
+          <div class="fm-tbl__value">${t.updatedAt ? esc(fmtD(t.updatedAt)) : '-'} <span class="t-muted">· ${esc(t.updatedBy || '-')}</span></div>
         </div>
       </div>
     `, { status });
@@ -2537,7 +2542,7 @@
           <tbody>${history.length
             ? history.slice().reverse().map(v => `<tr>
                   <td style="text-align:center;">${versionKindPill(v)}</td>
-                  <td>${esc(v.publishedAt)}</td>
+                  <td>${esc(fmtD(v.publishedAt))}</td>
                   <td>${esc(v.publisher)}</td>
                   <td>${esc(v.changeReason || '-')}</td>
                 </tr>`).join('')

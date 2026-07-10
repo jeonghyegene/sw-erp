@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>신규 입사자 정보 등록 · 성원애드피아</title>
+<style>
+  :root{
+    --brand:#00347D; --brand-hover:#002966; --accent:#F38200;
+    --bg:#F5F6F8; --surface:#FFFFFF; --surface-alt:#FAFBFC;
+    --border:#E5E7EB; --border-strong:#D1D5DB; --divider:#EEF0F3;
+    --text:#1F2937; --text-sub:#4B5563; --text-muted:#9CA3AF;
+    --success:#16A34A; --warning:#F59E0B; --danger:#DC2626; --info:#2563EB;
+    --r-sm:6px; --r-md:10px; --r-lg:14px; --r-pill:999px;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05);
+    --sh-md:0 4px 14px rgba(16,24,40,.08);
+    --font:"Pretendard Variable","Pretendard",-apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{background:var(--bg);}
+  body{font-family:var(--font);color:var(--text);font-size:15px;line-height:1.5;
+    padding-bottom:calc(84px + env(safe-area-inset-bottom));}
+
+  /* ── App shell ── */
+  .shell{max-width:560px;margin:0 auto;min-height:100vh;background:var(--bg);}
+
+  /* ── Top bar ── */
+  .topbar{position:sticky;top:0;z-index:30;background:var(--brand);color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 20px 14px;}
+  .topbar__brand{font-size:13px;font-weight:600;letter-spacing:.3px;opacity:.85;}
+  .topbar__brand b{color:var(--accent);}
+  .topbar__title{font-size:18px;font-weight:700;margin-top:2px;}
+
+  /* ── Stepper ── */
+  .stepper{display:flex;align-items:flex-start;gap:0;padding:16px 20px 4px;background:var(--surface);
+    border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+  .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;}
+  .step__dot{width:30px;height:30px;border-radius:var(--r-pill);display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;background:var(--surface-alt);color:var(--text-muted);
+    border:2px solid var(--border);transition:.2s;z-index:2;}
+  .step__label{font-size:11.5px;color:var(--text-muted);font-weight:600;white-space:nowrap;transition:.2s;}
+  .step::before{content:"";position:absolute;top:15px;left:-50%;width:100%;height:2px;background:var(--border);z-index:1;}
+  .step:first-child::before{display:none;}
+  .step.is-active .step__dot{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 0 0 4px rgba(0,52,125,.12);}
+  .step.is-active .step__label{color:var(--brand);}
+  .step.is-done .step__dot{background:var(--success);color:#fff;border-color:var(--success);}
+  .step.is-done .step__label{color:var(--text-sub);}
+  .step.is-done::before{background:var(--success);}
+
+  /* ── Page area ── */
+  .page{padding:20px 16px 8px;display:none;animation:fade .25s ease;}
+  .page.is-active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+  .page__head{margin-bottom:16px;}
+  .page__head h2{font-size:19px;font-weight:700;}
+  .page__head p{font-size:13px;color:var(--text-muted);margin-top:3px;}
+
+  /* ── Card ── */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+    box-shadow:var(--sh-sm);margin-bottom:14px;overflow:hidden;}
+  .card__body{padding:16px;}
+
+  /* ── Accordion section ── */
+  .acc__head{display:flex;align-items:center;gap:10px;padding:15px 16px;cursor:pointer;user-select:none;}
+  .acc__head h3{font-size:15px;font-weight:700;flex:1;display:flex;align-items:center;gap:8px;}
+  .tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);line-height:1.5;}
+  .tag--req{background:#FDECEC;color:var(--danger);}
+  .tag--opt{background:#EEF1F6;color:var(--text-sub);}
+  .acc__chev{width:20px;height:20px;color:var(--text-muted);transition:transform .2s;flex-shrink:0;}
+  .acc.is-open .acc__chev{transform:rotate(180deg);}
+  .acc__body{display:none;padding:2px 16px 16px;border-top:1px solid var(--divider);}
+  .acc.is-open .acc__body{display:block;}
+
+  /* ── Fields ── */
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .field__label{display:block;font-size:13px;font-weight:600;color:var(--text-sub);margin-bottom:6px;}
+  .field__label em{color:var(--danger);font-style:normal;margin-left:2px;}
+  .input,.select,textarea{width:100%;font-family:inherit;font-size:15px;color:var(--text);
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-sm);
+    padding:11px 12px;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none;}
+  textarea{resize:vertical;min-height:60px;}
+  .input:focus,.select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,52,125,.12);}
+  .input::placeholder,textarea::placeholder{color:var(--text-muted);}
+  .input[readonly]{background:var(--surface-alt);color:var(--text-sub);}
+  .select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+  .field.is-invalid .input,.field.is-invalid .select,.field.is-invalid textarea{border-color:var(--danger);}
+  .field__err{display:none;font-size:12px;color:var(--danger);margin-top:5px;}
+  .field.is-invalid .field__err{display:block;}
+  .field__ok{display:none;font-size:12px;color:var(--success);margin-top:5px;font-weight:600;}
+  .field.is-valid .field__ok{display:block;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .inline{display:flex;gap:8px;align-items:stretch;}
+  .inline .input{flex:1;min-width:0;}
+  .suffix{display:flex;align-items:center;padding:0 12px;font-size:14px;color:var(--text-sub);
+    background:var(--surface-alt);border:1px solid var(--border-strong);border-radius:var(--r-sm);white-space:nowrap;}
+
+  /* ── RRN ── */
+  .rrn{display:flex;align-items:center;gap:8px;}
+  .rrn .input{flex:1;text-align:center;letter-spacing:1px;}
+  .rrn__sep{color:var(--text-muted);font-weight:700;}
+
+  /* ── Buttons ── */
+  .btn{font-family:inherit;font-size:15px;font-weight:600;border-radius:var(--r-sm);padding:11px 16px;
+    border:1px solid transparent;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;
+    justify-content:center;gap:6px;white-space:nowrap;}
+  .btn--primary{background:var(--brand);color:#fff;}
+  .btn--primary:active{background:var(--brand-hover);}
+  .btn--ghost{background:var(--surface);color:var(--text-sub);border-color:var(--border-strong);}
+  .btn--ghost:active{background:var(--surface-alt);}
+  .btn--sm{font-size:13px;padding:8px 12px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn--full{width:100%;}
+
+  .btn-add{width:100%;border:1.5px dashed var(--border-strong);background:var(--surface-alt);
+    color:var(--brand);font-weight:600;font-size:14px;padding:12px;border-radius:var(--r-sm);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;margin-top:4px;}
+  .btn-add:active{background:#EEF1F6;}
+
+  /* ── File upload ── */
+  .file-up{display:flex;flex-direction:column;gap:8px;}
+  .file-up__btn{width:100%;border:1.5px dashed var(--border-strong);background:var(--surface-alt);
+    color:var(--brand);font-weight:600;font-size:14px;padding:14px;border-radius:var(--r-sm);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;}
+  .file-up__btn:active{background:#EEF1F6;}
+  .field.is-invalid .file-up__btn{border-color:var(--danger);}
+  .file-up__file{display:flex;align-items:center;gap:10px;padding:11px 12px;
+    background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;}
+  .file-up__name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-sub);}
+  .file-up__dl{color:var(--brand);font-weight:600;text-decoration:none;flex-shrink:0;}
+  .file-up__rm{border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:2px 4px;
+    font-size:14px;line-height:1;flex-shrink:0;}
+  .file-up__rm:active{color:var(--danger);}
+
+  /* ── Repeatable entry ── */
+  .entry{border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:12px;
+    background:var(--surface-alt);position:relative;}
+  .entry__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .entry__no{font-size:13px;font-weight:700;color:var(--brand);}
+  .entry__del{border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:4px;
+    display:inline-flex;font-size:12px;font-weight:600;gap:3px;align-items:center;}
+  .entry__del:active{color:var(--danger);}
+  .empty{font-size:13px;color:var(--text-muted);text-align:center;padding:8px 0 4px;}
+
+  /* ── Callout ── */
+  .callout{display:flex;gap:10px;padding:14px;background:#EEF4FB;border:1px solid #D6E4F5;
+    border-radius:var(--r-sm);font-size:13px;color:var(--text-sub);line-height:1.55;}
+  .callout svg{flex-shrink:0;color:var(--brand);margin-top:1px;}
+  .callout b{color:var(--brand);}
+
+  /* ── Sticky footer nav ── */
+  .footer{position:fixed;bottom:0;left:0;right:0;z-index:40;background:var(--surface);
+    border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
+  .footer__inner{max-width:560px;margin:0 auto;display:flex;gap:10px;}
+  .footer .btn{flex:1;padding:14px;font-size:16px;}
+  .footer__prev{flex:0 0 auto;min-width:96px;}
+
+  /* ── Done ── */
+  .done{text-align:center;padding:40px 20px;}
+  .done__icon{width:76px;height:76px;border-radius:var(--r-pill);background:#E7F6EC;color:var(--success);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 20px;}
+  .done h2{font-size:22px;font-weight:700;margin-bottom:8px;}
+  .done p{font-size:14px;color:var(--text-sub);line-height:1.6;}
+  .done__summary{text-align:left;margin-top:24px;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r-md);overflow:hidden;}
+  .done__row{display:flex;justify-content:space-between;padding:13px 16px;font-size:14px;border-bottom:1px solid var(--divider);}
+  .done__row:last-child{border-bottom:none;}
+  .done__row span{color:var(--text-muted);}
+  .done__row b{color:var(--text);font-weight:600;}
+
+  /* ── Toast ── */
+  .toast-wrap{position:fixed;left:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:1100;
+    display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none;}
+  .toast{background:var(--text);color:#fff;font-size:13.5px;font-weight:500;padding:11px 16px;border-radius:var(--r-sm);
+    box-shadow:var(--sh-md);transform:translateX(-20px);opacity:0;transition:.25s;max-width:calc(100vw - 32px);}
+  .toast.is-show{transform:none;opacity:1;}
+  .toast--success{background:var(--success);}
+  .toast--danger{background:var(--danger);}
+
+  @media (max-width:400px){
+    .step__label{font-size:10.5px;}
+    .row2{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar__brand">성원<b>애드피아</b></div>
+    <div class="topbar__title">신규 입사자 정보 등록</div>
+  </header>
+
+  <!-- Stepper -->
+  <nav class="stepper" id="stepper">
+    <div class="step is-active" data-step="1"><div class="step__dot">1</div><div class="step__label">계정 생성</div></div>
+    <div class="step" data-step="2"><div class="step__dot">2</div><div class="step__label">기본 정보</div></div>
+    <div class="step" data-step="3"><div class="step__dot">3</div><div class="step__label">지급 정보</div></div>
+    <div class="step" data-step="4"><div class="step__dot">4</div><div class="step__label">완료</div></div>
+  </nav>
+
+  <!-- ═══════════ STEP 1 · 계정 생성 ═══════════ -->
+  <section class="page is-active" data-page="1">
+    <div class="page__head">
+      <h2>계정 생성</h2>
+      <p>사내 메일로 사용할 아이디를 설정합니다.</p>
+    </div>
+
+    <div class="card"><div class="card__body">
+      <div class="field" id="f-id">
+        <label class="field__label">아이디 (사내 메일)<em>*</em></label>
+        <div class="inline">
+          <input class="input" type="text" id="in-id" placeholder="아이디" autocomplete="off" autocapitalize="none">
+          <span class="suffix">@swadpia.co.kr</span>
+        </div>
+        <button class="btn btn--ghost btn--sm btn--full" type="button" id="btn-check" style="margin-top:8px;">중복 확인</button>
+        <div class="field__err">아이디를 입력하고 중복 확인을 해주세요.</div>
+        <div class="field__ok">사용 가능한 아이디입니다.</div>
+      </div>
+    </div></div>
+
+    <div class="callout">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>비밀번호는 <b>최초 로그인 시</b> 직접 설정합니다. 지금은 아이디만 만들어 주세요.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ STEP 2 · 기본 정보 ═══════════ -->
+  <section class="page" data-page="2">
+    <div class="page__head">
+      <h2>기본 정보 입력</h2>
+      <p>신상정보는 필수, 그 외 항목은 선택입니다.</p>
+    </div>
+
+    <!-- 신상정보 (필수) -->
+    <div class="card acc is-open" data-acc>
+      <div class="acc__head" data-acc-toggle>
+        <h3>신상정보 <span class="tag tag--req">필수</span></h3>
+        <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="acc__body">
+        <div class="field" id="f-ename">
+          <label class="field__label">영문 이름</label>
+          <input class="input" type="text" id="in-ename" placeholder="예: Hong Gildong" autocapitalize="words">
+        </div>
+        <div class="field" id="f-rrn">
+          <label class="field__label">주민등록번호<em>*</em></label>
+          <div class="rrn">
+            <input class="input" type="tel" id="in-rrn1" placeholder="앞 6자리" maxlength="6" inputmode="numeric">
+            <span class="rrn__sep">–</span>
+            <input class="input" type="password" id="in-rrn2" placeholder="뒤 7자리" maxlength="7" inputmode="numeric">
+          </div>
+          <div class="field__err">주민등록번호를 정확히 입력해 주세요.</div>
+        </div>
+        <div class="field" id="f-addr">
+          <label class="field__label">주소<em>*</em></label>
+          <div class="inline" style="margin-bottom:8px;">
+            <input class="input" type="text" id="in-zip" placeholder="우편번호" readonly style="flex:0 0 120px;">
+            <button class="btn btn--ghost" type="button" id="btn-zip">주소 검색</button>
+          </div>
+          <input class="input" type="text" id="in-addr1" placeholder="기본 주소" readonly style="margin-bottom:8px;">
+          <input class="input" type="text" id="in-addr2" placeholder="상세 주소를 입력해 주세요">
+          <div class="field__err">주소를 입력해 주세요.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 학력·경력 (선택) -->
+    <div class="card acc" data-acc>
+      <div class="acc__head" data-acc-toggle>
+        <h3>학력·경력 <span class="tag tag--opt">선택</span></h3>
+        <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="acc__body">
+        <div class="field__label" style="margin-bottom:8px;">학력 사항</div>
+        <div data-list="edu"></div>
+        <button class="btn-add" type="button" data-add="edu">+ 학력 추가</button>
+
+        <div class="field__label" style="margin:18px 0 8px;">경력 사항</div>
+        <div data-list="career"></div>
+        <button class="btn-add" type="button" data-add="career">+ 경력 추가</button>
+      </div>
+    </div>
+
+    <!-- 자격·역량 (선택) -->
+    <div class="card acc" data-acc>
+      <div class="acc__head" data-acc-toggle>
+        <h3>자격·역량 <span class="tag tag--opt">선택</span></h3>
+        <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="acc__body">
+        <div class="field__label" style="margin-bottom:8px;">자격 면허</div>
+        <div data-list="license"></div>
+        <button class="btn-add" type="button" data-add="license">+ 자격 면허 추가</button>
+
+        <div class="field__label" style="margin:18px 0 8px;">어학 능력</div>
+        <div data-list="lang"></div>
+        <button class="btn-add" type="button" data-add="lang">+ 어학 능력 추가</button>
+      </div>
+    </div>
+
+    <!-- 개인정보 (선택) -->
+    <div class="card acc" data-acc>
+      <div class="acc__head" data-acc-toggle>
+        <h3>개인정보 <span class="tag tag--opt">선택</span></h3>
+        <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="acc__body">
+        <!-- 장애 여부 -->
+        <div class="field">
+          <label class="field__label">장애 여부</label>
+          <select class="select" id="in-dis">
+            <option value="">해당 없음</option>
+            <option value="1">장애 있음</option>
+          </select>
+        </div>
+        <div id="dis-detail" style="display:none;">
+          <div class="row2">
+            <div class="field"><label class="field__label">장애 구분</label><input class="input" id="in-dis-type" placeholder="예: 지체장애"></div>
+            <div class="field"><label class="field__label">장애 등급</label><input class="input" id="in-dis-grade" placeholder="예: 5급"></div>
+          </div>
+          <div class="field"><label class="field__label">장애등록번호</label><input class="input" id="in-dis-no" placeholder="장애등록번호"></div>
+        </div>
+
+        <!-- 신체 정보 -->
+        <div class="field" style="margin-top:6px;"><label class="field__label">신체 정보</label></div>
+        <div class="row2">
+          <div class="field">
+            <label class="field__label" style="font-weight:500;color:var(--text-muted);">혈액형</label>
+            <select class="select" id="in-blood">
+              <option value="">선택</option><option>A</option><option>B</option><option>O</option><option>AB</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" style="font-weight:500;color:var(--text-muted);">색맹</label>
+            <select class="select" id="in-color">
+              <option value="">선택</option><option>정상</option><option>색약</option><option>색맹</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="field__label" style="font-weight:500;color:var(--text-muted);">시력</label>
+            <input class="input" id="in-eye" placeholder="예: 1.0 / 1.0">
+          </div>
+          <div class="field">
+            <label class="field__label" style="font-weight:500;color:var(--text-muted);">보훈 여부</label>
+            <select class="select" id="in-merit">
+              <option value="">해당 없음</option><option>보훈대상</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 병역 정보 -->
+        <div class="field" style="margin-top:6px;">
+          <label class="field__label">병역 정보</label>
+          <select class="select" id="in-mil">
+            <option value="">비대상</option>
+            <option value="군필">군필</option>
+            <option value="미필">미필</option>
+            <option value="면제">면제</option>
+          </select>
+        </div>
+        <div id="mil-served" style="display:none;">
+          <div class="field"><label class="field__label" style="font-weight:500;color:var(--text-muted);">복무 기간</label><input class="input" id="in-mil-term" placeholder="예: 2014-03 ~ 2016-01"></div>
+        </div>
+        <div id="mil-unserved" style="display:none;">
+          <div class="field"><label class="field__label" style="font-weight:500;color:var(--text-muted);">사유</label><input class="input" id="in-mil-reason" placeholder="미필·면제 사유"></div>
+        </div>
+
+        <!-- 가족 사항 -->
+        <div class="field__label" style="margin:14px 0 8px;">가족 사항</div>
+        <div data-list="family"></div>
+        <button class="btn-add" type="button" data-add="family">+ 가족 추가</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ STEP 3 · 지급 정보 ═══════════ -->
+  <section class="page" data-page="3">
+    <div class="page__head">
+      <h2>지급 정보 입력 <span class="tag tag--req" style="vertical-align:middle;">필수</span></h2>
+      <p>급여를 받을 계좌를 입력합니다.</p>
+    </div>
+
+    <div class="card"><div class="card__body">
+      <div class="field" id="f-bank">
+        <label class="field__label">은행<em>*</em></label>
+        <select class="select" id="in-bank">
+          <option value="">은행 선택</option>
+          <option>국민은행</option><option>신한은행</option><option>우리은행</option>
+          <option>하나은행</option><option>농협은행</option><option>기업은행</option>
+          <option>카카오뱅크</option><option>토스뱅크</option><option>새마을금고</option>
+          <option>SC제일은행</option><option>부산은행</option><option>대구은행</option>
+        </select>
+        <div class="field__err">은행을 선택해 주세요.</div>
+      </div>
+      <div class="field" id="f-acc">
+        <label class="field__label">계좌번호<em>*</em></label>
+        <input class="input" type="tel" id="in-acc" placeholder="'-' 없이 숫자만 입력" inputmode="numeric">
+        <div class="field__err">계좌번호를 입력해 주세요.</div>
+      </div>
+      <div class="field" id="f-holder">
+        <label class="field__label">예금주<em>*</em></label>
+        <input class="input" type="text" id="in-holder" placeholder="예금주명">
+        <div class="field__err">예금주를 입력해 주세요.</div>
+      </div>
+      <div class="field" id="f-bankbook">
+        <label class="field__label">통장 사본<em>*</em></label>
+        <div class="file-up">
+          <input type="file" id="in-bankbook" accept="image/*,.pdf" hidden>
+          <button class="file-up__btn" type="button" id="btn-bankbook">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            통장 사본 업로드
+          </button>
+          <div id="bankbook-file"></div>
+        </div>
+        <div class="field__err">통장 사본을 업로드해 주세요.</div>
+      </div>
+    </div></div>
+
+    <div class="callout">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>급여는 <b>매월 10일</b>에 등록하신 계좌로 지급됩니다. <br>지급일이 주말·공휴일인 경우 직전 영업일에 지급됩니다.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ STEP 4 · 완료 ═══════════ -->
+  <section class="page" data-page="4">
+    <div class="done">
+      <div class="done__icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>정보 입력이 완료되었습니다</h2>
+      <p>등록하신 정보는 인사팀 확인 후<br>인사정보카드에 반영됩니다.</p>
+      <div class="done__summary" id="summary"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Sticky footer nav -->
+<footer class="footer" id="footer">
+  <div class="footer__inner">
+    <button class="btn btn--ghost footer__prev" type="button" id="btn-prev" style="display:none;">이전</button>
+    <button class="btn btn--primary" type="button" id="btn-next">다음</button>
+  </div>
+</footer>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+(function(){
+  var TOTAL = 4, cur = 1, idOK = false, bankbookFile = null;
+  var $ = function(s,c){return (c||document).querySelector(s);};
+  var $$ = function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+
+  /* ── 고용구분 파라미터: 도급직이면 지급 정보(STEP 3) 생략 ──
+     URL 예) ?type=도급직  ?employ=도급  ?도급직  ?contract=1  */
+  var qs = new URLSearchParams(location.search);
+  function flagOn(key){
+    if(!qs.has(key)) return false;
+    var v = (qs.get(key)||'').trim().toLowerCase();
+    return !(v==='0'||v==='false'||v==='no'||v==='n');
+  }
+  var typeVal = (qs.get('type')||qs.get('employ')||qs.get('emp')||qs.get('empType')||'').trim();
+  var CONTRACT = flagOn('도급직') || flagOn('도급') || flagOn('contract')
+    || /도급/.test(typeVal) || /^contract$/i.test(typeVal);
+
+  // 활성 스텝 목록 (도급직은 3=지급정보 제외) · 제출 스텝(완료 직전)
+  var STEPS = CONTRACT ? [1,2,4] : [1,2,3,4];
+  var SUBMIT_STEP = CONTRACT ? 2 : 3;
+  function nextStep(n){ var i=STEPS.indexOf(n); return (i>-1 && i<STEPS.length-1) ? STEPS[i+1] : n; }
+  function prevStep(n){ var i=STEPS.indexOf(n); return i>0 ? STEPS[i-1] : n; }
+
+  if(CONTRACT){
+    // 스텝퍼에서 '지급 정보' 숨기고 '완료' 번호를 3 으로 재표기
+    var _s3 = $('.step[data-step="3"]'); if(_s3) _s3.style.display = 'none';
+    var _s4dot = $('.step[data-step="4"] .step__dot'); if(_s4dot) _s4dot.textContent = '3';
+  }
+
+  /* ── Toast ── */
+  function toast(msg, kind){
+    var t = document.createElement('div');
+    t.className = 'toast' + (kind ? ' toast--'+kind : '');
+    t.textContent = msg;
+    $('#toast-wrap').appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('is-show'); });
+    setTimeout(function(){ t.classList.remove('is-show'); setTimeout(function(){ t.remove(); }, 300); }, 2600);
+  }
+
+  /* ── Field error helpers ── */
+  function setErr(id){ var f=$('#'+id); f.classList.add('is-invalid'); f.classList.remove('is-valid'); }
+  function clearErr(id){ var f=$('#'+id); if(f) f.classList.remove('is-invalid'); }
+  function clearAll(){ $$('.field.is-invalid').forEach(function(f){ f.classList.remove('is-invalid'); }); }
+
+  /* ── Accordion ── */
+  $$('[data-acc-toggle]').forEach(function(h){
+    h.addEventListener('click', function(){ h.closest('[data-acc]').classList.toggle('is-open'); });
+  });
+
+  /* ── Repeatable entry templates ── */
+  var TPL = {
+    edu: {title:'학력', fields:[
+      {k:'school', l:'학교명', ph:'예: OO대학교'},
+      {k:'major', l:'학과명', ph:'예: 경영학과'},
+      {k:'inMonth', l:'입학년월', type:'month'},
+      {k:'outMonth', l:'졸업년월', type:'month'},
+      {k:'status', l:'졸업여부', type:'select', opt:['졸업','재학','휴학','중퇴','수료']}
+    ]},
+    career: {title:'경력', fields:[
+      {k:'company', l:'회사명', ph:'예: OO(주)'},
+      {k:'period', l:'기간', ph:'예: 2020-01 ~ 2023-06'},
+      {k:'rank', l:'최종 직급', ph:'예: 대리'},
+      {k:'work', l:'담당 업무', ph:'담당 업무'}
+    ]},
+    license: {title:'자격 면허', fields:[
+      {k:'type', l:'종류', ph:'예: 정보처리기사'},
+      {k:'grade', l:'등급', ph:'예: 1급'},
+      {k:'date', l:'취득일', type:'date'},
+      {k:'issuer', l:'발행기관', ph:'예: 한국산업인력공단'}
+    ]},
+    lang: {title:'어학 능력', fields:[
+      {k:'type', l:'종류', ph:'예: 영어'},
+      {k:'speak', l:'회화', type:'select', opt:['상','중','하']},
+      {k:'write', l:'작문', type:'select', opt:['상','중','하']},
+      {k:'read', l:'독해', type:'select', opt:['상','중','하']}
+    ]},
+    family: {title:'가족', fields:[
+      {k:'rel', l:'관계', type:'select', opt:['배우자','자녀','부','모','형제','자매','조부','조모','기타']},
+      {k:'name', l:'성명', ph:'성명'},
+      {k:'gender', l:'성별', type:'select', opt:['남','여']},
+      {k:'birth', l:'생년월일', type:'date'},
+      {k:'live', l:'동거유무', type:'select', opt:['동거','비동거']}
+    ]}
+  };
+
+  function fieldHTML(f){
+    var lbl = '<label class="field__label" style="font-weight:500;color:var(--text-muted);">'+f.l+'</label>';
+    var ctl;
+    if(f.type==='select'){
+      ctl = '<select class="select" data-k="'+f.k+'"><option value="">선택</option>'+
+        f.opt.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>';
+    } else if(f.type==='month' || f.type==='date'){
+      ctl = '<input class="input" type="'+f.type+'" data-k="'+f.k+'">';
+    } else {
+      ctl = '<input class="input" type="text" data-k="'+f.k+'" placeholder="'+(f.ph||'')+'">';
+    }
+    return '<div class="field">'+lbl+ctl+'</div>';
+  }
+
+  function renderEmpty(list){
+    if(!list.querySelector('.entry')){
+      if(!list.querySelector('.empty'))
+        list.innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>';
+    } else {
+      var e = list.querySelector('.empty'); if(e) e.remove();
+    }
+    // renumber
+    $$('.entry', list).forEach(function(en,i){ en.querySelector('.entry__no').textContent = (i+1); });
+  }
+
+  function addEntry(type){
+    var tpl = TPL[type], list = $('[data-list="'+type+'"]');
+    var e = list.querySelector('.empty'); if(e) e.remove();
+    var wrap = document.createElement('div');
+    wrap.className = 'entry';
+    var body = tpl.fields.map(function(f){ return fieldHTML(f); });
+    // pair rows for compactness on 2-field alignment: keep single column for reliability on mobile
+    wrap.innerHTML =
+      '<div class="entry__head"><span class="entry__no"></span>'+
+      '<button class="entry__del" type="button" data-del>✕ 삭제</button></div>'+
+      body.join('');
+    list.appendChild(wrap);
+    renderEmpty(list);
+  }
+
+  document.addEventListener('click', function(ev){
+    var add = ev.target.closest('[data-add]');
+    if(add){ addEntry(add.getAttribute('data-add')); return; }
+    var del = ev.target.closest('[data-del]');
+    if(del){ var list = del.closest('[data-list]'); del.closest('.entry').remove(); renderEmpty(list); return; }
+  });
+
+  // init empty placeholders
+  ['edu','career','license','lang','family'].forEach(function(t){ renderEmpty($('[data-list="'+t+'"]')); });
+
+  /* ── conditional detail toggles ── */
+  $('#in-dis').addEventListener('change', function(){ $('#dis-detail').style.display = this.value ? 'block' : 'none'; });
+  $('#in-mil').addEventListener('change', function(){
+    var v = this.value;
+    $('#mil-served').style.display = (v==='군필') ? 'block' : 'none';
+    $('#mil-unserved').style.display = (v==='미필'||v==='면제') ? 'block' : 'none';
+  });
+
+  /* ── STEP 1: ID duplicate check (mock) ── */
+  $('#in-id').addEventListener('input', function(){
+    idOK = false; clearErr('f-id'); $('#f-id').classList.remove('is-valid');
+  });
+  $('#btn-check').addEventListener('click', function(){
+    var v = $('#in-id').value.trim().toLowerCase();
+    if(!v){ setErr('f-id'); return; }
+    if(!/^[a-z0-9._-]{3,}$/.test(v)){ setErr('f-id'); $('#f-id .field__err').textContent='아이디는 영문·숫자 3자 이상으로 입력해 주세요.'; return; }
+    // mock: 이미 사용 중인 예시 아이디
+    var taken = ['admin','hr','test','info','sungwon'];
+    if(taken.indexOf(v) > -1){
+      idOK = false; setErr('f-id'); $('#f-id').classList.remove('is-valid');
+      $('#f-id .field__err').textContent='이미 사용 중인 아이디입니다.';
+    } else {
+      idOK = true; clearErr('f-id'); $('#f-id').classList.add('is-valid');
+      toast('사용 가능한 아이디입니다.', 'success');
+    }
+  });
+
+  /* ── 주소 검색 (mock) ── */
+  $('#btn-zip').addEventListener('click', function(){
+    // 실제 환경: Daum 우편번호 API 연동
+    $('#in-zip').value = '04524';
+    $('#in-addr1').value = '서울특별시 중구 세종대로 110';
+    clearErr('f-addr');
+    $('#in-addr2').focus();
+    toast('주소가 입력되었습니다. 상세 주소를 작성해 주세요.', 'success');
+  });
+
+  /* ── 통장 사본 업로드 ── */
+  function downloadFile(file){
+    var url = URL.createObjectURL(file);
+    var a = document.createElement('a');
+    a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function renderBankbook(){
+    var box = $('#bankbook-file');
+    if(!bankbookFile){ box.innerHTML = ''; return; }
+    box.innerHTML =
+      '<div class="file-up__file">'+
+      '<span class="file-up__name">'+bankbookFile.name+'</span>'+
+      '<a href="javascript:;" class="file-up__dl" data-dl>다운로드 ↓</a>'+
+      '<button class="file-up__rm" type="button" data-rm>✕</button>'+
+      '</div>';
+  }
+  $('#btn-bankbook').addEventListener('click', function(){ $('#in-bankbook').click(); });
+  $('#in-bankbook').addEventListener('change', function(){
+    bankbookFile = this.files && this.files[0] ? this.files[0] : null;
+    renderBankbook();
+    if(bankbookFile){ clearErr('f-bankbook'); toast('통장 사본이 첨부되었습니다.', 'success'); }
+  });
+  $('#bankbook-file').addEventListener('click', function(ev){
+    if(ev.target.closest('[data-dl]')){ if(bankbookFile) downloadFile(bankbookFile); return; }
+    if(ev.target.closest('[data-rm]')){
+      bankbookFile = null; $('#in-bankbook').value = ''; renderBankbook();
+    }
+  });
+
+  /* ── validation per step ── */
+  function validateStep(n){
+    clearAll();
+    var ok = true;
+    if(n===1){
+      if(!idOK){ setErr('f-id'); if($('#in-id').value.trim()) $('#f-id .field__err').textContent='중복 확인을 해주세요.'; ok=false; }
+    }
+    if(n===2){
+      var r1=$('#in-rrn1').value, r2=$('#in-rrn2').value;
+      if(!/^\d{6}$/.test(r1) || !/^\d{7}$/.test(r2)){ setErr('f-rrn'); ok=false; }
+      if(!$('#in-zip').value || !$('#in-addr2').value.trim()){ setErr('f-addr'); ok=false; }
+      if(!ok){ // ensure 신상정보 accordion open so user sees errors
+        var acc = $('.acc'); if(acc && !acc.classList.contains('is-open')) acc.classList.add('is-open');
+      }
+    }
+    if(n===3){
+      if(!$('#in-bank').value){ setErr('f-bank'); ok=false; }
+      if(!$('#in-acc').value.trim()){ setErr('f-acc'); ok=false; }
+      if(!$('#in-holder').value.trim()){ setErr('f-holder'); ok=false; }
+      if(!bankbookFile){ setErr('f-bankbook'); ok=false; }
+    }
+    if(!ok) toast('입력 내용을 확인해 주세요.', 'danger');
+    return ok;
+  }
+
+  /* ── summary on complete ── */
+  function buildSummary(){
+    function cnt(t){ return $$('.entry', $('[data-list="'+t+'"]')).length; }
+    var rows = [
+      ['사내 메일', ($('#in-id').value.trim().toLowerCase()||'-') + '@swadpia.co.kr'],
+      ['영문 이름', $('#in-ename').value.trim() || '-'],
+      ['학력·경력', cnt('edu')+'건 · '+cnt('career')+'건'],
+      ['자격·어학', cnt('license')+'건 · '+cnt('lang')+'건'],
+      ['가족 사항', cnt('family')+'건']
+    ];
+    if(!CONTRACT){  // 도급직은 지급 정보 미수집
+      rows.push(['지급 계좌', ($('#in-bank').value||'-')+' '+($('#in-acc').value.trim()||'')]);
+      rows.push(['통장 사본', bankbookFile ? bankbookFile.name : '-']);
+    }
+    $('#summary').innerHTML = rows.map(function(r){
+      return '<div class="done__row"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>';
+    }).join('');
+  }
+
+  /* ── navigation ── */
+  function goto(n){
+    cur = n;
+    $$('.page').forEach(function(p){ p.classList.toggle('is-active', +p.dataset.page===n); });
+    $$('.step').forEach(function(s){
+      var sn = +s.dataset.step;
+      s.classList.toggle('is-active', sn===n);
+      s.classList.toggle('is-done', sn<n);
+    });
+    $('#btn-prev').style.display = (n>1 && n<TOTAL) ? '' : 'none';
+    var next = $('#btn-next');
+    if(n===TOTAL){ $('#footer').style.display='none'; }
+    else { $('#footer').style.display=''; next.textContent = (n===SUBMIT_STEP) ? '제출' : '다음'; }
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  $('#btn-next').addEventListener('click', function(){
+    if(!validateStep(cur)) return;
+    if(cur===SUBMIT_STEP){ buildSummary(); goto(TOTAL); toast('제출이 완료되었습니다.', 'success'); return; }
+    goto(nextStep(cur));
+  });
+  $('#btn-prev').addEventListener('click', function(){ if(cur>1) goto(prevStep(cur)); });
+
+  // clear individual errors on input
+  ['in-rrn1','in-rrn2','in-addr2','in-bank','in-acc','in-holder'].forEach(function(id){
+    var el=$('#'+id); if(!el) return;
+    el.addEventListener('input', function(){
+      var map={'in-rrn1':'f-rrn','in-rrn2':'f-rrn','in-addr2':'f-addr','in-bank':'f-bank','in-acc':'f-acc','in-holder':'f-holder'};
+      clearErr(map[id]);
+    });
+    if(el.tagName==='SELECT') el.addEventListener('change', function(){ clearErr('f-bank'); });
+  });
+})();
+</script>
+</body>
+</html>

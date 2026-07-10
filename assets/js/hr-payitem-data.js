@@ -191,6 +191,17 @@
         usedInContract: 0, usedInSettlement: 0,
         updatedAt: TODAY, updatedBy: 'SYSTEM',
       },
+      {
+        id: 'PAY-SYS-024', code: 'PAY-SYS-024', name: '소급분',
+        itemType: 'system', payMethod: 'variable', taxType: 'taxable',
+        nonTaxKind: '', nonTaxLimit: 0,
+        ordinaryWage: false, useYn: true,
+        lockName: true, lockMethod: true, lockTax: false, lockOrdinary: true, lockUseYn: false,
+        canDelete: false,
+        /* 임금 소급 인상분 — 급여 정산에서 직접 입력 */
+        usedInContract: 0, usedInSettlement: 0,
+        updatedAt: TODAY, updatedBy: 'SYSTEM',
+      },
     ];
   }
 

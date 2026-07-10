@@ -85,13 +85,15 @@ window.NAV_DATA = [
         /* 부서별 근태현황 — 권한자 시점. 전체 / 임직원별 / 부서별 뷰. 수동 새로고침 지원. */
         { id: 'att-status',         label: '부서별 근태현황', page: 'page-att-status' },
       ]},
-      { label: '근무조 관리', icon: 'shuffle', items: [
-        /* 부서별 근무조 현황 — 전체 / 임직원별 / 부서별 뷰. [근무조 설정] 버튼으로도 편성 detail 진입. */
-        { id: 'att-shift-status', label: '부서별 근무조 현황', page: 'page-att-shift-status' },
+      { label: '근무스케줄 관리', icon: 'shuffle', items: [
+        /* 부서별 근무스케줄 현황 — 전체 / 임직원별 / 부서별 뷰. [근무조 설정] 버튼으로도 편성 detail 진입. */
+        { id: 'att-shift-status', label: '부서별 근무스케줄 현황', page: 'page-att-shift-status' },
+        /* 부서별 근무스케줄 편성 — 소속 팀 권한자 전용. [기본 근무스케줄 편성](직원별 근무조) + [월별 근무스케줄 편성](월별 제출/마감). 조직도 없음. */
+        { id: 'att-shift-batch',  label: '부서별 근무스케줄 편성', page: 'page-att-shift-batch' },
         /* 근무정책 설정 — 근무조 마스터(시간대 정의) + 지각 허용 시간. */
         { id: 'att-work-policy',  label: '근무정책 설정',     page: 'page-att-work-policy' },
-        /* 근무조 배치 — 부서장이 부서원 월별 근무조 배치(배정표). 근무조 현황의 [근무조 배치] 버튼으로 진입. */
-        { id: 'att-shift',        label: '근무조 배치',       page: 'page-att-shift', hidden: true },
+        /* 근무스케줄 배치 — 부서장이 부서원 월별 근무스케줄 배치(배정표). 근무스케줄 현황의 [근무스케줄 배치] 버튼으로 진입. */
+        { id: 'att-shift',        label: '근무스케줄 배치',       page: 'page-att-shift', hidden: true },
       ]},
       { label: '연차 관리', icon: 'calendar', items: [
         /* 나의 연차현황 — 본인 연차 발생/사용/잔여 + 사용 이력 (본인 시점 전용). */

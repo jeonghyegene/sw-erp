@@ -85,6 +85,7 @@
       <a href="#approval-line">Approval Line</a>
       <a href="#chip-input">Chip Input</a>
       <a href="#chip-select">Chip Select</a>
+      <a href="#chip-choice">Chip Choice</a>
       <a href="#multi-grouped">Multi-Grouped</a>
       <a href="#amount-input">Amount Input</a>
 
@@ -2339,6 +2340,58 @@
           <tr><td><code>.chip-select__hint</code></td><td>하단 메타 (등록 건수, 데이터 출처)</td></tr>
           <tr><td><code>.chip-select.is-open</code></td><td>드롭다운 노출 상태</td></tr>
           <tr><td><code>.chip-select.is-invalid</code></td><td>인라인 검증 실패 (App.Forms 와 호환)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===================== Chip Choice ===================== -->
+    <section id="chip-choice" class="uk-section">
+      <div class="uk-section__head">
+        <h2>Chip Choice</h2>
+        <small>단일/다중 선택 칩 그룹 — 라디오·세그먼트 대체 (유형 선택, 기간 선택 등 폼 필드용)</small>
+      </div>
+      <div class="uk-demo uk-demo--col">
+
+        <!-- (1) 단일 선택 — 유형 -->
+        <div style="width:100%; max-width:520px;">
+          <div class="t-muted" style="font-size:12px; margin-bottom:6px;">단일 선택 (유형)</div>
+          <div class="chip-choice" data-chip-group="demo-type">
+            <button class="chip-choice__item is-active" type="button" data-chip-val="assign">근무스케줄 배치</button>
+            <button class="chip-choice__item" type="button" data-chip-val="change">근무조 변경</button>
+            <button class="chip-choice__item" type="button" data-chip-val="etc">기타</button>
+          </div>
+        </div>
+
+        <!-- (2) 단일 선택 — 기간 -->
+        <div style="width:100%; max-width:520px; margin-top:20px;">
+          <div class="t-muted" style="font-size:12px; margin-bottom:6px;">단일 선택 (기간)</div>
+          <div class="chip-choice" data-chip-group="demo-period">
+            <button class="chip-choice__item" type="button" data-chip-val="3">3개월</button>
+            <button class="chip-choice__item is-active" type="button" data-chip-val="6">6개월</button>
+            <button class="chip-choice__item" type="button" data-chip-val="9">9개월</button>
+            <button class="chip-choice__item" type="button" data-chip-val="12">12개월</button>
+          </div>
+        </div>
+
+        <!-- (3) 비활성 항목 -->
+        <div style="width:100%; max-width:520px; margin-top:20px;">
+          <div class="t-muted" style="font-size:12px; margin-bottom:6px;">비활성 항목 포함</div>
+          <div class="chip-choice">
+            <button class="chip-choice__item is-active" type="button">1주 단위</button>
+            <button class="chip-choice__item" type="button">2주 단위</button>
+            <button class="chip-choice__item" type="button" disabled>특정 일자</button>
+          </div>
+        </div>
+
+      </div>
+
+      <table class="uk-class-ref" style="margin-top:14px">
+        <thead><tr><th style="width:240px">클래스</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td><code>.chip-choice</code></td><td>루트 — 칩 그룹 (inline-flex, wrap). <code>data-chip-group</code> 로 단일선택 스코프 지정</td></tr>
+          <tr><td><code>.chip-choice__item</code></td><td>칩 — <code>&lt;button&gt;</code>. <code>data-chip-val</code> 로 값. 클릭 시 <code>.is-active</code></td></tr>
+          <tr><td><code>.chip-choice__item.is-active</code></td><td>선택 상태 (brand-primary 배경)</td></tr>
+          <tr><td><code>.chip-choice__item:disabled</code></td><td>비활성 (선택 불가)</td></tr>
         </tbody>
       </table>
     </section>

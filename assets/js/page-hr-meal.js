@@ -17,7 +17,7 @@
  *   .search(App.Components.searchPanel) / .toolbar / .tbl / .pill / .pagination
  *   / .page-bar / .att-kpi / .table-card / .att-tb__views(뷰 토글)
  *
- *  데이터 소스 — App.AttShifts(근무조 마스터) + App.AttStatus(임직원 명단·근무조 배치).
+ *  데이터 소스 — App.AttShifts(근무조 마스터) + App.AttStatus(임직원 명단·근무스케줄 배치).
  *  공개 API: App.HRMeal.list() / .get(id)
  * ========================================================= */
 (function () {
@@ -41,8 +41,16 @@
   function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
   function dowOf(ym, d) { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, d).getDay(); }
   const DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
-  function ymLabel(ym) { const [y, m] = ym.split('-'); return `${y}년 ${Number(m)}월`; }
+  function ymLabel(ym) { /* YY/MM (SWADPIA §1 연·월) */ const [y, m] = ym.split('-'); return `${y.slice(2)}/${pad2(Number(m))}`; }
   function dateLabel(ds) { /* YY/MM/DD (SWADPIA §1) */ if (!ds) return '-'; const [y, m, d] = ds.split('-'); return `${y.slice(2)}/${m}/${d}`; }
+  /* 성명 셀 — 임직원 관리 nameCellHTML 형식(아바타+이름). 부서는 별도 컬럼이 있어 inline 중복 표기 안 함. */
+  function nameCell(name) {
+    const nm = name || '';
+    return `<div style="display:flex;align-items:center;gap:8px;min-width:0;">`
+      + `<span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc(nm.slice(0, 1))}</span>`
+      + `<span style="font-weight:var(--fw-medium);white-space:nowrap;">${esc(nm)}</span>`
+      + `</div>`;
+  }
   function hashId(id) { let h = 0; const s = String(id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
   function monthSeed(ym) { const [y, m] = ym.split('-').map(Number); return y * 12 + m; }
 
@@ -468,8 +476,8 @@
         return;
       }
       if (e.target.closest('[data-meal-goto-shift]')) {
-        if (App.Tabs && App.Tabs.open) App.Tabs.open({ id: 'att-shift-status', label: '근무조 현황', page: 'page-att-shift-status' });
-        else window.toast && window.toast('근무조 현황 화면을 열 수 없습니다.', 'warning');
+        if (App.Tabs && App.Tabs.open) App.Tabs.open({ id: 'att-shift-status', label: '근무스케줄 현황', page: 'page-att-shift-status' });
+        else window.toast && window.toast('근무스케줄 현황 화면을 열 수 없습니다.', 'warning');
         return;
       }
       if (e.target.closest('[data-meal-excel-detail]')) {
@@ -588,7 +596,7 @@
       ${topSwitchHTML()}
       <div class="toolbar" style="flex-shrink:0;">
         <div class="toolbar__left">
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${esc(ym.replace('-', '.'))}</div>
+          <div class="att-tb__title" style="font-size:var(--fs-lg);">${esc(ymLabel(ym))}</div>
           <div class="att-tb__nav">
             <button type="button" data-meal-ot-prev aria-label="이전 달">‹</button>
             <button type="button" data-meal-ot-today>이번 달</button>
@@ -620,7 +628,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${n - i}</td>
           <td style="white-space:nowrap;">${esc(a.empId)}</td>
-          <td style="white-space:nowrap;font-weight:var(--fw-medium);">${esc(a.name)}</td>
+          <td style="white-space:nowrap;">${nameCell(a.name)}</td>
           <td style="white-space:nowrap;">${esc(a.dept || '-')}</td>
           <td style="text-align:right;">${a.night ? won(a.night) + '건' : '<span class="t-muted">0</span>'}</td>
           <td style="text-align:right;">${a.holiday ? won(a.holiday) + '건' : '<span class="t-muted">0</span>'}</td>
@@ -747,7 +755,7 @@
           <div style="flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
             <div class="toolbar" style="flex-shrink:0;">
               <div class="toolbar__left"><strong>부서별 적용 근무조</strong> <span class="t-muted" style="font-size:var(--fs-xs);margin-left:8px;">${esc(ymLabel(r.ym))} 적용 기준 · ${ds.length}개 부서</span></div>
-              <div class="toolbar__right"><button class="btn btn--sm" type="button" data-meal-goto-shift>근무조 현황 보기</button></div>
+              <div class="toolbar__right"><button class="btn btn--sm" type="button" data-meal-goto-shift>근무스케줄 현황 보기</button></div>
             </div>
             <div class="grid-wrap" style="flex:1;min-height:0;">
               <div class="grid-scroll">
@@ -866,7 +874,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${n - i}</td>
           <td style="white-space:nowrap;">${esc(a.empId)}</td>
-          <td style="white-space:nowrap;font-weight:var(--fw-medium);">${esc(a.name)}</td>
+          <td style="white-space:nowrap;">${nameCell(a.name)}</td>
           <td style="white-space:nowrap;">${esc(a.dept || '-')}</td>
           <td>${shiftCells || '<span class="t-muted">-</span>'}</td>
           <td style="text-align:right;">${won(a.days8)}일</td>
@@ -915,7 +923,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${ds.length - i}</td>
           <td style="white-space:nowrap;">${esc(d.empId)}</td>
-          <td style="white-space:nowrap;font-weight:var(--fw-medium);">${esc(d.name)}</td>
+          <td style="white-space:nowrap;">${nameCell(d.name)}</td>
           <td style="white-space:nowrap;">${esc(d.dept || '-')}</td>
           <td style="text-align:center;white-space:nowrap;">${esc(dateLabel(d.leaveDate))}</td>
           <td style="text-align:center;"><span class="pill pill--info">${esc(d.leaveType)}</span></td>
@@ -1047,7 +1055,7 @@
         <div class="modal__body">
           <div class="po-info po-info--rows po-info--bare">
             <span class="po-info__pill"><span class="po-info__pill-label">정산 회차</span><span class="po-info__pill-value"><strong>${esc(ymLabel(settleYm))}</strong> 말 정산 → 익월 <strong>${esc(ymLabel(r.ym))}</strong>분 선지급</span></span>
-            <span class="po-info__pill"><span class="po-info__pill-label">지급예정일</span><span class="po-info__pill-value"><strong>${esc(r.payDate)}</strong> · 대상월 1일</span></span>
+            <span class="po-info__pill"><span class="po-info__pill-label">지급예정일</span><span class="po-info__pill-value"><strong>${esc(dateLabel(r.payDate))}</strong> · 대상월 1일</span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">근무조 연동</span><span class="po-info__pill-value">초기 설정 후 고정된 근무조에서 바로 집계 → <strong>[집계 확정]</strong></span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">차감 기준</span><span class="po-info__pill-value"><strong>${esc(ymLabel(settleYm))}</strong> 초과근무조 예정일 연차 사용분</span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">식권 정책</span><span class="po-info__pill-value">8H <strong>10,000원</strong>(1장) · 10H↑ <strong>20,000원</strong>(2장)</span></span>

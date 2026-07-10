@@ -41,6 +41,8 @@
   function uid(prefix) {
     return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
   }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (SWADPIA §1). 데이터 원본은 ISO 유지. */
+  function fmtD(s) { if (!s) return s; const p = String(s).slice(0, 10).split('-'); return p.length < 3 ? s : `${p[0].slice(2)}/${p[1]}/${p[2]}`; }
   function getApi() {
     return (window.App && App.HRProbEval) ? App.HRProbEval : null;
   }
@@ -150,7 +152,7 @@
               <td style="text-align:center;white-space:nowrap;">${esc(h.v || '-')}${isCur ? ' <span class="pill pill--info" style="font-size:var(--fs-xs);">현재</span>' : ''}</td>
               <td>${esc(h.changeReason || '-')}</td>
               <td style="text-align:center;white-space:nowrap;">${esc(h.publisher || '-')}</td>
-              <td style="text-align:center;white-space:nowrap;">${esc(h.publishedAt || '-')}</td>
+              <td style="text-align:center;white-space:nowrap;">${esc(fmtD(h.publishedAt) || '-')}</td>
             </tr>`;
         }).join('')
       : `<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);padding:24px 0;">변경 이력이 없습니다.</td></tr>`;
@@ -275,7 +277,7 @@
           <span style="flex:1;"></span>
           <span style="font-size:var(--fs-xs);color:var(--color-text-muted);">현재 버전</span>
           <span class="pill" style="background:rgba(0,52,125,.08);color:var(--color-brand-primary);border:1px solid rgba(0,52,125,.2);font-size:var(--fs-xs);">${esc(d.version || '-')}</span>
-          <small style="color:var(--color-text-muted);font-size:var(--fs-xs);">최종 수정 ${esc(d.updatedAt || '-')} · ${esc(d.updatedBy || '-')}</small>
+          <small style="color:var(--color-text-muted);font-size:var(--fs-xs);">최종 수정 ${esc(fmtD(d.updatedAt) || '-')} · ${esc(d.updatedBy || '-')}</small>
         </div>
 
         <div style="flex:1;min-height:0;overflow-y:auto;padding:20px 24px 80px;background:var(--color-surface-alt);">

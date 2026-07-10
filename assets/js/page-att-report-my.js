@@ -144,7 +144,7 @@
   /* ============ Render ============ */
   function fmtRange(weekStart) {
     const dates = WR.weekDates(weekStart);
-    return `${weekStart.replace(/-/g, '.').slice(2)} ~ ${dates[4].slice(5).replace('-', '.')}`;
+    return `${weekStart.slice(2).replace(/-/g, '/')} ~ ${dates[4].slice(5).replace('-', '/')}`;
   }
   function renderHead() {
     const u = me();

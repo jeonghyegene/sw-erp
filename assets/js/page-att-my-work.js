@@ -21,6 +21,21 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  /* 표시 전용 날짜 포맷 — 원본(ISO)은 그대로 두고 렌더 시점에만 변환 (SWADPIA §1·§2) */
+  function fmtD(s) {   /* ISO YYYY-MM-DD → YY/MM/DD */
+    s = String(s || '');
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(2, 4) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : s;
+  }
+  function fmtYM(s) {  /* ISO YYYY-MM → YY/MM */
+    s = String(s || '');
+    return /^\d{4}-\d{2}/.test(s) ? s.slice(2, 4) + '/' + s.slice(5, 7) : s;
+  }
+  function fmtDT(s) {  /* YYYY-MM-DD HH:MM → YY/MM/DD   HH:MM (공백 3칸) */
+    s = String(s || '');
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? m[1].slice(2) + '/' + m[2] + '/' + m[3] + '   ' + m[4] + ':' + m[5] : s;
+  }
+
   function ensureDeps() {
     return App.AttStatus && App.AttStatus.EMP_LIST && App.AttStatus.getRecords;
   }
@@ -65,7 +80,20 @@
     appYm: null,          /* 신청 내역 조회 월(YYYY-MM) — 월별 필터 */
     dailySort: 'desc',    /* 일자별 기록 정렬 — 'desc'(최신순, 기본) | 'asc'(오래된순) */
     dailyFilter: null,    /* 대시보드 KPI 클릭 필터 — null | 'late'(지각) | 'early'(조퇴). 같은 카드 재클릭 시 해제 */
+    /* 사원 유형(직군) — 'production'(생산직) | 'office'(사무직) | 'research'(연구직).
+       · 생산직: 팀장·관리자가 팀원 근무스케줄을 변경 → 본인 '근무조 변경 신청' 버튼 미노출.
+       · 사무직·연구직: 본인이 전자결재 승인을 통해 직접 근무조 변경 신청 가능 → 버튼 노출.
+       데모용 직군 전환 토글(FAB)로 세 케이스를 한 화면에서 확인. 기본 사무직. */
+    jobCat: 'office',
   };
+  const JOBCATS = [
+    { key: 'production', label: '생산직' },
+    { key: 'office',     label: '사무직' },
+    { key: 'research',   label: '연구직' },
+  ];
+  function jobCatLabel(k) { const j = JOBCATS.find(x => x.key === k); return j ? j.label : '사무직'; }
+  /* 본인이 직접 근무조 변경 신청 가능한 직군 — 사무직·연구직만(생산직은 팀장·관리자가 변경) */
+  function canSelfRequestShift() { return STATE.jobCat !== 'production'; }
 
   /* Level 1 탭 정의 — 좌측 탭 / 우측 신청 버튼 */
   const LEVELS = [
@@ -93,7 +121,9 @@
       <div class="att-page__tabbar-actions">
         <button class="btn btn--primary btn--sm" type="button" data-mw-act="apply-att">근태 신청</button>
         <button class="btn btn--sm" type="button" data-mw-act="apply-ot">초과근무 신청</button>
-        <button class="btn btn--sm" type="button" data-mw-act="shift-change">근무조 변경 신청</button>
+        ${canSelfRequestShift()
+          ? `<button class="btn btn--sm" type="button" data-mw-act="shift-change">근무조 변경 신청</button>`
+          : `<span class="t-muted" style="font-size:var(--fs-xs);align-self:center;" title="생산직은 팀장·관리자가 근무스케줄을 변경합니다.">근무조 변경은 팀장·관리자 문의</span>`}
       </div>
     `;
   }
@@ -159,10 +189,10 @@
     if (isWeek) {
       const ds = weekDates(currentWeekStart());
       const a = parseYMD(ds[0]), b = parseYMD(ds[6]);
-      const f = (d) => `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
+      const f = (d) => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
       titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`;
     } else {
-      titleHTML = `<div class="att-tb__title">${STATE.ym.replace('-', '.')}</div>`;
+      titleHTML = `<div class="att-tb__title">${fmtYM(STATE.ym)}</div>`;
     }
     const viewToggle = isWeek ? '' : `
       <div class="att-tb__views">
@@ -248,8 +278,8 @@
           const typeSub  = isOt ? (a.reasonCode || '') : (a.reason || '');
           const typeCol  = `${esc(typeMain)}${typeSub ? `<span class="t-muted">/${esc(typeSub)}</span>` : ''}`;
           const dateCol = isOt
-            ? `${esc(a.date)} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
-            : (a.dateFrom === a.dateTo ? esc(a.dateFrom) : `${esc(a.dateFrom)} ~ ${esc(a.dateTo)}`);
+            ? `${esc(fmtD(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
+            : (a.dateFrom === a.dateTo ? esc(fmtD(a.dateFrom)) : `${esc(fmtD(a.dateFrom))} ~ ${esc(fmtD(a.dateTo))}`);
           return `
             <tr class="is-clickable" data-mw-app-row="${esc(a.id)}">
               <td style="text-align:right;">${n - gi}</td>
@@ -260,7 +290,7 @@
               <td>${esc(a.reason)}</td>
               <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
               <td>${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
-              <td>${esc(a.submittedAt)}</td>
+              <td>${esc(fmtDT(a.submittedAt))}</td>
               <td style="text-align:center;white-space:nowrap;">
                 <button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button>
                 ${A.canWithdraw && A.canWithdraw(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-mw-withdraw="${esc(a.id)}" title="승인 전 신청 회수">회수</button>` : ''}
@@ -274,7 +304,7 @@
     return `
       <div class="toolbar">
         <div class="toolbar__left">
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${ym.replace('-', '.')}</div>
+          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
           <div class="att-tb__nav">
             <button type="button" data-mw-app-prev aria-label="이전 달">‹</button>
             <button type="button" data-mw-app-today>오늘</button>
@@ -438,9 +468,9 @@
     if (isWeek) {
       const ds = weekDates(currentWeekStart());
       const a = parseYMD(ds[0]), b = parseYMD(ds[6]);
-      capLabel = `${pad2(a.getMonth() + 1)}.${pad2(a.getDate())} ~ ${pad2(b.getMonth() + 1)}.${pad2(b.getDate())}`;
+      capLabel = `${pad2(a.getMonth() + 1)}/${pad2(a.getDate())} ~ ${pad2(b.getMonth() + 1)}/${pad2(b.getDate())}`;
     } else {
-      capLabel = STATE.ym.replace('-', '.');
+      capLabel = fmtYM(STATE.ym);
     }
     const totalRow = isWeek && !STATE.dailyFilter ? `
       <tr style="background:var(--color-surface-alt);font-weight:var(--fw-semibold);border-top:2px solid var(--color-border);">
@@ -607,6 +637,8 @@
     /* 캘린더 범례 — 근태 현황 탭 + 캘린더 뷰일 때만 페이지 하단 고정 바로 노출 */
     const legendSlot = pageEl.querySelector('[data-mw-legend]');
     if (legendSlot) legendSlot.innerHTML = (STATE.level === 'status' && STATE.span !== 'week' && STATE.view === 'cal') ? calLegend() : '';
+    ensureJobcatFab(pageEl);
+    updateJobcatFab(pageEl);
   }
 
   function bind(pageEl) {
@@ -618,6 +650,17 @@
       /* Level 1 탭 전환 (근태 현황 / 근태 신청 현황) */
       const lvl = e.target.closest('[data-mw-level]');
       if (lvl) { STATE.level = lvl.dataset.mwLevel; renderAll(pageEl); return; }
+
+      /* 직군(사원 유형) 전환 (데모 FAB) — 근무조 변경 신청 버튼 노출 차이 확인 */
+      const jc = e.target.closest('[data-mw-jobcat]');
+      if (jc) {
+        if (jc.dataset.mwJobcat !== STATE.jobCat) {
+          STATE.jobCat = jc.dataset.mwJobcat;
+          if (App.AttStatus && App.AttStatus.ME) App.AttStatus.ME.jobCat = STATE.jobCat;
+          renderAll(pageEl);
+        }
+        return;
+      }
 
       /* 일자별 기록 정렬 전환 */
       if (e.target.closest('[data-mw-daily-sort]')) { STATE.dailySort = STATE.dailySort === 'desc' ? 'asc' : 'desc'; renderAll(pageEl); return; }
@@ -723,6 +766,23 @@
     pageEl.addEventListener('change', e => {
       const ps = e.target.closest('[data-mw-pagesize]');
       if (ps) { STATE.appPageSize = Number(ps.value) || 20; STATE.appPage = 1; renderAll(pageEl); }
+    });
+  }
+
+  /* ============ 직군(사원 유형) 전환 토글 — 우측 하단 floating (데모) ============ */
+  function ensureJobcatFab(pageEl) {
+    if (pageEl.querySelector('[data-mw-jobcat-fab]')) return;
+    const fab = document.createElement('div');
+    fab.setAttribute('data-mw-jobcat-fab', '');
+    fab.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:900;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-pill);box-shadow:var(--shadow-md);padding:6px 10px;display:flex;align-items:center;gap:8px;';
+    fab.innerHTML = `
+      <span style="font-size:var(--fs-xs);color:var(--color-text-muted);">사원 유형</span>
+      ${JOBCATS.map(j => `<button type="button" class="btn btn--xs" data-mw-jobcat="${j.key}">${j.label}</button>`).join('')}`;
+    pageEl.appendChild(fab);
+  }
+  function updateJobcatFab(pageEl) {
+    pageEl.querySelectorAll('[data-mw-jobcat]').forEach(b => {
+      b.classList.toggle('btn--primary', b.dataset.mwJobcat === STATE.jobCat);
     });
   }
 

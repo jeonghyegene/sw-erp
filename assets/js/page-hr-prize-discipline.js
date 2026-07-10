@@ -80,6 +80,12 @@
     return `${y}-${m}-${dd}`;
   }
   function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
+  /* 표시 전용 날짜 포맷 (데이터/키 변형 금지 — 화면 렌더 시점에서만 사용) */
+  function fmtD(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})[-./](\d{2})[-./](\d{2})/);
+    return m ? m[1].slice(2) + '/' + m[2] + '/' + m[3] : s;
+  }
   function allMembers() {
     return (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : [];
   }
@@ -317,7 +323,7 @@
               <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${pdMeta(pdDept)}${pdDot}${pdMeta(pdPos)}</span>
             </div>
           </td>
-          <td style="white-space:nowrap;">${esc(r.noticeDate)}</td>
+          <td style="white-space:nowrap;">${esc(fmtD(r.noticeDate))}</td>
           <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(r.reason)}">${esc(r.reason)}</td>
           <td style="text-align:center;">${esc(resultLabel(r.kind, r.result))}</td>
           <td>${esc(r.registeredBy || '-')}</td>

@@ -19,6 +19,10 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function pad2(n) { return String(n).padStart(2, '0'); }
+  /* 표시 전용 포맷터 — 데이터/비교값은 원본 ISO 유지 */
+  function fmtYM(s) { s = String(s || ''); return s.length >= 7 ? s.slice(2, 4) + '/' + s.slice(5, 7) : s; }
+  function fmtYMD(s) { s = String(s || ''); return s.length >= 10 ? s.slice(2, 4) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : s; }
+  function fmtDateTime(s) { s = String(s || ''); if (s.length < 10) return s; const d = s.slice(2, 4) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10); const t = s.slice(11).trim(); return t ? d + '   ' + t : d; }
   function nowHMS() {
     const d = new Date();
     return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
@@ -169,7 +173,7 @@
       <div class="att-tb">
         <div class="att-tb__left">
           ${showMonth ? `
-            <div class="att-tb__title">${STATE.calYm.replace('-', '.')}</div>
+            <div class="att-tb__title">${fmtYM(STATE.calYm)}</div>
             <div class="att-tb__nav">
               <button type="button" data-myl-cal-prev aria-label="이전 달">‹</button>
               <button type="button" data-myl-cal-today>오늘</button>
@@ -355,8 +359,8 @@
           const gi = start + i;
           const stat = ST[a.status] || { label: a.status, tone: 'muted' };
           const dateCol = a.dateFrom === a.dateTo
-            ? esc(a.dateFrom)
-            : `${esc(a.dateFrom)} ~ ${esc(a.dateTo)}`;
+            ? esc(fmtYMD(a.dateFrom))
+            : `${esc(fmtYMD(a.dateFrom))} ~ ${esc(fmtYMD(a.dateTo))}`;
           return `
             <tr class="is-clickable" data-myl-app-row="${esc(a.id)}">
               <td style="text-align:right;">${n - gi}</td>
@@ -366,7 +370,7 @@
               <td>${esc(a.reason)}</td>
               <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
               <td>${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
-              <td>${esc(a.submittedAt)}</td>
+              <td>${esc(fmtDateTime(a.submittedAt))}</td>
               <td style="text-align:center;white-space:nowrap;">
                 <button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button>
                 ${A.canWithdraw && A.canWithdraw(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-myl-withdraw="${esc(a.id)}" title="승인 전 신청 회수">회수</button>` : ''}
@@ -380,7 +384,7 @@
     return `
       <div class="toolbar">
         <div class="toolbar__left">
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${ym.replace('-', '.')}</div>
+          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
           <div class="att-tb__nav">
             <button type="button" data-myl-app-prev aria-label="이전 달">‹</button>
             <button type="button" data-myl-app-today>오늘</button>

@@ -101,6 +101,8 @@
     return `${y}-${pad2(m)}`;
   }
   function fmtMonth(ym) { if (!ym) return '-'; const [y, m] = String(ym).split('-'); return `${y}-${m}`; }
+  /* 표시 전용 — YYYY-MM → YY/MM (SWADPIA §1). 데이터/입력값에는 fmtMonth 사용. */
+  function fmtMonthDisp(ym) { if (!ym) return '-'; const [y, m] = String(ym).split('-'); return `${y.slice(2)}/${m}`; }
   function lastDueMonth() {
     const [y, m, d] = TODAY.split('-').map(Number);
     const cur = `${y}-${pad2(m)}`;
@@ -319,7 +321,7 @@
       return this.payments(empId).map(p => {
         const st = payStatus(p);
         return [
-          fmtMonth(p.month), fmtWon(p.wageMonth) + '원', fmtWon(p.contribAmount) + '원',
+          fmtMonthDisp(p.month), fmtWon(p.wageMonth) + '원', fmtWon(p.contribAmount) + '원',
           p.paidAmount ? fmtWon(p.paidAmount) + '원' : '-',
           p.paidDate ? fmtYYMMDD(p.paidDate) : '-', st.label,
         ];
@@ -357,9 +359,9 @@
       empId: m.id, empName: m.name, jobCat: m.jobCat,
       amount: App.HRPension.contribution(m.id), note: '', status: 'ok',
     }));
-    /* 확인 필요 샘플 — 앞의 2명을 금액 오류 처리 */
+    /* 확인 필요 샘플 — 첫 1명을 금액 오류 처리.
+       (주민번호 불일치 케이스는 없음 — 주민등록번호는 앞 6자리만 보관하므로 불일치가 발생하지 않는다.) */
     if (rows[0]) { rows[0].status = 'check'; rows[0].note = '금액 오류'; rows[0].amount = 0; }
-    if (rows[1]) { rows[1].status = 'check'; rows[1].note = '주민번호 불일치'; }
     /* 매칭 실패(사번 오류) — 명단에 없는 사번 */
     rows.push({ empId: 'SW00000000', empName: '(매칭 실패)', jobCat: '', amount: 200000, note: '사번 오류', status: 'check' });
     /* 퇴사자 납입 — 확인필요 */
@@ -673,7 +675,7 @@
       return `
         <tr>
           <td style="text-align:center;color:var(--color-text-muted);">${no}</td>
-          <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${esc(fmtMonth(STATE.month))}</td>
+          <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${esc(fmtMonthDisp(STATE.month))}</td>
           <td style="white-space:nowrap;">${esc(r.empId || '-')}</td>
           <td style="text-align:center;">${jcPill}</td>
           <td style="white-space:nowrap;font-weight:var(--fw-medium);">${esc(r.empName || '-')}</td>
@@ -837,7 +839,7 @@
           <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${p.resignDate ? esc(fmtYYMMDD(p.resignDate)) : '-'}</td>
           <td style="text-align:center;">${statusPill}</td>
           <td style="text-align:right;white-space:nowrap;${recent ? 'color:var(--color-text-sub);' : 'color:var(--color-text-muted);'}">${recent ? fmtWon(recent) : '-'}</td>
-          <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${last ? esc(fmtMonth(last)) : '-'}</td>
+          <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${last ? esc(fmtMonthDisp(last)) : '-'}</td>
           <td style="text-align:right;font-weight:var(--fw-semibold);color:var(--color-brand-primary);">${cum ? fmtWon(cum) : '<span style="color:var(--color-text-muted);font-weight:var(--fw-regular);">-</span>'}</td>
           <td style="text-align:center;">${wdCount ? `<span style="color:var(--color-danger);font-size:var(--fs-xs);">${wdCount}건</span>` : `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">0건</span>`}</td>
           <td style="text-align:center;"><button class="btn btn--xs" type="button" data-pen-detail="${esc(p.id)}">보기</button></td>
@@ -896,7 +898,7 @@
       </div>`;
     const summaryHTML = `
       <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">
-        ${stat('기업부담금 누계', fmtWon(cum), '원', 'var(--color-brand-primary)', '최종 납입월 ' + (last ? fmtMonth(last) : '-'))}
+        ${stat('기업부담금 누계', fmtWon(cum), '원', 'var(--color-brand-primary)', '최종 납입월 ' + (last ? fmtMonthDisp(last) : '-'))}
         ${stat('중도인출 누계', fmtWon(withdrawn), '원', withdrawn ? 'var(--color-danger)' : 'var(--color-text-muted)', wdCount + '건')}
       </div>`;
 
@@ -905,7 +907,7 @@
     const payRowsHTML = pays.length
       ? pays.map(p2 => `
           <tr>
-            <td style="text-align:center;white-space:nowrap;font-weight:var(--fw-medium);">${esc(fmtMonth(p2.month))}</td>
+            <td style="text-align:center;white-space:nowrap;font-weight:var(--fw-medium);">${esc(fmtMonthDisp(p2.month))}</td>
             <td style="text-align:right;white-space:nowrap;color:var(--color-brand-primary);font-weight:var(--fw-medium);">${fmtWon(p2.paidAmount)}</td>
             <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${p2.uploadedAt ? esc(fmtDateTime(p2.uploadedAt)) : '-'}</td>
             <td style="text-align:center;white-space:nowrap;color:var(--color-text-sub);">${esc(p2.uploadedBy || '-')}</td>
@@ -1360,7 +1362,7 @@
     STATE.up.page = 1;
     refreshUpload(pageEl);
     const checkN = (batch.rows || []).filter(r => r.status === 'check').length;
-    flashOk(`${fmtMonth(STATE.month)} ${wasApplied ? '재업로드' : '업로드'} 완료 · ${batch.rows.length}건 (확인 필요 ${checkN}건). 검토 후 [업로드 데이터 적용]하세요.`, checkN ? 'warning' : 'success');
+    flashOk(`${fmtMonthDisp(STATE.month)} ${wasApplied ? '재업로드' : '업로드'} 완료 · ${batch.rows.length}건 (확인 필요 ${checkN}건). 검토 후 [업로드 데이터 적용]하세요.`, checkN ? 'warning' : 'success');
   }
   function applyBatch(pageEl) {
     const view = App.HRPension.monthView(STATE.month);
@@ -1369,7 +1371,7 @@
     const proceed = () => {
       const res = App.HRPension.applyBatch(STATE.month);
       refreshUpload(pageEl);
-      flashOk(`${fmtMonth(STATE.month)} 기업부담금 ${res.applied}건이 적용되었습니다.${res.skipped ? ` (확인 필요 ${res.skipped}건 제외)` : ''}`);
+      flashOk(`${fmtMonthDisp(STATE.month)} 기업부담금 ${res.applied}건이 적용되었습니다.${res.skipped ? ` (확인 필요 ${res.skipped}건 제외)` : ''}`);
     };
     if (checkN && App.confirmModal) {
       App.confirmModal({
@@ -1397,14 +1399,14 @@
   function downloadTemplate() {
     const ym = STATE.month;
     const emps = activeMembers().filter(m => App.HRPension.isEnrolled(m.id));
-    const header = ['기준월', '사번', '사원유형', '가입자명', '주민등록번호', '기업부담금(퇴직금)', '비고'];
+    const header = ['기준월', '사번', '사원유형', '가입자명', '주민등록번호(앞 6자리)', '기업부담금(퇴직금)', '비고'];
     const lines = [header.join(',')];
     emps.forEach(m => {
       lines.push([ym, csvCell(m.id), jobCatLabel(m.jobCat), csvCell(m.name), '', App.HRPension.contribution(m.id), ''].map(csvCell).join(','));
     });
     const csv = '﻿' + lines.join('\r\n');
     triggerDownload(`퇴직연금_기업부담금_양식_${ym.replace('-', '')}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '퇴직연금 기업부담금 양식');
-    flashOk(`${fmtMonth(ym)} 기업부담금 양식을 받았습니다. (가입 직원 ${emps.length}명)`);
+    flashOk(`${fmtMonthDisp(ym)} 기업부담금 양식을 받았습니다. (가입 직원 ${emps.length}명)`);
   }
   function downloadCumulExcel() {
     const f = STATE.filter;

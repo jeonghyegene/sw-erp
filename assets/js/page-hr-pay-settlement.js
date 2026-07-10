@@ -45,6 +45,18 @@
     canceled:   { label: '중단됨',  pill: 'danger'  },
   };
   const STATUS_OPTIONS = Object.keys(STATUS).map(k => ({ value: k, label: STATUS[k].label }));
+
+  /* 정산 유형 — 정기 급여 / 기타.
+   *   regular(정기 급여) : 임금 계약과 연동된 기본급·근태 초과수당 등을 포함. 초과근무 정산기간 필요.
+   *   etc(기타)          : 기본급·근태 초과수당을 제외. 초과근무 정산기간 미노출. */
+  const SETTLE_TYPE = {
+    regular: { label: '정기 급여', desc: '임금 계약과 연동된 기본급, 근태 초과수당 등을 포함하여 정산합니다.' },
+    etc:     { label: '기타',      desc: '기본급, 근태 초과수당을 제외하여 정산합니다.' },
+  };
+  const SETTLE_TYPE_OPTIONS = Object.keys(SETTLE_TYPE).map(k => ({ value: k, label: SETTLE_TYPE[k].label }));
+  function settleTypeLabel(t) { return (SETTLE_TYPE[t] || SETTLE_TYPE.regular).label; }
+  function isRegularSettle(f) { return (f && f.settlementType || 'regular') === 'regular'; }
+
   function isConfigEditable(f) { return f && f.status === 'pending' && (Number(f.stage) || 0) === 0; }
   function isDeletable(s)      { return s === 'pending' || s === 'canceled'; }
   /* 작업 단계 별 라벨 (다음 단계 = 액션 버튼 라벨) */
@@ -149,9 +161,10 @@
     'PAY-SYS-021', /* 상여금2 — 주 52시간 초과 시 지급 (수기 입력) */
     'PAY-SYS-022', /* 연차수당 (수기 입력) */
     'PAY-SYS-023', /* 기타수당 (수기 입력) */
+    'PAY-SYS-024', /* 소급분 — 임금 소급 인상분 (수기 입력) */
   ];
   /* 수기 입력 지급 항목 — 자동 산출 없이 사용자가 직접 입력(기본 0). */
-  const MANUAL_PAY_ITEM_CODES = ['PAY-SYS-020', 'PAY-SYS-021', 'PAY-SYS-022', 'PAY-SYS-023'];
+  const MANUAL_PAY_ITEM_CODES = ['PAY-SYS-020', 'PAY-SYS-021', 'PAY-SYS-022', 'PAY-SYS-023', 'PAY-SYS-024'];
   /* 보호 항목 — 어디서도 삭제 불가 (사이드바·모달·마법사 공통). */
   const PROTECTED_PAY_ITEM_CODES = DEFAULT_PAY_ITEM_CODES.slice();
   function isPayItemProtected(code) { return PROTECTED_PAY_ITEM_CODES.includes(code); }
@@ -183,6 +196,7 @@
     'PAY-SYS-021': 110,  /* 상여금2 */
     'PAY-SYS-022': 110,  /* 연차수당 */
     'PAY-SYS-023': 110,  /* 기타수당 */
+    'PAY-SYS-024': 110,  /* 소급분 */
   };
   function buildPayItemCols(payItemCodes) {
     return (payItemCodes || []).map(code => {
@@ -293,9 +307,18 @@
     return `${y}-${m}-${dd}`;
   }
   function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+  /* ============ 날짜 표시 전용 헬퍼 (데이터 값은 ISO 유지, 화면 렌더 시점에만 변환) ============ */
+  function dispYmd(s) {   /* 'YYYY-MM-DD' → 'YY/MM/DD' */
+    s = String(s == null ? '' : s);
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(2, 4) + '/' + s.slice(5, 7) + '/' + s.slice(8, 10) : s;
+  }
+  function dispYm(s) {    /* 'YYYY-MM' → 'YY/MM' */
+    s = String(s == null ? '' : s);
+    return /^\d{4}-\d{2}/.test(s) ? s.slice(2, 4) + '/' + s.slice(5, 7) : s;
+  }
   function periodText(from, to) {
     if (!from && !to) return '-';
-    return `${from || '?'} ~ ${to || '?'}`;
+    return `${dispYmd(from) || '?'} ~ ${dispYmd(to) || '?'}`;
   }
   function ymToYYMM(ym) {
     if (!ym) return '0000';
@@ -376,6 +399,7 @@
       { id: 'PAY-SYS-021', code: 'PAY-SYS-021', name: '상여금2',          payMethod: 'variable', taxType: 'taxable', ordinaryWage: false },
       { id: 'PAY-SYS-022', code: 'PAY-SYS-022', name: '연차수당',         payMethod: 'variable', taxType: 'taxable', ordinaryWage: false },
       { id: 'PAY-SYS-023', code: 'PAY-SYS-023', name: '기타수당',         payMethod: 'variable', taxType: 'taxable', ordinaryWage: false },
+      { id: 'PAY-SYS-024', code: 'PAY-SYS-024', name: '소급분',           payMethod: 'variable', taxType: 'taxable', ordinaryWage: false },
     ];
   }
   /* 정산 단계에서 즉석 생성한 사용자 지정 지급 항목 (마스터에 영구 등록하지 않는 항목).
@@ -404,15 +428,27 @@
   /* ============ 직원 데이터 조회 (평가 회차와 동일 소스) ============
    *   급여 정산 대상은 「인사정보 관리」 정책상 「완료(completed)」 직원 한정.
    *   - completed = 계정등록 + 정보등록 + 근로계약 서명 + (계약직·일용직) 기간 유효
+   *   - 추가 가드: 임금계약 서명완료(유효)까지 충족해야 급여 정산 대상 (canSettlePayroll)
    *   - 등록·진행중·계약만료·퇴사는 대상에서 제외 */
   function listEmployeesMatchingFilter(tf) {
     const all = (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : [];
     const isActive = (e) => e.status !== 'retired' && e.status !== 'contractExpired';
     const isPayrollEligible = (e) => e.status === 'completed';
 
+    /* 급여 정산 자격 — 계정 등록완료 + 근로계약 서명완료 + 임금계약 서명완료(유효).
+       「인사정보 관리(App.HRInfoMgmt)」의 계약 상태를 단일 진실원으로 emp.id 조인해 판정.
+       (헬퍼/데이터 미로드 시 폴백: 게이팅 생략 — 기존 completed 가드만 적용) */
+    const IM = window.App && App.HRInfoMgmt;
+    let settleOkIds = null;
+    if (IM && typeof IM.canSettlePayroll === 'function' && typeof IM.list === 'function') {
+      settleOkIds = new Set(IM.list().filter(r => IM.canSettlePayroll(r)).map(r => r.id));
+    }
+
     return all.filter(e => {
       /* 정책 가드 — 「완료」가 아닌 직원은 어떤 필터를 걸어도 대상에서 제외 */
       if (!isPayrollEligible(e)) return false;
+      /* 임금계약 서명완료(유효) 미달자 제외 */
+      if (settleOkIds && !settleOkIds.has(e.id)) return false;
       if (tf.empStatus && tf.empStatus.length) {
         const ok = (tf.empStatus.includes('active') && isActive(e))
                 || (tf.empStatus.includes('leave')  && !isActive(e));
@@ -445,43 +481,64 @@
     };
   }
 
-  /* ============ 지급일 기준 자동 채움 ============
-   *   지급일(payDate)을 정하면 그 직전 월(지급월의 한 달 전) 전체를 자동으로 채운다.
-   *     · 귀속월        = 직전 월 (YYYY-MM)
-   *     · 대상자 조회기간 = 직전 월 1일 ~ 말일
-   *     · 초과근무 정산기간 = 직전 월 1일 ~ 말일
-   *   예) 지급일 2026-06-10 → 귀속월 2026-05 · 기간 2026-05-01 ~ 2026-05-31 */
-  function applyPayDateAutoFill(f) {
-    if (!f || !f.payDate) return;
-    const d = new Date(f.payDate);
-    if (isNaN(d.getTime())) return;
-    let py = d.getFullYear();
-    let pm = d.getMonth() - 1;            // 지급월(0-based)의 한 달 전 = 직전 월
-    if (pm < 0) { pm = 11; py -= 1; }
-    const mm = String(pm + 1).padStart(2, '0');
-    const ym = `${py}-${mm}`;
-    const lastDay = new Date(py, pm + 1, 0).getDate();   // 직전 월 말일
-    const first = `${ym}-01`;
-    const last  = `${ym}-${String(lastDay).padStart(2, '0')}`;
-    f.accruedMonth = ym;
-    f.targetFrom = first; f.targetTo = last;
-    f.otFrom     = first; f.otTo     = last;
+  /* ============ 초과근무 정산기간 산출 ============
+   *   귀속월(YYYY-MM) 기준 「전월 26일 ~ 귀속월 25일」. (정기 급여 전용) */
+  function otPeriodFromMonth(ym) {
+    const [ys, ms] = String(ym || '').split('-');
+    const y = Number(ys), m = Number(ms);       // m: 1-based
+    if (!y || !m) return null;
+    const p2 = (n) => String(n).padStart(2, '0');
+    let pvy = y, pvm = m - 1;
+    if (pvm < 1) { pvm = 12; pvy -= 1; }         // 전월 (연 경계 처리)
+    return { from: `${pvy}-${p2(pvm)}-26`, to: `${y}-${p2(m)}-25` };
+  }
+
+  /* ============ 귀속월 기준 자동 채움 ============
+   *   귀속월(accruedMonth)을 정하면 나머지 일자를 자동으로 채운다.
+   *     · 지급일          = 익월 10일
+   *     · 대상자 조회기간 = 귀속월 1일 ~ 말일
+   *     · 초과근무 정산기간 = 전월 26일 ~ 귀속월 25일 (정기 급여만)
+   *   예) 귀속월 2026-05 → 지급일 2026-06-10 · 조회 2026-05-01~05-31 · 초과 2026-04-26~05-25 */
+  function applyAccruedMonthAutoFill(f) {
+    if (!f || !f.accruedMonth) return;
+    const [ys, ms] = String(f.accruedMonth).split('-');
+    const y = Number(ys), m = Number(ms);        // m: 1-based
+    if (!y || !m) return;
+    const p2 = (n) => String(n).padStart(2, '0');
+
+    /* 지급일 = 익월 10일 */
+    let ny = y, nm = m + 1;
+    if (nm > 12) { nm = 1; ny += 1; }
+    f.payDate = `${ny}-${p2(nm)}-10`;
+
+    /* 대상자 조회기간 = 귀속월 1일 ~ 말일 */
+    const lastDay = new Date(y, m, 0).getDate();  // m(1-based) → 해당 월 말일
+    f.targetFrom = `${y}-${p2(m)}-01`;
+    f.targetTo   = `${y}-${p2(m)}-${p2(lastDay)}`;
+
+    /* 초과근무 정산기간 = 전월 26일 ~ 귀속월 25일 (정기 급여만) */
+    if (isRegularSettle(f)) {
+      const ot = otPeriodFromMonth(f.accruedMonth);
+      if (ot) { f.otFrom = ot.from; f.otTo = ot.to; }
+    } else {
+      f.otFrom = ''; f.otTo = '';
+    }
   }
 
   /* ============ Mock 정산 데이터 ============ */
   function makeMock() {
     const cases = [
-      /* status: 'pending'|'finalized'|'canceled' / stage: 0-4 */
+      /* status: 'pending'|'finalized'|'canceled' / stage: 0-4 / settlementType: 'regular'|'etc' */
       { name: '2026년 5월 정기 급여 정산', accruedMonth: '2026-05', payDate: '2026-06-10',
-        status: 'pending',   stage: 0, payOffset: [-30, -1], otOffset: [-30, -1] },
+        status: 'pending',   stage: 0, settlementType: 'regular', payOffset: [-30, -1], otOffset: [-30, -1] },
       { name: '2026년 4월 정기 급여 정산', accruedMonth: '2026-04', payDate: '2026-05-10',
-        status: 'finalized', stage: 4, payOffset: [-60, -31], otOffset: [-60, -31] },
+        status: 'finalized', stage: 4, settlementType: 'regular', payOffset: [-60, -31], otOffset: [-60, -31] },
       { name: '2026년 3월 정기 급여 정산', accruedMonth: '2026-03', payDate: '2026-04-10',
-        status: 'finalized', stage: 4, payOffset: [-90, -61], otOffset: [-90, -61] },
-      { name: '2026년 5월 도급직 급여 정산', accruedMonth: '2026-05', payDate: '2026-06-15',
-        status: 'pending',   stage: 2, payOffset: [-30, -1], otOffset: [-30, -1] },
+        status: 'finalized', stage: 4, settlementType: 'regular', payOffset: [-90, -61], otOffset: [-90, -61] },
+      { name: '2026년 5월 상여금 정산', accruedMonth: '2026-05', payDate: '2026-06-15',
+        status: 'pending',   stage: 2, settlementType: 'etc',     payOffset: [-30, -1], otOffset: [-30, -1] },
       { name: '2026년 5월 일용직 급여 정산', accruedMonth: '2026-05', payDate: '2026-06-12',
-        status: 'pending',   stage: 1, payOffset: [-30, -1], otOffset: [-30, -1], empGroup: 'daily' },
+        status: 'pending',   stage: 1, settlementType: 'regular', payOffset: [-30, -1], otOffset: [-30, -1], empGroup: 'daily' },
     ];
     return cases.map((c, i) => {
       const payFrom = ymd(addDays(new Date(TODAY), c.payOffset[0]));
@@ -496,8 +553,10 @@
         name:         c.name,
         accruedMonth: c.accruedMonth,
         payDate:      c.payDate,
+        settlementType: c.settlementType || 'regular',
         targetFrom:   payFrom, targetTo: payTo,
-        otFrom:       otFrom,  otTo:     otTo,
+        otFrom:       c.settlementType === 'etc' ? '' : otFrom,
+        otTo:         c.settlementType === 'etc' ? '' : otTo,
         description:  '',
         status:       c.status,
         stage:        c.stage,
@@ -574,7 +633,7 @@
       placeholder: '정산명 또는 정산번호 검색',
       cols: 3,
       advanced: [
-        { name: 'accruedMonth', label: '귀속월',   options: monthOpts.map(m => ({ value: m, label: m })) },
+        { name: 'accruedMonth', label: '귀속월',   options: monthOpts.map(m => ({ value: m, label: dispYm(m) })) },
         { name: 'status',       label: '진행 상태', options: STATUS_OPTIONS },
         { name: 'createdBy',    label: '생성자',   options: userOpts.map(u => ({ value: u, label: u })) },
       ],
@@ -606,8 +665,10 @@
                 <th style="width:140px;">정산번호</th>
                 <th style="width:90px;text-align:center;">귀속월</th>
                 <th style="width:100px;text-align:center;">지급일</th>
+                <th style="width:100px;text-align:center;">정산유형</th>
                 <th>정산명</th>
                 <th style="width:200px;white-space:nowrap;text-align:center;">대상자 조회기간</th>
+                <th style="width:200px;white-space:nowrap;text-align:center;">초과근무 정산기간</th>
                 <th style="width:90px;text-align:right;">대상자 수</th>
                 <th style="width:110px;text-align:center;">상태</th>
                 <th style="width:120px;text-align:center;"></th>
@@ -702,7 +763,7 @@
 
     const body = $('#prs-list-body', pageEl); if (!body) return;
     body.innerHTML = !rows.length
-      ? `<tr><td colspan="9" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">조건에 해당하는 정산 회차가 없습니다.</td></tr>`
+      ? `<tr><td colspan="11" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">조건에 해당하는 정산 회차가 없습니다.</td></tr>`
       : rows.map(r => {
           const sel = STATE.selectedIds.has(r.id);
           const actionBtn = (() => {
@@ -715,10 +776,12 @@
             <tr data-prs-row="${esc(r.id)}" class="${sel ? 'is-selected' : ''}">
               <td style="text-align:center;"><input type="checkbox" data-prs-row-cb ${sel ? 'checked' : ''} /></td>
               <td style="white-space:nowrap;">${esc(r.id)}</td>
-              <td style="text-align:center;white-space:nowrap;">${esc(r.accruedMonth || '-')}</td>
-              <td style="text-align:center;white-space:nowrap;">${esc(r.payDate || '-')}</td>
+              <td style="text-align:center;white-space:nowrap;">${esc(r.accruedMonth ? dispYm(r.accruedMonth) : '-')}</td>
+              <td style="text-align:center;white-space:nowrap;">${esc(r.payDate ? dispYmd(r.payDate) : '-')}</td>
+              <td style="text-align:center;white-space:nowrap;">${esc(settleTypeLabel(r.settlementType))}</td>
               <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;"><a href="#" data-prs-open style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.name)}</a></td>
               <td style="white-space:nowrap;text-align:center;">${esc(periodText(r.targetFrom, r.targetTo))}</td>
+              <td style="white-space:nowrap;text-align:center;">${(r.settlementType || 'regular') === 'regular' ? esc(periodText(r.otFrom, r.otTo)) : '<span style="color:var(--color-text-muted);">-</span>'}</td>
               <td style="text-align:right;">${(r.targetCount || 0).toLocaleString()}</td>
               <td style="text-align:center;">${statusPill(r.status)}</td>
               <td style="text-align:center;">${actionBtn}</td>
@@ -820,6 +883,7 @@
 
     STATE.rounds.unshift({
       id: newId, name,
+      settlementType: src.settlementType || 'regular',
       accruedMonth, payDate,
       targetFrom, targetTo,
       otFrom: src.otFrom, otTo: src.otTo,
@@ -865,9 +929,10 @@
 
   function newFormDefaults() {
     const accruedMonth = TODAY.slice(0, 7);
-    return {
+    const f = {
       id:           nextSettleId(STATE.rounds, accruedMonth),
       name:         '',
+      settlementType: 'regular',
       accruedMonth, payDate: '',
       targetFrom:   '', targetTo: '',
       otFrom:       '', otTo:    '',
@@ -881,12 +946,15 @@
       ledger:       null,
       step:         1,    /* 1: 기본정보 / 2: 대상자 / 3: 지급항목 / 4: 공제항목 */
     };
+    applyAccruedMonthAutoFill(f);   /* 기본 귀속월 기준으로 지급일·조회기간·초과근무기간 초기 채움 */
+    return f;
   }
   function cloneRoundForEdit(r) {
     const codes = (r.payItemCodes || DEFAULT_PAY_ITEM_CODES).slice();
     return {
       id:           r.id,
       name:         r.name,
+      settlementType: r.settlementType || 'regular',
       accruedMonth: r.accruedMonth,
       payDate:      r.payDate,
       targetFrom:   r.targetFrom, targetTo: r.targetTo,
@@ -1272,7 +1340,7 @@
           <div class="prs-editor__toolbar-left">
             <span class="prs-round-meta">
               <span class="prs-round-meta__k">귀속월</span>
-              <strong class="prs-round-meta__v">${esc(f.accruedMonth || '-')}</strong>
+              <strong class="prs-round-meta__v">${esc(f.accruedMonth ? dispYm(f.accruedMonth) : '-')}</strong>
               <span class="prs-round-meta__sep">|</span>
               <span class="prs-round-meta__k">정산기간</span>
               <strong class="prs-round-meta__v">${esc(periodText(f.targetFrom, f.targetTo))}</strong>
@@ -2045,10 +2113,54 @@
     return { grand, ded, net };
   }
 
-  /* ============ 섹션 1. 기본 정보 ============ */
+  /* ============ 섹션 1. 기본 정보 ============
+   *   필드 순서: 정산번호 · 정산유형 · 정산명 · 귀속월 · 지급일 · 대상자 조회기간 ·
+   *              초과근무 정산기간(정기 급여만) · 설명. */
   function renderSectionBasic(f, editable, isCreate) {
     const dis = editable ? '' : 'disabled';
     const row2GT = 'grid-template-columns:130px 1fr 130px 1fr;';
+    const row1GT = 'grid-template-columns:130px 1fr;';
+    const isReg  = isRegularSettle(f);
+    const curType = f.settlementType || 'regular';
+
+    /* 정산유형 라디오 + 선택된 유형 안내(작게) */
+    const typeRadio = (val) => `
+      <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;">
+        <input type="radio" name="prs-settle-type" data-prs-settle-type value="${val}" ${curType === val ? 'checked' : ''} ${dis} /> ${esc(SETTLE_TYPE[val].label)}
+      </label>`;
+    const typeCell = `
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;gap:18px;flex-wrap:wrap;">${typeRadio('regular')}${typeRadio('etc')}</div>
+        <span class="form-help" style="font-size:var(--fs-xs);color:var(--color-text-muted);">${esc(SETTLE_TYPE[curType].desc)}</span>
+      </div>`;
+
+    /* 대상자 조회기간 / 초과근무 정산기간 행 —
+       초과근무 정산기간은 정기 급여일 때만 노출. 기타는 대상자 조회기간만 1-col 로. */
+    const otCell = `
+      <div class="fm-tbl__value" style="gap:6px;">
+        <input class="input" type="date" id="prs-f-ofrom" value="${esc(f.otFrom)}" ${dis} />
+        <span style="color:var(--color-text-muted);">~</span>
+        <input class="input" type="date" id="prs-f-oto" value="${esc(f.otTo)}" ${dis} />
+      </div>`;
+    const periodRow = isReg
+      ? `<div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
+           <div class="fm-tbl__label">대상자 조회기간 ${REQ_MARK}</div>
+           <div class="fm-tbl__value" style="gap:6px;">
+             <input class="input" type="date" id="prs-f-tfrom" value="${esc(f.targetFrom)}" ${dis} />
+             <span style="color:var(--color-text-muted);">~</span>
+             <input class="input" type="date" id="prs-f-tto" value="${esc(f.targetTo)}" ${dis} />
+           </div>
+           <div class="fm-tbl__label">초과근무 정산기간 ${REQ_MARK}</div>
+           ${otCell}
+         </div>`
+      : `<div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
+           <div class="fm-tbl__label">대상자 조회기간 ${REQ_MARK}</div>
+           <div class="fm-tbl__value" style="gap:6px;">
+             <input class="input" type="date" id="prs-f-tfrom" value="${esc(f.targetFrom)}" ${dis} />
+             <span style="color:var(--color-text-muted);">~</span>
+             <input class="input" type="date" id="prs-f-tto" value="${esc(f.targetTo)}" ${dis} />
+           </div>
+         </div>`;
 
     return sectionCard(1, '기본 정보', `
       <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
@@ -2057,36 +2169,27 @@
           <div class="fm-tbl__value">
             <input type="text" class="input" id="prs-f-id" value="${esc(f.id)}" style="width:100%;max-width:200px;background:var(--color-surface-alt);" disabled />
           </div>
+          <div class="fm-tbl__label">정산유형 ${REQ_MARK}</div>
+          <div class="fm-tbl__value">${typeCell}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
           <div class="fm-tbl__label">정산명 ${REQ_MARK}</div>
           <div class="fm-tbl__value">
             <input class="input" type="text" id="prs-f-name" value="${esc(f.name)}" placeholder="예: 2026년 5월 정기 급여 정산" style="width:100%;max-width:480px;" ${dis} />
           </div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
-          <div class="fm-tbl__label">지급일 ${REQ_MARK}</div>
-          <div class="fm-tbl__value">
-            <input class="input" type="date" id="prs-f-paydate" value="${esc(f.payDate)}" style="width:160px;" ${dis} />
-          </div>
           <div class="fm-tbl__label">귀속월 ${REQ_MARK}</div>
           <div class="fm-tbl__value">
             <input class="input" type="month" id="prs-f-month" value="${esc(f.accruedMonth)}" style="width:160px;" ${dis} />
           </div>
-        </div>
-        <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
-          <div class="fm-tbl__label">대상자 조회기간 ${REQ_MARK}</div>
-          <div class="fm-tbl__value" style="gap:6px;">
-            <input class="input" type="date" id="prs-f-tfrom" value="${esc(f.targetFrom)}" ${dis} />
-            <span style="color:var(--color-text-muted);">~</span>
-            <input class="input" type="date" id="prs-f-tto" value="${esc(f.targetTo)}" ${dis} />
-          </div>
-          <div class="fm-tbl__label">초과근무 정산기간 ${REQ_MARK}</div>
-          <div class="fm-tbl__value" style="gap:6px;">
-            <input class="input" type="date" id="prs-f-ofrom" value="${esc(f.otFrom)}" ${dis} />
-            <span style="color:var(--color-text-muted);">~</span>
-            <input class="input" type="date" id="prs-f-oto" value="${esc(f.otTo)}" ${dis} />
+          <div class="fm-tbl__label">지급일 ${REQ_MARK}</div>
+          <div class="fm-tbl__value">
+            <input class="input" type="date" id="prs-f-paydate" value="${esc(f.payDate)}" style="width:160px;" ${dis} />
           </div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:130px 1fr;">
+        ${periodRow}
+        <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
           <div class="fm-tbl__label">설명</div>
           <div class="fm-tbl__value">
             <input class="input" type="text" id="prs-f-desc" value="${esc(f.description)}" placeholder="정산에 대한 메모/안내" style="width:100%;" ${dis} />
@@ -2097,11 +2200,11 @@
             <div class="fm-tbl__label">생성자</div>
             <div class="fm-tbl__value">${esc(f.createdBy || '-')}</div>
             <div class="fm-tbl__label">생성일</div>
-            <div class="fm-tbl__value">${esc(f.createdAt || '-')}</div>
+            <div class="fm-tbl__value">${esc(f.createdAt ? dispYmd(f.createdAt) : '-')}</div>
           </div>
         `}
       </div>
-    `, { help: isCreate ? '정산명·귀속월·지급일·기간을 입력하세요.' : '' });
+    `, { help: isCreate ? '정산유형·정산명·귀속월·지급일·기간을 입력하세요.' : '' });
   }
 
   /* ============ 섹션 2. 정산 대상자 (필터) ============ */
@@ -2509,30 +2612,43 @@
       el.addEventListener('change', () => { f[key] = el.value; });
     };
     setVal('#prs-f-name',    'name');
-    setVal('#prs-f-month',   'accruedMonth');
+    /* #prs-f-month(귀속월) 는 아래 전용 핸들러에서 자동 채움과 함께 처리 */
     setVal('#prs-f-tfrom',   'targetFrom');
     setVal('#prs-f-tto',     'targetTo');
     setVal('#prs-f-ofrom',   'otFrom');
     setVal('#prs-f-oto',     'otTo');
     setVal('#prs-f-desc',    'description');
 
-    /* 지급일 — 설정 시 직전 월 전체로 귀속월·대상자 조회기간·초과근무 정산기간 자동 채움 */
-    const payEl = pageEl.querySelector('#prs-f-paydate');
-    if (payEl) payEl.addEventListener('change', () => {
-      f.payDate = payEl.value;
-      applyPayDateAutoFill(f);
-      if (STATE.view === 'create') f.id = nextSettleId(STATE.rounds, f.accruedMonth);
-      renderFormView(pageEl);   // 자동 채운 귀속월·기간을 입력 폼에 반영
+    /* 정산유형(정기 급여/기타) — 초과근무 정산기간 노출/안내 문구가 달라지므로 전체 재렌더 */
+    pageEl.querySelectorAll('[data-prs-settle-type]').forEach(el => {
+      el.addEventListener('change', () => {
+        if (!el.checked) return;
+        f.settlementType = el.value;
+        if (f.settlementType !== 'regular') {
+          f.otFrom = ''; f.otTo = '';       // 기타: 초과근무 정산기간 미사용
+        } else {
+          const ot = otPeriodFromMonth(f.accruedMonth);   // 정기 급여 전환 — 전월26~귀속월25 재계산
+          if (ot) { f.otFrom = ot.from; f.otTo = ot.to; }
+        }
+        renderFormView(pageEl);
+      });
     });
 
-    /* 귀속월 변경 시 정산번호 재채번 (create 시점만) */
-    const monthEl = pageEl.querySelector('#prs-f-month');
-    if (monthEl && STATE.view === 'create') {
-      monthEl.addEventListener('change', () => {
-        f.id = nextSettleId(STATE.rounds, f.accruedMonth);
-        const idEl = pageEl.querySelector('#prs-f-id'); if (idEl) idEl.value = f.id;
-      });
+    /* 지급일 — 귀속월 기준으로 자동 설정되지만 수기 조정 허용 */
+    const payEl = pageEl.querySelector('#prs-f-paydate');
+    if (payEl) {
+      payEl.addEventListener('input',  () => { f.payDate = payEl.value; });
+      payEl.addEventListener('change', () => { f.payDate = payEl.value; });
     }
+
+    /* 귀속월 — 지급일·대상자 조회기간·초과근무 정산기간 자동 채움 + 정산번호 재채번 */
+    const monthEl = pageEl.querySelector('#prs-f-month');
+    if (monthEl) monthEl.addEventListener('change', () => {
+      f.accruedMonth = monthEl.value;
+      applyAccruedMonthAutoFill(f);
+      if (STATE.view === 'create') f.id = nextSettleId(STATE.rounds, f.accruedMonth);
+      renderFormView(pageEl);   // 자동 채운 지급일·기간을 입력 폼에 반영
+    });
 
     /* 대상자 필터 */
     const tf = f.targetFilter;
@@ -2614,7 +2730,7 @@
       if (!f.accruedMonth)           { window.toast && window.toast('귀속월을 입력하세요.', 'warning'); return false; }
       if (!f.payDate)                { window.toast && window.toast('지급일을 입력하세요.', 'warning'); return false; }
       if (!f.targetFrom || !f.targetTo) { window.toast && window.toast('대상자 조회기간을 입력하세요.', 'warning'); return false; }
-      if (!f.otFrom || !f.otTo)         { window.toast && window.toast('초과근무 정산기간을 입력하세요.', 'warning'); return false; }
+      if (isRegularSettle(f) && (!f.otFrom || !f.otTo)) { window.toast && window.toast('초과근무 정산기간을 입력하세요.', 'warning'); return false; }
       return true;
     }
     if (step === 2) {
@@ -2637,8 +2753,9 @@
     const f = STATE.form;
     if (!f) return false;
     if (step === 1) {
+      const otOk = !isRegularSettle(f) || (f.otFrom && f.otTo);
       return !!((f.name || '').trim() && f.accruedMonth && f.payDate
-        && f.targetFrom && f.targetTo && f.otFrom && f.otTo);
+        && f.targetFrom && f.targetTo && otOk);
     }
     if (step === 2) {
       const matched = listEmployeesMatchingFilter(f.targetFilter);
@@ -3307,11 +3424,13 @@
         ? matched.filter(e => f.targetEmpIds.has(e.id)).map(e => e.id)
         : matched.map(e => e.id);
       const newId = nextSettleId(STATE.rounds, f.accruedMonth);
+      const isReg = isRegularSettle(f);
       STATE.rounds.unshift({
         id: newId, name: f.name,
+        settlementType: f.settlementType || 'regular',
         accruedMonth: f.accruedMonth, payDate: f.payDate,
         targetFrom: f.targetFrom, targetTo: f.targetTo,
-        otFrom: f.otFrom, otTo: f.otTo,
+        otFrom: isReg ? f.otFrom : '', otTo: isReg ? f.otTo : '',
         description: f.description,
         status: 'pending',
         stage: 0,
@@ -3327,11 +3446,13 @@
     } else if (STATE.editingId) {
       const r = STATE.rounds.find(x => x.id === STATE.editingId);
       if (r) {
+        const isReg = isRegularSettle(f);
         Object.assign(r, {
           name: f.name,
+          settlementType: f.settlementType || 'regular',
           accruedMonth: f.accruedMonth, payDate: f.payDate,
           targetFrom: f.targetFrom, targetTo: f.targetTo,
-          otFrom: f.otFrom, otTo: f.otTo,
+          otFrom: isReg ? f.otFrom : '', otTo: isReg ? f.otTo : '',
           description: f.description,
           targetFilter: f.targetFilter,
           payItemCodes: (f.payItemCodes || []).slice(),
@@ -3885,9 +4006,9 @@
   function _insStampNow() {
     const d = new Date();
     const p2 = n => String(n).padStart(2, '0');
-    return `${String(d.getFullYear()).slice(-2)}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    return `${String(d.getFullYear()).slice(-2)}/${p2(d.getMonth() + 1)}/${p2(d.getDate())}   ${p2(d.getHours())}:${p2(d.getMinutes())}`;
   }
-  function _insSeedStamp() { const [y, m, dd] = TODAY.split('-'); return `${y.slice(-2)}/${m}/${dd} 09:14`; }
+  function _insSeedStamp() { const [y, m, dd] = TODAY.split('-'); return `${y.slice(-2)}/${m}/${dd}   09:14`; }
 
   /* 보험별 최초 적용 기간 — 건강·고용: 당해 4월~익년 3월 / 국민연금: 당해 7월~익년 6월 */
   function _insInitialPeriod(sub) {
@@ -4695,14 +4816,17 @@
   function renderConfigBasicView(f) {
     const items = [
       { k: '정산번호', v: esc(f.id) },
+      { k: '정산유형', v: esc(settleTypeLabel(f.settlementType)) },
       { k: '정산명',   v: esc(f.name || '-') },
-      { k: '귀속월',   v: esc(f.accruedMonth || '-') },
-      { k: '지급일',   v: esc(f.payDate || '-') },
+      { k: '귀속월',   v: esc(f.accruedMonth ? dispYm(f.accruedMonth) : '-') },
+      { k: '지급일',   v: esc(f.payDate ? dispYmd(f.payDate) : '-') },
       { k: '대상자 조회기간',   v: esc(periodText(f.targetFrom, f.targetTo)) },
-      { k: '초과근무 정산기간', v: esc(periodText(f.otFrom, f.otTo)) },
-      { k: '생성자', v: esc(f.createdBy || '-') },
-      { k: '생성일', v: esc(f.createdAt || '-') },
     ];
+    if (isRegularSettle(f)) items.push({ k: '초과근무 정산기간', v: esc(periodText(f.otFrom, f.otTo)) });
+    items.push(
+      { k: '생성자', v: esc(f.createdBy || '-') },
+      { k: '생성일', v: esc(f.createdAt ? dispYmd(f.createdAt) : '-') },
+    );
     if (f.description) items.push({ k: '설명', v: esc(f.description), full: true });
     return kvCard(1, '기본 정보', items);
   }

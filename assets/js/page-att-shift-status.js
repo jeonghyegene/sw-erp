@@ -1,13 +1,13 @@
 /* =========================================================
- * Page: 근태 관리 > 근무조 현황 (전체 | 임직원별 | 부서별)
+ * Page: 근태 관리 > 근무스케줄 현황 (전체 | 임직원별 | 부서별)
  *
  *   App.AttShifts (근무조 마스터, page-att-shift.js 노출) +
  *   App.Employees (임직원 마스터, page-hr-* 노출) 를 결합하여
- *   구성원의 월별 근무조 배치를 조회한다.
+ *   구성원의 월별 근무스케줄 배치를 조회한다.
  *
  *   - 전체: 전직원 × 일자(31일) 매트릭스 (가로 스크롤)
  *   - 임직원별: 좌측 임직원 리스트 + 우측 4주 캘린더
- *   - 부서별: 부서별 근무조 분포 + 부서원 매트릭스
+ *   - 부서별: 부서별 근무스케줄 분포 + 부서원 매트릭스
  *
  *   [근무조 설정] 버튼 — page-att-shift (부서장 편성 detail) 로 진입.
  * ========================================================= */
@@ -38,7 +38,7 @@
   const STATE = {
     selectedDeptId: 'C0',  /* 임직원 관리와 동일 부서 id ('C0'=전사 전체) */
     ym: '2026-05',
-    viewMode: 'month',     /* 'month'(월간 일단위 매트릭스, 기본) | 'week'(주간 스케줄표) */
+    viewMode: 'week',      /* 주간 스케줄표 전용 — 월간 토글 제거(도메인 표준: 근무스케줄 현황은 주간으로만 조회) */
     weekStart: null,       /* 주간 모드 현재 주의 월요일(YYYY-MM-DD). null=오늘 기준 */
     targetEmp: null,
     targetDept: null,
@@ -46,12 +46,12 @@
     lastRefreshAt: null,
     /* 권한 모드 — true: 전사 관리자(조직도 전체 조회) / false: 부서장(자기 부서만 편성) */
     isManager: true,
-    myDept: '개발팀',       /* 부서장 모드에서 편성 대상이 되는 본인 부서 */
-    treeCollapsed: true,    /* 좌측 조직도 접힘 여부 — 화면 진입 시 접힘이 기본 */
+    myDept: '개발1팀',      /* 부서장 모드에서 편성 대상이 되는 본인 부서 (권한 관리 부서 트리 기준) */
+    treeCollapsed: false,   /* 좌측 조직도 접힘 여부 — 화면 진입 시 펼침이 기본(조직도 노출) */
   };
   const CHEV_L = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
   const CHEV_R = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
-  function HRI() { return window.App && App.HRInfoMgmt; }
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
   function selectedEmps() {
     const h = HRI();
     return (h && h.empsInDept) ? h.empsInDept(getEmps(), STATE.selectedDeptId) : getEmps();
@@ -69,13 +69,19 @@
   function getEmps() {
     /* 임직원 관리와 동기화된 근태 명단(App.AttStatus.EMP_LIST)을 단일 소스로 사용 */
     if (App.AttStatus && App.AttStatus.EMP_LIST && App.AttStatus.EMP_LIST.length) {
-      return App.AttStatus.EMP_LIST.map(e => ({ id: e.id, name: e.name, dept: e.dept, rank: e.rank || '', position: e.position || '', shift: e.shift || 'WTD01' }));
+      return App.AttStatus.EMP_LIST.map(e => ({ id: e.id, name: e.name, dept: e.dept, rank: e.rank || '', position: e.position || '', photoUrl: e.photoUrl || '', shift: e.shift || 'WTD01' }));
     }
     if (App.Employees && App.Employees.length) return App.Employees.slice();
     return [];
   }
   function getDepts() {
     return Array.from(new Set(getEmps().map(e => e.dept).filter(Boolean)));
+  }
+  /* 조직도(HRInfoMgmt) 기준 전 부서명을 트리 순서대로 — 전사(C0) 뷰에서 부서별 묶음 순서에 사용. */
+  function orderedDeptNames() {
+    const h = HRI();
+    if (h && h.deptsOrdered) return h.deptsOrdered().map(o => o.name);
+    return getDepts();
   }
   /* 신규 입사자(스케줄 미배정 추정) — 근무정책 설정 > 근무조 설정과 동일한 mock 판정(사번 끝 2자리 % 9 === 0).
      두 화면이 같은 인원을 '신규·미배정'으로 표시하도록 동일 로직 유지. */
@@ -117,25 +123,34 @@
     const idx = list.findIndex(s => s.code === code);
     return idx >= 0 ? `shift-chip--c${idx % 10}` : 'shift-chip--day';
   }
+  /* hex → rgba (칩 소프트 틴트 배경용) */
+  function hexToRgba(hex, a) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+    if (!m) return hex || 'transparent';
+    return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`;
+  }
   /* 근무조 칩 — full=true 면 근무조명+시간, false 면 코드만. 휴무(-)는 '휴일' 칩.
-     dateLabel 지정 시 카드 상단에 날짜 라벨을 붙인다(월간 예외 블록용). */
+     dateLabel 지정 시 카드 상단에 날짜 라벨을 붙인다(월간 예외 블록용).
+     감성 톤: 코드별 색상(파스텔)의 은은한 틴트 배경 + 좌측 색상 액센트 바. 승인 표시는 근무스케줄 편성에서만. */
   function shiftChip(code, full, dateLabel, appr) {
     if (!code || code === '-') return '<span class="shift-chip shift-chip--off">휴일</span>';
     const s = App.AttShifts && App.AttShifts.get(code);
     if (!s) return `<span class="shift-chip">${esc(code)}</span>`;
     const night = s.isNight;
-    const cls = night ? 'shift-chip--night' : shiftColorClass(code);
+    /* 근무조 칩 색상 — 근무조 설정에 매핑된 코드별 색상(파스텔 hex) 사용. */
+    const hex = (App.AttShifts && App.AttShifts.colorHex) ? App.AttShifts.colorHex(s.color) : '';
+    /* 조별 컬러 칩 — 사방 border 는 제거(클린 톤), 좌측 액센트 바만 유지. */
+    const styleAttr = hex
+      ? ` style="background:${hexToRgba(hex, 0.32)};border:0;border-left:3px solid ${hex};color:var(--color-text);"`
+      : '';
     const nm = s.label || s.code;
-    let title = `${dateLabel ? dateLabel + ' · ' : ''}${nm} (${s.code}) ${s.start}~${s.end}${night ? ' · 야간' : ''}`;
-    if (appr) title += ` · 근무조 변경 승인${appr.from ? ` (${appr.from}→${s.code})` : ''}${appr.reason ? ' · ' + appr.reason : ''}`;
-    /* 근무코드 + 근무코드명 함께 표기 (full 이면 시간까지). appr(승인 오버라이드)면 '승인' 마커. */
-    const apprHTML = appr ? `<span class="shift-chip__appr" title="근무조 변경 승인">승인</span>` : '';
+    const title = `${dateLabel ? dateLabel + ' · ' : ''}${nm} (${s.code}) ${s.start}~${s.end}${night ? ' · 야간' : ''}`;
     const dateHTML = dateLabel ? `<span class="shift-chip__date">${esc(dateLabel)}</span>` : '';
     const hd = `<span class="shift-chip__hd"><strong class="shift-chip__code">${esc(s.code)}</strong> <span class="shift-chip__nm">${esc(nm)}</span></span>`;
     const inner = full
-      ? `${apprHTML}${dateHTML}${hd}<span class="shift-chip__t">${esc(s.start)}~${esc(s.end)}</span>`
-      : `${apprHTML}${dateHTML}${hd}`;
-    return `<span class="shift-chip ${cls}${appr ? ' shift-chip--appr' : ''}" title="${esc(title)}">${inner}</span>`;
+      ? `${dateHTML}${hd}<span class="shift-chip__t">${esc(s.start)}~${esc(s.end)}</span>`
+      : `${dateHTML}${hd}`;
+    return `<span class="shift-chip"${styleAttr} title="${esc(title)}">${inner}</span>`;
   }
   /* 승인 근무조 변경 오버라이드 — 있으면 그 근무조로 확정 표시. */
   function overrideAt(emp, dateStr) {
@@ -201,9 +216,9 @@
   }
 
   /* ============ 기본 근무조 산출 — 「근무정책 설정」 반영(현실 고증) ============
-     부서에 설정된 근무정책(통상/교대)과 사용 근무코드·기본 근무코드를 근거로 평일 근무조를 정한다.
-       · 통상근무 — 부서 기본 근무코드로 매 평일 고정 (경영지원본부 = WTD01).
-       · 교대근무 — 부서 사용 근무코드 배열 안에서 주차마다 교대(사원별 시작조는 배정값 유지, 없으면 기본조).
+     부서에 설정된 근무정책(통상/교대)과 사용 가능한 근무조·기본 근무조를 근거로 평일 근무조를 정한다.
+       · 통상근무 — 부서 기본 근무조로 매 평일 고정 (경영지원본부 = WTD01).
+       · 교대근무 — 부서 사용 가능한 근무조 배열 안에서 주차마다 교대(사원별 시작조는 배정값 유지, 없으면 기본조).
        · 정책 미설정 부서 — 공유 단일 진실원(App.AttStatus.shiftCodeForDate) 폴백. */
   function basePlanCode(emp, dateStr) {
     const wd = parseYMD(dateStr).getDay();
@@ -218,7 +233,7 @@
         if (start < 0) start = Math.max(0, codes.indexOf(def));
         return codes[(start + weekIdx(dateStr)) % codes.length];
       }
-      return def;                                      /* 통상 — 기본 근무코드 고정 */
+      return def;                                      /* 통상 — 기본 근무조 고정 */
     }
     const A = App.AttStatus;
     return (A && A.shiftCodeForDate) ? A.shiftCodeForDate(emp, dateStr) : (emp.shift || 'WTD01');
@@ -227,7 +242,7 @@
   /* ============ 데모용 편성 상세 오버레이 ============
      설정된 스케줄 위에 일부 인원의 특정 평일에 「대체 근무조」를 결정적으로 배정(월간 예외 블록 시연).
      · 결정적(사번+일자) — 새로고침/재렌더에도 동일. 이 화면 로컬 표현(공유 근태 데이터 불변).
-     · 대체 근무조는 반드시 부서 「사용 근무코드」 내에서 선택 → 설정 배너와 일관(현실 고증).
+     · 대체 근무조는 반드시 부서 「사용 가능한 근무조」 내에서 선택 → 설정 배너와 일관(현실 고증).
      · 대상 ≈ 1/3 인원, 월 최대 2 평일. */
   function scheduleOverride(emp, dateStr, baseCode) {
     if (!baseCode || baseCode === '-') return baseCode;
@@ -237,7 +252,7 @@
     const day1 = 3 + (seed % 5);                              /* 3~7일 중 하루 */
     const day2 = 19 + (seed % 4);                             /* 19~22일 중 하루 */
     if (dd !== day1 && dd !== day2) return baseCode;
-    const allowed = deptAllowedCodes(emp.dept) || [];         /* 부서 사용 근무코드 */
+    const allowed = deptAllowedCodes(emp.dept) || [];         /* 부서 사용 가능한 근무조 */
     const others = allowed.filter(c => c !== baseCode);
     if (!others.length) return baseCode;
     return others[seed % others.length];
@@ -261,22 +276,13 @@
       const cnt = getEmps().filter(e => e.dept === STATE.myDept).length;
       scopeChip = `<div class="att-target-chip" style="cursor:default;"><span class="att-target-chip__name">${esc(STATE.myDept)}</span><span class="att-target-chip__meta">부서장 · ${cnt}명</span></div>`;
     }
-    const isWeek = STATE.viewMode === 'week';
-    const modeToggle = `
-      <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
-        <div class="tabs__nav">
-          <button type="button" class="tabs__tab ${isWeek ? 'is-active' : ''}" data-ss-mode="week">주간</button>
-          <button type="button" class="tabs__tab ${!isWeek ? 'is-active' : ''}" data-ss-mode="month">월간</button>
-        </div>
-      </div>`;
+    const isWeek = true;   /* 주간 전용 */
     let titleHTML;
-    if (isWeek) {
+    {
       const dates = weekDates7(currentWeekStart());
       const a = parseYMD(dates[0]), b = parseYMD(dates[6]);
-      const f = (d) => `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
+      const f = (d) => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
       titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`;
-    } else {
-      titleHTML = `<div class="att-tb__title">${STATE.ym.replace('-', '.')}</div>`;
     }
     const expander = (STATE.isManager && STATE.treeCollapsed)
       ? `<button class="split__expander" type="button" data-ss-tree-toggle title="조직도 펼치기" style="display:inline-flex;"><span>조직도</span>${CHEV_R}</button>`
@@ -293,23 +299,20 @@
           </div>
           ${scopeChip}
         </div>
-        <div style="flex:1;display:flex;justify-content:center;">${modeToggle}</div>
-        <div class="att-tb__right">
-          <button class="btn btn--sm btn--primary" type="button" data-ss-goto-manage>근무조 배치</button>
-        </div>
+        <div style="flex:1;"></div>
       </div>
     `;
   }
 
   /* ============ Views ============ */
 
-  /* 선택된 부서명(전체=C0 이면 '') — 정책·근무코드 조회 기준 */
+  /* 선택된 부서명(전체=C0 이면 '') — 정책·근무조 조회 기준 */
   function currentDeptName() {
     if (STATE.selectedDeptId === 'C0') return '';
     const h = HRI();
     return (h && h.deptName && h.deptName(STATE.selectedDeptId)) || '';
   }
-  /* 부서가 사용 가능한 근무코드 — 근무정책 설정(App.AttWorkPolicy)의 codes 우선,
+  /* 부서가 사용 가능한 근무조 — 근무정책 설정(App.AttWorkPolicy)의 codes 우선,
      미지정 시 근무조 마스터 useDepts(App.AttShifts.forDept) 기준으로 폴백. */
   function deptAllowedCodes(deptName) {
     if (!deptName) return null;
@@ -327,7 +330,7 @@
       ? '<span class="pill pill--purple">교대근무</span>'
       : '<span class="pill pill--info">통상근무</span>';
   }
-  /* 근무코드 인라인 표기 (코드 + 코드명 + 시간) — 「부서별 근무코드 설정」 배너의 po-info__code 표기와 동일. */
+  /* 근무조 인라인 표기 (코드 + 코드명 + 시간) — 「부서별 근무조 설정」 배너의 po-info__code 표기와 동일. */
   function codeInlineHTML(code) {
     const s = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
     const lbl = s ? (s.label || code) : code;
@@ -335,8 +338,8 @@
     return `<span class="ss-codeitem"><span class="po-info__code">${esc(code)}</span> ${esc(lbl)} ${tm}</span>`;
   }
 
-  /* ============ 상단 — 부서 근무정책 · 사용 근무코드 배너 ============
-     「부서별 근무코드 설정」 화면의 .po-info 요약 배너와 동일한 UI Kit 컴포넌트/표기 사용.
+  /* ============ 상단 — 부서 근무정책 · 사용 가능한 근무조 배너 ============
+     「부서별 근무조 설정」 화면의 .po-info 요약 배너와 동일한 UI Kit 컴포넌트/표기 사용.
      소스도 동일: App.AttWorkPolicy.deptPolicy(부서).policy/codes. */
   function renderPolicyBar() {
     const deptName = currentDeptName();
@@ -355,7 +358,7 @@
         </span>
         <span class="po-info__sep">|</span>
         <span class="po-info__pill">
-          <span class="po-info__pill-label">사용 근무코드</span>
+          <span class="po-info__pill-label">사용 가능한 근무조</span>
           <span class="po-info__pill-value">${codeVal}</span>
         </span>
       </div>`;
@@ -363,12 +366,17 @@
 
   /* ============ 성명 셀 (임직원 관리와 동일 — 아바타 + 이름 + 부서·직책 sub) ============ */
   function empNameCell(emp, extraHTML) {
-    const sub = [emp.dept, emp.position].filter(Boolean).map(esc).join(' · ');
-    const ch = esc((emp.name || '').slice(0, 1));
+    /* 부(部) 제거 — 이름 아래는 직위·직책만 표기 */
+    const sub = [emp.rank, emp.position].filter(Boolean).map(esc).join(' · ');
+    /* 아바타 — 임직원 관리와 동일하게 프로필 사진 우선, 없으면 이니셜 */
+    const photoUrl = emp.photoUrl || '';
+    const avatar = photoUrl
+      ? `<img class="ssw-tbl__ava ssw-tbl__ava--photo" src="${esc(photoUrl)}" alt="" onerror="this.classList.add('is-broken');this.removeAttribute('src');">`
+      : `<span class="ssw-tbl__ava">${esc((emp.name || '').slice(0, 1))}</span>`;
     return `
       <td class="ssw-tbl__namecell">
         <div class="ssw-tbl__person">
-          <span class="ssw-tbl__ava">${ch}</span>
+          ${avatar}
           <div class="ssw-tbl__nm">
             <div class="ssw-tbl__nm-top"><span class="ssw-tbl__name">${esc(emp.name)}</span></div>
             ${sub ? `<div class="ssw-tbl__nm-sub">${sub}</div>` : ''}
@@ -390,10 +398,11 @@
     const dayHead = dates.map(ds => {
       const dt = parseYMD(ds); const wd = dt.getDay();
       const cls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
-      return `<th class="ssw-tbl__day ${cls}"><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}.${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`;
+      return `<th class="ssw-tbl__day ${cls}"><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}/${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`;
     }).join('');
 
-    const rows = emps.map(emp => {
+    const colspan = dates.length + 1;
+    const empRow = (emp) => {
       const cells = dates.map((ds) => {
         const eff = effAt(emp, ds);
         const dt = parseYMD(ds); const wd = dt.getDay();
@@ -401,12 +410,36 @@
         return `<td class="ssw-tbl__day ${cls}">${shiftChip(eff.code, true, null, eff.ov)}</td>`;
       }).join('');
       return `<tr>${empNameCell(emp)}${cells}</tr>`;
-    }).join('');
+    };
+    /* 부서 묶음 헤더 — 전사(C0) 뷰에서 부서별로 인원을 그룹핑해 부서명 밴드로 구분. */
+    const groupHeader = (deptName, count) =>
+      `<tr class="ssw-tbl__group"><td colspan="${colspan}" style="background:var(--color-surface-alt);font-weight:var(--fw-semibold);color:var(--color-text);padding:8px 12px;border-top:1px solid var(--color-divider);">${esc(deptName || '미지정')} <span class="t-muted" style="font-weight:var(--fw-regular);font-size:var(--fs-xs);margin-left:4px;">${count}명</span></td></tr>`;
+
+    let rows;
+    if (STATE.selectedDeptId === 'C0') {
+      /* 전사 — 부서별로 묶어서(조직도 순서대로) 표시 */
+      const byDept = {};
+      emps.forEach(e => { (byDept[e.dept] = byDept[e.dept] || []).push(e); });
+      const parts = [];
+      const seen = new Set();
+      orderedDeptNames().forEach(dn => {
+        const list = byDept[dn];
+        if (list && list.length) { parts.push(groupHeader(dn, list.length)); parts.push(list.map(empRow).join('')); seen.add(dn); }
+      });
+      Object.keys(byDept).forEach(dn => {
+        if (!seen.has(dn)) { parts.push(groupHeader(dn, byDept[dn].length)); parts.push(byDept[dn].map(empRow).join('')); }
+      });
+      rows = parts.join('');
+    } else {
+      rows = emps.map(empRow).join('');
+    }
 
     return `
-      <div class="table-card" style="flex:1 1 0;display:flex;flex-direction:column;min-height:0;">
-        <div class="table-card__cap"><strong>총 ${emps.length}명</strong></div>
-        <div class="ssw-wrap">
+      <div class="toolbar">
+        <div class="toolbar__left"><span class="toolbar__count">총 <strong>${emps.length}</strong>명</span></div>
+      </div>
+      <div class="grid-wrap">
+        <div class="grid-scroll ssw-wrap">
           <table class="ssw-tbl ssw-tbl--sched">
             <thead>
               <tr>
@@ -415,7 +448,7 @@
               </tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="${dates.length + 1}" style="text-align:center;padding:30px;color:var(--color-text-muted);">표시할 인원이 없습니다.</td></tr>`}
+              ${rows || `<tr><td colspan="${colspan}" style="text-align:center;padding:30px;color:var(--color-text-muted);">표시할 인원이 없습니다.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -464,7 +497,7 @@
         entries.forEach(e => { freq[e.code] = (freq[e.code] || 0) + 1; });
         let primary = entries[0].code, best = 0;
         Object.keys(freq).forEach(c => { if (freq[c] > best) { best = freq[c]; primary = c; } });
-        /* 예외일(대표 외) — 큰 근무코드 블록 내부에 [날짜 + 근무코드] 로 담는다. 승인 오버라이드는 '승인' 마커. */
+        /* 예외일(대표 외) — 큰 근무조 블록 내부에 [날짜 + 근무조] 로 담는다. 승인 오버라이드는 '승인' 마커. */
         const exc = entries.filter(e => e.code !== primary);
         const excHTML = exc.map(e => shiftChip(e.code, true, mmdd(e.ds), e.ov)).join('');
         /* 대표 근무조가 승인 오버라이드로 채워진 주(주 전체 변경)면 대표 카드에도 마커 */
@@ -476,9 +509,11 @@
     const colspan = weeks.length + 1;
 
     return `
-      <div class="table-card" style="flex:1 1 0;display:flex;flex-direction:column;min-height:0;">
-        <div class="table-card__cap"><strong>총 ${emps.length}명</strong></div>
-        <div class="ssw-wrap">
+      <div class="toolbar">
+        <div class="toolbar__left"><span class="toolbar__count">총 <strong>${emps.length}</strong>명</span></div>
+      </div>
+      <div class="grid-wrap">
+        <div class="grid-scroll ssw-wrap">
           <table class="ssw-tbl ssw-tbl--sched ssw-tbl--month">
             <thead>
               <tr>
@@ -496,8 +531,7 @@
   }
 
   function renderBody() {
-    const table = STATE.viewMode === 'week' ? renderWeekView() : renderMonthView();
-    return renderPolicyBar() + table;
+    return renderWeekView();   /* 주간 전용 (근무정책·사용 가능한 근무조 배너 제거) */
   }
 
   /* 전사 관리자 = 조직도 + 우측 현황판 / 부서장 = 조직도 없이 본인 부서 화면만 (화면 분리) */
@@ -515,7 +549,7 @@
           </aside>
           <section class="split__right">
             <header class="att-page__head">${head}</header>
-            <div class="att-page__body" style="display:flex;flex-direction:column;gap:14px;min-height:0;overflow:hidden;">${body}</div>
+            <div class="att-page__body" style="display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:0;background:var(--color-surface);">${body}</div>
           </section>
         </div>`;
     }
@@ -587,35 +621,19 @@
         if (treeNode) { STATE.selectedDeptId = treeNode.dataset.id; renderAll(pageEl); return; }
       }
 
-      /* 주간/월간 모드 토글 */
-      const modeBtn = e.target.closest('[data-ss-mode]');
-      if (modeBtn) {
-        const mode = modeBtn.dataset.ssMode;
-        if (mode !== STATE.viewMode) { STATE.viewMode = mode; if (mode === 'week') STATE.weekStart = null; renderAll(pageEl); }
-        return;
-      }
-
-      const isWeek = STATE.viewMode === 'week';
-      if (e.target.closest('[data-ss-ym-prev]')) { if (isWeek) shiftWeekBy(-1); else { STATE.ym = shiftMonth(STATE.ym, -1); STATE.plan = {}; } renderAll(pageEl); return; }
-      if (e.target.closest('[data-ss-ym-next]')) { if (isWeek) shiftWeekBy(+1); else { STATE.ym = shiftMonth(STATE.ym, +1); STATE.plan = {}; } renderAll(pageEl); return; }
-      if (e.target.closest('[data-ss-today]'))   { STATE.ym = TODAY.slice(0, 7); STATE.weekStart = null; if (!isWeek) STATE.plan = {}; renderAll(pageEl); return; }
+      /* 주간 전용 — 주 단위 이동 */
+      if (e.target.closest('[data-ss-ym-prev]')) { shiftWeekBy(-1); renderAll(pageEl); return; }
+      if (e.target.closest('[data-ss-ym-next]')) { shiftWeekBy(+1); renderAll(pageEl); return; }
+      if (e.target.closest('[data-ss-today]'))   { STATE.weekStart = null; STATE.ym = TODAY.slice(0, 7); renderAll(pageEl); return; }
 
       if (e.target.closest('[data-ss-refresh]')) {
         STATE.plan = {};
         STATE.lastRefreshAt = nowHMS();
         renderAll(pageEl);
-        window.toast && window.toast('근무조 현황을 갱신했습니다.', 'success');
+        window.toast && window.toast('근무스케줄 현황을 갱신했습니다.', 'success');
         return;
       }
 
-      if (e.target.closest('[data-ss-goto-manage]')) {
-        if (App.Tabs && typeof App.Tabs.open === 'function') {
-          App.Tabs.open({ id: 'att-shift', label: '근무조 배치', page: 'page-att-shift' });
-        } else {
-          window.toast && window.toast('근무조 배치 화면을 열 수 없습니다.', 'warning');
-        }
-        return;
-      }
 
       const dp = e.target.closest('[data-ss-dept-open]');
       if (dp) { e.preventDefault(); STATE.scope = 'dept'; STATE.targetDept = dp.dataset.ssDeptOpen; renderAll(pageEl); return; }
@@ -657,10 +675,10 @@
     if (!pageEl) return;
     pageEl.__onShow = () => {
       if (!ensureDeps()) {
-        pageEl.innerHTML = `<div style="padding:24px;color:var(--color-text-muted);">근무조 모듈 로드 중...</div>`;
+        pageEl.innerHTML = `<div style="padding:24px;color:var(--color-text-muted);">근무스케줄 모듈 로드 중...</div>`;
         return;
       }
-      /* 임직원 관리 명단과 동기화 — 변경 시 근무조 배치 캐시 무효화 */
+      /* 임직원 관리 명단과 동기화 — 변경 시 근무스케줄 배치 캐시 무효화 */
       if (App.AttStatus.syncEmpList && App.AttStatus.syncEmpList()) STATE.plan = {};
       /* 승인된 근무조 변경 오버라이드 시드/구독 (전자결재 승인 결과 반영) */
       if (App.AttShiftOverrides) {
@@ -673,7 +691,7 @@
         bind(pageEl);
         STATE.lastRefreshAt = nowHMS();
       }
-      STATE.treeCollapsed = true;   /* 화면 진입 시 조직도 접힘을 기본값으로 (필요 시 "조직도 >" 버튼으로 펼침) */
+      STATE.treeCollapsed = false;   /* 화면 진입 시 조직도 펼침을 기본값으로 (조직도 노출) */
       renderAll(pageEl);
     };
   }

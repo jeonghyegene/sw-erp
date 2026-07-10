@@ -327,11 +327,13 @@
       <section id="page-att-leave-plan" class="page"></section>
       <!-- ===== Page: 연차 관리 > 연차 설정 ===== -->
       <section id="page-att-leave-set" class="page"></section>
-      <!-- ===== Page: 근무조 관리 > 부서별 근무조 현황 ===== -->
+      <!-- ===== Page: 근무스케줄 관리 > 부서별 근무스케줄 현황 ===== -->
       <section id="page-att-shift-status" class="page"></section>
-      <!-- ===== Page: 근무조 관리 > 근무정책 설정 ===== -->
+      <!-- ===== Page: 근무스케줄 관리 > 부서별 근무스케줄 배치 ===== -->
+      <section id="page-att-shift-batch" class="page"></section>
+      <!-- ===== Page: 근무스케줄 관리 > 근무정책 설정 ===== -->
       <section id="page-att-work-policy" class="page"></section>
-      <!-- ===== Page: 근무조 관리 > 근무조 설정 (메뉴 숨김) ===== -->
+      <!-- ===== Page: 근무스케줄 관리 > 근무조 설정 (메뉴 숨김) ===== -->
       <section id="page-att-shift" class="page"></section>
       <!-- ===== Page: 근태 > 경조사 > 경조사 내역 ===== -->
       <section id="page-att-event" class="page"></section>
@@ -636,6 +638,13 @@
                     <div class="fm-tbl__value" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;">
                       <div id="emp-dept-parent" style="font-size:var(--fs-md);color:var(--color-text);">—</div>
                       <select class="select" id="emp-dept-parent-select" style="display:none;width:100%;max-width:320px;"></select>
+                    </div>
+                  </div>
+                  <div class="fm-tbl__row fm-tbl__row--1" id="emp-dept-default-shift-field">
+                    <div class="fm-tbl__label"><span class="form-label is-required" style="padding:0;border:0;">기본 근무조</span></div>
+                    <div class="fm-tbl__value" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;">
+                      <select class="select" id="emp-dept-default-shift" style="width:100%;max-width:320px;"></select>
+                      <span class="form-help" style="margin:0;">근무조 설정의 근무조 마스터에서 선택합니다.</span>
                     </div>
                   </div>
                   <div class="fm-tbl__row fm-tbl__row--1" id="emp-dept-status-field">
@@ -1583,6 +1592,7 @@
   <script src="assets/js/page-att-leave.js"></script>
   <script src="assets/js/page-att-leave-plan.js"></script>
   <script src="assets/js/page-att-shift-status.js"></script>
+  <script src="assets/js/page-att-shift-batch.js"></script>
   <script src="assets/js/page-hr-meal.js"></script>
   <script src="assets/js/page-att-event.js"></script>
   <script src="assets/js/page-att-report-my.js"></script>

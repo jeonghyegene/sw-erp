@@ -247,6 +247,8 @@
     d.setMonth(d.getMonth() + months);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
+  /* 표시 전용 — 'YYYY-MM-DD' → 'YY/MM/DD' (SWADPIA §1). 데이터/비교/입력값(ISO)은 원본 유지. */
+  function fmtD(s) { if (!s) return s; const p = String(s).slice(0, 10).split('-'); return p.length < 3 ? s : `${p[0].slice(2)}/${p[1]}/${p[2]}`; }
   /* avatar 컬러 — 직원 아바타 공통 산식: 사번 끝 2자리 정수 % 6 + 1.
      emp.colorIdx 가 있으면 우선 사용. */
   function avColor(emp) {
@@ -841,7 +843,7 @@
       const ev = r.evaluator;
       const session = r.session;
       const postAction = session ? session.postAction : null;
-      const period = `${esc(e.probationStart || '?')} ~ ${esc(e.probationEnd || '?')}`;
+      const period = `${esc(fmtD(e.probationStart) || '?')} ~ ${esc(fmtD(e.probationEnd) || '?')}`;
       const daysCell = r.days === null ? '-'
         : r.days < 0 ? `<span class="t-danger">D+${Math.abs(r.days)}</span>`
         : r.days === 0 ? '<strong>D-DAY</strong>'
@@ -851,7 +853,7 @@
         <tr data-pep-row="${esc(e.id)}">
           <td style="white-space:nowrap;">${esc(e.id)}</td>
           <td>${nameCell(e)}</td>
-          <td style="white-space:nowrap;">${esc(e.joinDate || '-')}</td>
+          <td style="white-space:nowrap;">${esc(fmtD(e.joinDate) || '-')}</td>
           <td style="white-space:nowrap;">${period}</td>
           <td style="text-align:center;font-size:var(--fs-sm);color:var(--color-text-sub);">${daysCell}</td>
           ${!isHistory ? `
@@ -1125,7 +1127,7 @@
     const contentLines = [
       `· 대상자: ${emp.name} (${emp.id}, ${emp.dept || '-'})`,
       `· 처리 유형: ${cfg.titlePrefix}`,
-      `· 현재 수습 종료일: ${emp.probationEnd || '-'}`,
+      `· 현재 수습 종료일: ${fmtD(emp.probationEnd) || '-'}`,
     ].concat(cfg.contentExtra || []);
 
     App.openSystemApprovalModal({
@@ -1235,12 +1237,12 @@
       `· 처리 유형: ${kindLabel}`,
     ];
     if (ctx.kind === 'released') {
-      contentLines.push(`· 발령일: ${formData.releaseDate || '-'}`);
+      contentLines.push(`· 발령일: ${fmtD(formData.releaseDate) || '-'}`);
       contentLines.push(`· 근무 유형: ${formData.newEmpType === 'regular' ? '정규직' : (formData.newEmpType || '-')}`);
       if (formData.note) contentLines.push(`· 비고: ${formData.note}`);
     } else if (ctx.kind === 'extended') {
-      contentLines.push(`· 현재 수습 종료일: ${emp.probationEnd || '-'}`);
-      contentLines.push(`· 연장 후 종료일: ${formData.newProbationEnd || '-'}`);
+      contentLines.push(`· 현재 수습 종료일: ${fmtD(emp.probationEnd) || '-'}`);
+      contentLines.push(`· 연장 후 종료일: ${fmtD(formData.newProbationEnd) || '-'}`);
       if (formData.reason) contentLines.push(`· 연장 사유: ${formData.reason}`);
     } else if (ctx.kind === 'terminated') {
       if (formData.terminationDate) contentLines.push(`· 퇴사일: ${formData.terminationDate}`);
@@ -1534,7 +1536,7 @@
 
   function renderTargetCard(emp, ev, stage) {
     const probPeriod = (emp.probationStart || emp.probationEnd)
-      ? `${emp.probationStart || '?'} ~ ${emp.probationEnd || '?'}`
+      ? `${fmtD(emp.probationStart) || '?'} ~ ${fmtD(emp.probationEnd) || '?'}`
       : '';
     return `
       <section style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px 18px;display:flex;align-items:center;gap:14px;">
@@ -1546,7 +1548,7 @@
           </div>
           <div style="font-size:var(--fs-sm);color:var(--color-text-sub);margin-top:4px;">
             ${esc(emp.dept || '-')} · ${esc(emp.position || '-')} · ${esc(emp.rank || '-')}
-            ${emp.joinDate ? ` · 입사 ${esc(emp.joinDate)}` : ''}
+            ${emp.joinDate ? ` · 입사 ${esc(fmtD(emp.joinDate))}` : ''}
           </div>
           ${probPeriod ? `
             <div style="font-size:var(--fs-sm);color:var(--color-text-sub);margin-top:4px;display:inline-flex;align-items:center;gap:6px;">

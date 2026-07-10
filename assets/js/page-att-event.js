@@ -219,6 +219,15 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function won(n) { return (Number(n) || 0).toLocaleString('ko-KR'); }
+  /* 표시 전용 날짜/일시 포맷 (원본 ISO 값은 불변 — 비교·정렬·키에 사용) */
+  function fmtDate(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+    return m ? `${m[1].slice(2)}/${m[2]}/${m[3]}` : (s == null ? '' : String(s));
+  }
+  function fmtDateTime(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''));
+    return m ? `${m[1].slice(2)}/${m[2]}/${m[3]}   ${m[4]}:${m[5]}` : fmtDate(s);
+  }
 
   /* ============ STATE ============ */
   const STATE = {
@@ -366,9 +375,9 @@
           <td style="text-align:center;"><span class="pill pill--${catTone}" style="font-size:var(--fs-xs);">${esc(r.cat || '-')}</span></td>
           <td style="white-space:nowrap;">${esc(kindLabel(r.kind))}</td>
           <td>${esc(applyContent(r))}</td>
-          <td style="white-space:nowrap;">${esc(r.appliedAt || '-')}</td>
-          <td style="white-space:nowrap;">${esc(r.occuredAt || '-')}</td>
-          <td style="white-space:nowrap;">${r.processedAt ? esc(r.processedAt) : '<span class="t-muted">-</span>'}</td>
+          <td style="white-space:nowrap;">${r.appliedAt ? esc(fmtDate(r.appliedAt)) : '-'}</td>
+          <td style="white-space:nowrap;">${r.occuredAt ? esc(fmtDate(r.occuredAt)) : '-'}</td>
+          <td style="white-space:nowrap;">${r.processedAt ? esc(fmtDate(r.processedAt)) : '<span class="t-muted">-</span>'}</td>
           <td style="white-space:nowrap;">${esc(handler.name)}</td>
           <td style="text-align:center;"><span class="pill pill--${ps.tone}" style="font-size:var(--fs-xs);">${esc(ps.label)}</span></td>
           <td style="text-align:center;"><button class="btn btn--xs" type="button" data-evt-proc="${esc(r.id)}">상세 보기</button></td>
@@ -526,7 +535,7 @@
         <div class="att-doc-apr__name">${esc(s.name)}</div>
         <div class="att-doc-apr__status">
           <span class="pill pill--${s.status === '결재' ? 'success' : s.status === '반려' ? 'danger' : 'warning'}">${esc(s.status)}</span>
-          ${s.at ? `<small class="t-muted" style="margin-left:6px;">${esc(s.at)}</small>` : ''}
+          ${s.at ? `<small class="t-muted" style="margin-left:6px;">${esc(fmtDateTime(s.at))}</small>` : ''}
         </div>
       </div>
     `).join('');
@@ -555,7 +564,7 @@
           <div class="fm-tbl__label">경조 구분</div>
           <div class="fm-tbl__value">${esc(kindLabel(r.kind))}</div>
           <div class="fm-tbl__label">발생일</div>
-          <div class="fm-tbl__value">${esc(r.occuredAt || '-')}</div>
+          <div class="fm-tbl__value">${r.occuredAt ? esc(fmtDate(r.occuredAt)) : '-'}</div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--2" style="${GT2}">
           <div class="fm-tbl__label">경조휴가</div>
@@ -565,9 +574,9 @@
         </div>
         <div class="fm-tbl__row fm-tbl__row--2" style="${GT2}">
           <div class="fm-tbl__label">상신 일시</div>
-          <div class="fm-tbl__value">${esc(r.submittedAt || '-')}</div>
+          <div class="fm-tbl__value">${r.submittedAt ? esc(fmtDateTime(r.submittedAt)) : '-'}</div>
           <div class="fm-tbl__label">처리 일시</div>
-          <div class="fm-tbl__value">${esc(r.decidedAt || '-')}</div>
+          <div class="fm-tbl__value">${r.decidedAt ? esc(fmtDateTime(r.decidedAt)) : '-'}</div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--1" style="${GT1}">
           <div class="fm-tbl__label">증빙 서류</div>
@@ -611,7 +620,7 @@
           <div class="fm-tbl__label">화환 종류</div>
           <div class="fm-tbl__value"><span class="pill pill--${wr.tone}">${esc(wr.label)}</span></div>
           <div class="fm-tbl__label">발송 예정일</div>
-          <div class="fm-tbl__value">${esc(r.occuredAt || '-')}</div>
+          <div class="fm-tbl__value">${r.occuredAt ? esc(fmtDate(r.occuredAt)) : '-'}</div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--1" style="${GT1}">
           <div class="fm-tbl__label">배송지</div>
@@ -675,7 +684,7 @@
     const k = kindMeta(r.kind) || {};
     let detail = '';
     if (task === 'leave') {
-      detail = `경조휴가 <strong>${k.leaveDays}일</strong> · 발생일(${esc(r.occuredAt)}) 기준 사용`;
+      detail = `경조휴가 <strong>${k.leaveDays}일</strong> · 발생일(${esc(fmtDate(r.occuredAt))}) 기준 사용`;
     } else if (task === 'pay') {
       const rate = payRateOf(r.empType);
       const pay = Math.round((k.amount || 0) * rate);
@@ -722,7 +731,7 @@
           <div class="fm-tbl__label">경조 내용</div>
           <div class="fm-tbl__value">${esc(kindLabel(r.kind))} <span class="t-muted" style="font-size:var(--fs-xs);">(${esc(DOC_LABEL[r.docType] || '')} ${esc(r.eaNo)})</span></div>
           <div class="fm-tbl__label">발생일</div>
-          <div class="fm-tbl__value">${esc(r.occuredAt || '-')}</div>
+          <div class="fm-tbl__value">${r.occuredAt ? esc(fmtDate(r.occuredAt)) : '-'}</div>
         </div>
       </div>
 

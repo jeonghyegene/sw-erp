@@ -101,6 +101,19 @@
     return `${y}-${m}-${dd}`;
   }
   function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+  /* 표시 전용 날짜 포맷 (데이터/키 변형 금지 — 화면 렌더 시점에서만 사용) */
+  function fmtD(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})[-./](\d{2})[-./](\d{2})/);
+    return m ? m[1].slice(2) + '/' + m[2] + '/' + m[3] : s;
+  }
+  function fmtDT(s) {
+    if (!s) return s;
+    const m = String(s).match(/^(\d{4})[-./](\d{2})[-./](\d{2})[ T]?(\d{2}:\d{2})?/);
+    if (!m) return s;
+    const d = m[1].slice(2) + '/' + m[2] + '/' + m[3];
+    return m[4] ? d + '   ' + m[4] : d;
+  }
   function nowStamp() {
     const d = new Date(TODAY + 'T09:00');
     return `${ymd(d)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -494,10 +507,10 @@
                 </div>
               </td>
               <td>${esc(r.contentText)}</td>
-              <td style="text-align:center;">${esc(r.effectDate)}</td>
+              <td style="text-align:center;">${esc(fmtD(r.effectDate))}</td>
               <td style="text-align:center;">${statusPill(r.status)}</td>
               <td>${esc(r.registeredBy || '-')}</td>
-              <td>${esc(r.registeredAt)}</td>
+              <td>${esc(fmtDT(r.registeredAt))}</td>
             </tr>`;
         }).join('');
 
@@ -812,24 +825,10 @@
         if (em.toShift == null) em.toShift = dftFits;
         else if (em.toShift && codes.indexOf(em.toShift) < 0) em.toShift = dftFits;
       });
-      const workTypeCell = (em) => {
-        const pol = deptPolicyOf(em.toDept);
-        const allowed = [];
-        if (pol.regular) allowed.push(['regular', '통상근무']);
-        if (pol.shift)   allowed.push(['shift', '교대근무']);
-        if (!allowed.length) return `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">미설정</span>`;
-        const opts = allowed.map(([v, l]) => `<option value="${v}"${v === em.toWorkType ? ' selected' : ''}>${l}</option>`).join('');
-        return `<select class="select input--sm" data-apt-toworktype="${esc(em.id)}" style="width:100%;">${opts}</select>`;
-      };
-      const shiftCell = (em) => {
-        if (!em.toWorkType) return `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">-</span>`;
-        const codes = typeSchedCodes(em.toDept, em.toWorkType);
-        const opts = `<option value="">미배정</option>` +
-          codes.map(c => `<option value="${esc(c)}"${c === em.toShift ? ' selected' : ''}>${esc(shiftOptionLabel(c))}</option>`).join('');
-        return `<select class="select input--sm" data-apt-toshift="${esc(em.id)}" style="width:100%;">${opts}</select>`;
-      };
+      /* 근무형태·근무조는 화면에 노출하지 않는다 — 발령 부서에 배정된 「기본 근무조」가
+         자동 적용된다(위 forEach 가 em.toWorkType/toShift 를 부서 기본값으로 정규화). */
       host.innerHTML = `
-        ${sectionHead('발령 부서 / 근무형태 / 근무조 / 직무')}
+        ${sectionHead('발령 부서 / 직무')}
         ${EDIT.emps.length
           ? `${EDIT.emps.length > 1
               ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:8px 10px;background:var(--color-surface-alt);border-radius:var(--radius-md);">
@@ -845,7 +844,6 @@
                    <thead><tr>
                      <th>성명</th>
                      <th style="width:74px;">이전 부서</th><th style="width:104px;">발령 부서</th>
-                     <th style="width:92px;">근무형태</th><th style="width:170px;">근무조</th>
                      <th style="width:64px;">이전 직무</th><th style="width:96px;">발령 직무</th>
                    </tr></thead>
                    <tbody>
@@ -854,8 +852,6 @@
                          <td>${esc(em.name)} <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">${esc(em.id)}</span></td>
                          <td style="color:var(--color-text-muted);">${esc(em.dept || '-')}</td>
                          <td>${cellSelect('data-apt-todept', em.id, DEPTS, em.toDept)}</td>
-                         <td>${workTypeCell(em)}</td>
-                         <td>${shiftCell(em)}</td>
                          <td style="color:var(--color-text-muted);">${esc(em.job || '-')}</td>
                          <td>${cellSelect('data-apt-tojob', em.id, JOBS, em.toJob)}</td>
                        </tr>`).join('')}
@@ -949,7 +945,7 @@
                        <tr>
                          <td>${esc(em.name)} <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">${esc(em.id)}</span></td>
                          <td>${esc(em.leaveKindLabel || '-')}</td>
-                         <td style="text-align:center;">${esc(em.leaveEndDate || '-')}</td>
+                         <td style="text-align:center;">${esc(fmtD(em.leaveEndDate) || '-')}</td>
                        </tr>`).join('')}
                    </tbody>
                  </table>
@@ -1015,7 +1011,7 @@
       const h = () => { const em = EDIT.emps.find(x => x.id === sel.getAttribute(attr)); if (em) em[key] = sel.value; syncPreview(); validateEditor(); };
       sel.addEventListener('change', h);
     });
-    /* 전보 발령 부서 변경 — 새 부서의 근무형태/근무조가 다르므로 재렌더(init forEach 가 형태·근무조 정규화). */
+    /* 전보 발령 부서 변경 — 새 부서의 기본 근무조가 다르므로 재렌더(init forEach 가 근무형태·근무조를 부서 기본값으로 정규화). */
     document.querySelectorAll('[data-apt-todept]').forEach(sel => {
       sel.addEventListener('change', () => {
         const em = EDIT.emps.find(x => x.id === sel.getAttribute('data-apt-todept'));
@@ -1025,17 +1021,6 @@
         renderKindFields(); bindTransferInputs(); syncPreview(); validateEditor();
       });
     });
-    /* 전보 근무형태 변경 — 해당 형태의 사용 근무조로 옵션 변경(재렌더 시 무효 근무조 초기화). */
-    document.querySelectorAll('[data-apt-toworktype]').forEach(sel => {
-      sel.addEventListener('change', () => {
-        const em = EDIT.emps.find(x => x.id === sel.getAttribute('data-apt-toworktype'));
-        if (!em) return;
-        em.toWorkType = sel.value;
-        em.toShift = null;   /* 해당 근무형태의 기본 근무조로 재산정 */
-        renderKindFields(); bindTransferInputs(); syncPreview(); validateEditor();
-      });
-    });
-    rowBind('data-apt-toshift',    'toShift');     // 전보 근무조
     rowBind('data-apt-tojob',      'toJob');       // 전보
     rowBind('data-apt-torank-row', 'toRank');      // 승진
     rowBind('data-apt-topos-row',  'toPosition');  // 승진
@@ -1460,12 +1445,12 @@
     } else if (row.kind === '복직') {
       /* 복직 — 복직 부서는 표기하지 않음(휴직 직전 부서 유지). 복직 예정일은 직원별 상이하므로 단일 대상자일 때만 표기. */
       detailRows = `
-        ${isMulti ? '' : `<tr><th>복직 예정일</th><td>${c.returnDate ? esc(c.returnDate) : '미정'}</td></tr>`}
+        ${isMulti ? '' : `<tr><th>복직 예정일</th><td>${c.returnDate ? esc(fmtD(c.returnDate)) : '미정'}</td></tr>`}
         <tr><th>구분</th><td>휴직 → 복직</td></tr>
       `;
     } else if (row.kind === '휴직') {
       /* 휴직 — 소속 부서는 표기하지 않음. 사유/종료예정일은 전자결재 연동값(직원별 상이) → 단일 대상자일 때만 표기. */
-      const endDate = c.leaveEndDate ? esc(c.leaveEndDate) : '미정';
+      const endDate = c.leaveEndDate ? esc(fmtD(c.leaveEndDate)) : '미정';
       detailRows = `
         ${isMulti ? '' : `<tr><th>휴직 사유</th><td>${esc(c.leaveKind || '-')}</td></tr>
         <tr><th>복직 예정일</th><td>${endDate}</td></tr>`}
@@ -1547,8 +1532,8 @@
                     <td>${esc(e.id)}</td>
                     <td>${esc(e.dept || '-')}</td>
                     <td>${esc(e.rank || '-')} / ${esc(e.position || '-')}</td>
-                    ${row.kind === '휴직' ? `<td>${esc(e.leaveKindLabel || '-')}</td><td style="text-align:center;">${esc(e.leaveEndDate || '-')}</td>` : ''}
-                    ${row.kind === '복직' ? `<td style="text-align:center;">${esc(e.returnDate || e.expectedReturn || '-')}</td>` : ''}
+                    ${row.kind === '휴직' ? `<td>${esc(e.leaveKindLabel || '-')}</td><td style="text-align:center;">${esc(fmtD(e.leaveEndDate) || '-')}</td>` : ''}
+                    ${row.kind === '복직' ? `<td style="text-align:center;">${esc(fmtD(e.returnDate || e.expectedReturn) || '-')}</td>` : ''}
                   </tr>
                 `).join('')}
               </tbody>
@@ -1563,7 +1548,7 @@
       <h3 class="doc-paper__art">발령 사항</h3>
       <table class="doc-paper__tbl">
         <tr><th>유형</th><td>${esc(row.kind)}</td></tr>
-        <tr><th>발령 일자</th><td>${esc(row.effectDate)}</td></tr>
+        <tr><th>발령 일자</th><td>${esc(fmtD(row.effectDate))}</td></tr>
         ${detailRows}
       </table>
 
@@ -1571,7 +1556,7 @@
         위와 같이 ${esc(row.kind === '승진' ? '임명' : '발령')}하오니, 발령일부터 본 직무에 임함을 명한다.
       </p>
 
-      <p class="doc-paper__signdate">발령일: ${esc(row.effectDate)}</p>
+      <p class="doc-paper__signdate">발령일: ${esc(fmtD(row.effectDate))}</p>
 
       <div class="sig-block-row" style="margin-top:12px;">
         <div class="sig-block sig-block--signed" style="grid-column:1 / -1;">
@@ -1582,7 +1567,7 @@
           </div>
           <div class="sig-block__sigarea">
             <div class="sig-block__seal">${esc(COMPANY_SEAL_TEXT).replace('\n','<br>')}</div>
-            <span class="sig-block__stamp-time">${row.status === 'done' ? esc(row.effectDate) + ' 시행' : '시행 예정'}</span>
+            <span class="sig-block__stamp-time">${row.status === 'done' ? esc(fmtD(row.effectDate)) + ' 시행' : '시행 예정'}</span>
           </div>
         </div>
       </div>
