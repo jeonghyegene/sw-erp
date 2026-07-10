@@ -912,6 +912,54 @@
     });
   })();
 
+  /* ============ Year-Month Picker ============ */
+  (function () {
+    const today = new Date();
+    const todayYm = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+    $$('[data-ympicker]').forEach(root => {
+      const panel = root.querySelector('.ym-picker__panel');
+      const trigger = root.querySelector('[data-ympicker-toggle]');
+      const label = trigger && trigger.querySelector('strong');
+      let selectedYm = root.dataset.ym || todayYm;
+      let viewYear = Number(selectedYm.slice(0, 4));
+      function renderPanel() {
+        const selY = Number(selectedYm.slice(0, 4)), selM = Number(selectedYm.slice(5, 7));
+        let cells = '';
+        for (let m = 1; m <= 12; m++) {
+          const ym = `${viewYear}-${String(m).padStart(2,'0')}`;
+          const cls = [];
+          if (viewYear === selY && m === selM) cls.push('is-active');
+          if (ym === todayYm) cls.push('is-today');
+          cells += `<button type="button" class="ym-picker__month ${cls.join(' ')}" data-ympicker-pick="${ym}">${m}월</button>`;
+        }
+        panel.innerHTML = `
+          <div class="ym-picker__head">
+            <button type="button" class="ym-picker__nav" data-ympicker-year="-1" aria-label="이전 해">‹</button>
+            <span class="ym-picker__year">${viewYear}</span>
+            <button type="button" class="ym-picker__nav" data-ympicker-year="1" aria-label="다음 해">›</button>
+          </div>
+          <div class="ym-picker__grid">${cells}</div>`;
+      }
+      trigger.addEventListener('click', e => {
+        e.stopPropagation();
+        const open = root.classList.toggle('is-open');
+        if (open) { viewYear = Number(selectedYm.slice(0, 4)); renderPanel(); }
+      });
+      document.addEventListener('click', e => { if (!root.contains(e.target)) root.classList.remove('is-open'); });
+      panel.addEventListener('click', e => {
+        e.stopPropagation();
+        const yb = e.target.closest('[data-ympicker-year]');
+        if (yb) { viewYear += Number(yb.dataset.ympickerYear); renderPanel(); return; }
+        const mb = e.target.closest('[data-ympicker-pick]');
+        if (mb) {
+          selectedYm = mb.dataset.ympickerPick;
+          if (label) label.textContent = `${selectedYm.slice(2, 4)}/${selectedYm.slice(5, 7)}`;
+          root.classList.remove('is-open');
+        }
+      });
+    });
+  })();
+
   /* ============ Typeahead ============ */
   (function () {
     const root = $('#ta'); if (!root) return;

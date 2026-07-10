@@ -282,7 +282,12 @@
       const dates = weekDates7(currentWeekStart());
       const a = parseYMD(dates[0]), b = parseYMD(dates[6]);
       const f = (d) => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
-      titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`;
+      /* 주 범위 라벨을 그대로 유지하되, 클릭 시 연/월 피커로 원하는 달의 주로 점프.
+         주별 이동은 아래 ‹ › 화살표로 계속 처리한다. */
+      titleHTML = App.YmPicker.html({
+        name: 'week-jump', ym: dates[0].slice(0, 7), todayYm: TODAY.slice(0, 7),
+        label: `${f(a)} ~ ${f(b)}`, labelStyle: 'font-size:var(--fs-lg);',
+      });
     }
     const expander = (STATE.isManager && STATE.treeCollapsed)
       ? `<button class="split__expander" type="button" data-ss-tree-toggle title="조직도 펼치기" style="display:inline-flex;"><span>조직도</span>${CHEV_R}</button>`
@@ -597,6 +602,15 @@
   function bind(pageEl) {
     if (pageEl.dataset.ssBound === '1') return;
     pageEl.dataset.ssBound = '1';
+
+    /* 연/월 피커(App.YmPicker) — 주간 전용 화면이므로 선택한 달의 1일이 포함된 주로 점프 */
+    pageEl.addEventListener('ympick:change', e => {
+      if (e.detail.name !== 'week-jump') return;
+      const [y, m] = e.detail.ym.split('-').map(Number);
+      STATE.weekStart = ymdOf(mondayOf(new Date(y, m - 1, 1)));
+      STATE.ym = e.detail.ym;
+      renderAll(pageEl);
+    });
 
     pageEl.addEventListener('click', e => {
       /* 권한 토글 (우측 하단 floating) */

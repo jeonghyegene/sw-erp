@@ -2004,13 +2004,7 @@ ${wageClauses(v)}
       }
     }
 
-    /* 계약 정보 변경 결재 대기 중에는 서명 요청 발송 불가 — 승인 완료 후 발송. */
-    if (EDIT.emp && EDIT.returnTo !== 'empi-card' && window.App && App.HRInfoMgmt && App.HRInfoMgmt.list) {
-      const src = App.HRInfoMgmt.list().find(r => r.id === EDIT.emp.id);
-      if (src && (EDIT.kind === '임금계약서' ? src.wageApprovalPending : src.contractApprovalPending)) {
-        valid = false; reasons.push('계약 정보 변경 승인 대기 중입니다.');
-      }
-    }
+    /* 인사정보 카드의 정보 변경 결재는 근로/임금 계약과 무관 — '변경 승인 대기' 상태여도 서명 요청 발송 허용. */
 
     send.disabled = !valid;
     /* 비활성 사유 노출 — 버튼 옆 힌트 텍스트 + 툴팁 (조용히 꺼지는 문제 방지) */

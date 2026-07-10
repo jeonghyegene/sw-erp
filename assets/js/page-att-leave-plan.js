@@ -169,30 +169,18 @@
     const cnt = scopeEmps().length;
     const remain = myRemain();
     const planned = myPlannedDays();
-    const isYear = STATE.span === 'year';
-    const year = parseYM(STATE.ym).y;
-    const title = isYear ? `${year}년` : fmtYM(STATE.ym);
-    const nav = isYear
-      ? `<button type="button" data-lp-year-prev aria-label="이전 해">‹</button>
-         <button type="button" data-lp-today>오늘</button>
-         <button type="button" data-lp-year-next aria-label="다음 해">›</button>`
-      : `<button type="button" data-lp-ym-prev aria-label="이전">‹</button>
-         <button type="button" data-lp-today>오늘</button>
-         <button type="button" data-lp-ym-next aria-label="다음">›</button>`;
     return `
       <div class="att-tb">
         <div class="att-tb__left">
-          <div class="att-tb__title">${title}</div>
-          <div class="att-tb__nav">${nav}</div>
+          ${App.YmPicker.html({ name: 'ym', ym: STATE.ym, todayYm: App.AttStatus.TODAY.slice(0, 7) })}
+          <div class="att-tb__nav">
+            <button type="button" data-lp-ym-prev aria-label="이전">‹</button>
+            <button type="button" data-lp-today>오늘</button>
+            <button type="button" data-lp-ym-next aria-label="다음">›</button>
+          </div>
           <div class="att-target-chip" style="cursor:default;">
             <span class="att-target-chip__name">${esc(scopeName)}</span>
             <span class="att-target-chip__meta">${cnt}명</span>
-          </div>
-        </div>
-        <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;flex:0 0 auto;margin-left:auto;">
-          <div class="tabs__nav">
-            <button type="button" class="tabs__tab ${!isYear ? 'is-active' : ''}" data-lp-span="month">월간</button>
-            <button type="button" class="tabs__tab ${isYear ? 'is-active' : ''}" data-lp-span="year">연간</button>
           </div>
         </div>
         <div class="att-tb__right">
@@ -200,13 +188,12 @@
             내 연차 <strong>${remain}</strong><span class="t-muted">/${GRANTED_ME}일</span>
             <span class="t-muted" style="font-size:var(--fs-xs);">계획 ${planned}일</span>
           </span>
-          ${isYear ? '' : `
           <div class="att-tb__views">
             ${A.VIEW_MODES.map(v => {
               const active = STATE.view === v.key ? 'is-active' : '';
               return `<button type="button" data-lp-view="${v.key}" class="${active}">${esc(v.label)}</button>`;
             }).join('')}
-          </div>`}
+          </div>
           <button class="btn btn--primary btn--sm" type="button" data-lp-manage>
             ${(window.Icons && window.Icons.plus) || '+'} 내 연차 계획
           </button>
@@ -217,7 +204,6 @@
 
   /* ============ 본문 ============ */
   function renderBody() {
-    if (STATE.span === 'year') return renderYearGrid();
     if (STATE.view === 'cal') return renderCalendar();
     return renderDashboard();
   }
@@ -659,6 +645,10 @@
   function bind(pageEl) {
     if (pageEl.dataset.lpBound === '1') return;
     pageEl.dataset.lpBound = '1';
+    /* 연/월 피커(App.YmPicker) 월 선택 — 월간 뷰 타이틀 */
+    pageEl.addEventListener('ympick:change', e => {
+      if (e.detail.name === 'ym') { STATE.ym = e.detail.ym; renderAll(pageEl); }
+    });
     /* 연간 그리드 셀 hover → 전체 명단 popover */
     pageEl.addEventListener('mouseover', e => {
       const c = e.target.closest('[data-lp-year-cell]');
@@ -671,15 +661,8 @@
       hidePop();
     });
     pageEl.addEventListener('click', e => {
-      /* 월간/연간 전환 */
-      const span = e.target.closest('[data-lp-span]');
-      if (span) { if (span.dataset.lpSpan !== STATE.span) { STATE.span = span.dataset.lpSpan; renderAll(pageEl); } return; }
-
       if (e.target.closest('[data-lp-ym-prev]')) { STATE.ym = shiftMonth(STATE.ym, -1); renderAll(pageEl); return; }
       if (e.target.closest('[data-lp-ym-next]')) { STATE.ym = shiftMonth(STATE.ym, +1); renderAll(pageEl); return; }
-      /* 연간 — 해 단위 이동 (월 유지) */
-      if (e.target.closest('[data-lp-year-prev]')) { STATE.ym = shiftMonth(STATE.ym, -12); renderAll(pageEl); return; }
-      if (e.target.closest('[data-lp-year-next]')) { STATE.ym = shiftMonth(STATE.ym, +12); renderAll(pageEl); return; }
       if (e.target.closest('[data-lp-today]'))   { STATE.ym = App.AttStatus.TODAY.slice(0, 7); renderAll(pageEl); return; }
 
       /* 연간 그리드 셀 클릭 → 해당 일자 계획 상세(본인 포함 시 편집 진입) */

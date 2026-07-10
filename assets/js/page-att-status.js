@@ -402,6 +402,7 @@
         { stage: 1, name: '이팀장', status: '결재', at: '2026-05-11 11:00' },
         { stage: 2, name: '박상무', status: '결재', at: '2026-05-12 14:10' },
       ],
+      files: [{ name: '연차신청_증빙.pdf', size: 184320 }],
     });
     seed.push({
       id: 'APP-0002',
@@ -466,6 +467,7 @@
       approvers: [
         { stage: 1, name: '이팀장', status: '결재', at: '2026-05-19 09:20' },
       ],
+      files: [{ name: '출장계획서.pdf', size: 262144 }, { name: '미팅_안건.docx', size: 45056 }],
     });
     /* 본인 — 연차 1건 반려 (상태 사유 표기 확인용) */
     seed.push({
@@ -950,7 +952,7 @@
     return `
       <div class="att-tb">
         <div class="att-tb__left">
-          <div class="att-tb__title">${fmtYM(STATE.ym)}</div>
+          ${App.YmPicker.html({ name: 'ym', ym: STATE.ym, todayYm: TODAY.slice(0, 7) })}
           <div class="att-tb__nav">
             <button type="button" data-att-ym-prev aria-label="${isWeek ? '이전 주' : '이전 달'}">‹</button>
             <button type="button" data-att-today>오늘</button>
@@ -1478,6 +1480,44 @@
   }
 
   /* ----- 캘린더 ----- */
+  /* ===== 캘린더 셀 블록(bar) 공용 헬퍼 — 나의 근태현황/부서별 근태현황/부서별 연차현황 통일 =====
+     세 캘린더가 동일한 색상 블록 체계(.att-cal__block--*)와 휴가 라벨("휴가: 사유")을 쓰도록 공용화. */
+  const CAL_MISMATCH_MIN = 30;
+  function _calToMin(t) { if (!/^\d{2}:\d{2}$/.test(t || '')) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+  function calShiftColorCls(code) {
+    const list = (App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : [];
+    const i = list.findIndex(s => s.code === code);
+    return i >= 0 ? `shift-chip--c${i % 10}` : 'shift-chip--day';
+  }
+  function calShiftChip(code) {
+    if (!code || code === '-') return '';
+    const s = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
+    const label = s ? (s.label || code) : code;
+    const tip = s ? `${s.start}~${s.end}${s.isNight ? ' · 야간' : ''}` : '';
+    return `<span class="att-cal__shiftc ${calShiftColorCls(code)}" title="${esc(tip)}">${esc(label)}</span>`;
+  }
+  function calBlock(colorCls, text, title) {
+    const t = title ? ` title="${esc(title)}"` : '';
+    return `<div class="att-cal__block ${colorCls}"${t}><span class="att-cal__block-txt">${text}</span></div>`;
+  }
+  /* 휴가/근태 사유 라벨 — "휴가: {사유}" 형식. 반차는 '휴가: 오전 반차'. */
+  function calLeaveLabel(r) {
+    if (!r) return '';
+    if (isHalfDay(r.code)) return `휴가: ${esc(r.label || '')} 반차`;
+    return `휴가: ${esc(r.label || codeShortLabel(r.code) || '')}`;
+  }
+  /* 근무조 불일치 — 등록 근무조 시작시간과 실제 출근이 30분 이상 차이 */
+  function calShiftMismatch(r) {
+    if (!r || r.kind !== 'work' || !r.shift || !r.checkIn) return null;
+    const s = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(r.shift) : null;
+    if (!s) return null;
+    const sc = _calToMin(s.start), ac = _calToMin(r.checkIn);
+    if (sc == null || ac == null) return null;
+    const diff = ac - sc;
+    if (Math.abs(diff) < CAL_MISMATCH_MIN) return null;
+    return { code: r.shift, sched: s.start, actual: r.checkIn, diff };
+  }
+
   function renderCalendar(empId, recs, ymArg) {
     const { y, m } = parseYM(ymArg || STATE.ym);
     const days = daysInMonth(y, m);
@@ -1499,12 +1539,14 @@
           ${cells.join('')}
         </div>
         <div class="att-cal__legend">
-          <span class="att-cal__dot att-cal__dot--late"></span>지각
-          <span class="att-cal__dot att-cal__dot--early"></span>조퇴
-          <span class="att-cal__dot att-cal__dot--ot"></span>연장
-          <span class="att-cal__dot att-cal__dot--night"></span>야간
-          <span class="att-cal__dot att-cal__dot--hol"></span>휴가
-          <span class="att-cal__doc-mark" style="margin-left:8px;">📄</span>품의서
+          <span><span class="att-cal__block shift-chip--c0 att-cal__sw"></span>출퇴근</span>
+          <span><span class="att-cal__block att-cal__block--warn att-cal__sw"></span>경고</span>
+          <span><span class="att-cal__block att-cal__block--late att-cal__sw"></span>지각</span>
+          <span><span class="att-cal__block att-cal__block--early att-cal__sw"></span>조퇴</span>
+          <span><span class="att-cal__block att-cal__block--ot att-cal__sw"></span>연장</span>
+          <span><span class="att-cal__block att-cal__block--night att-cal__sw"></span>야간</span>
+          <span><span class="att-cal__block att-cal__block--leave att-cal__sw"></span>휴가</span>
+          <span><span class="att-cal__doc-mark">📄</span>품의서</span>
         </div>
       </div>
     `;
@@ -1525,7 +1567,7 @@
       </button>
     ` : '';
 
-    const chip = shiftChipHTML(r.shift);
+    const chip = calShiftChip(r.shift);
 
     if (r.kind === 'holiday') {
       return `<div class="att-cal__cell att-cal__cell--off ${wdCls} ${today}">
@@ -1534,10 +1576,11 @@
       </div>`;
     }
     if (r.kind === 'att') {
-      return `<div class="att-cal__cell att-cal__cell--leave ${wdCls} ${today}">
+      const bl = [ calBlock('att-cal__block--leave', calLeaveLabel(r), calLeaveLabel(r)) ];
+      if (r.checkIn) bl.push(calBlock(calShiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+      return `<div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row"><span class="att-cal__day">${d}</span><span class="att-cal__day-tail">${chip}${docMark}</span></div>
-        <div class="att-cal__label">${esc(r.label)}</div>
-        ${r.checkIn ? `<div class="att-cal__time">${esc(r.checkIn)} ~ ${esc(r.checkOut)}</div>` : ''}
+        <div class="att-cal__blocks">${bl.join('')}</div>
       </div>`;
     }
     if (r.kind === 'future') {
@@ -1545,20 +1588,25 @@
         <div class="att-cal__day-row"><span class="att-cal__day">${d}</span><span class="att-cal__day-tail">${chip}${docMark}</span></div>
       </div>`;
     }
-    /* work */
-    const dots = [];
-    if (r.isLate)             dots.push('<span class="att-cal__dot att-cal__dot--late" title="지각"></span>');
-    if (r.isEarly)            dots.push('<span class="att-cal__dot att-cal__dot--early" title="조퇴"></span>');
-    if (r.ot && r.ot.extra)   dots.push('<span class="att-cal__dot att-cal__dot--ot" title="연장근무"></span>');
-    if (r.ot && r.ot.night)   dots.push('<span class="att-cal__dot att-cal__dot--night" title="야간"></span>');
+    /* work — 색상 블록 스택(나의 근태현황과 통일). 근무조 불일치는 경고 블록(다홍+!)으로 표시. */
+    const mm = calShiftMismatch(r);
+    const blocks = [];
+    if (mm) {
+      blocks.push(`<div class="att-cal__block att-cal__block--warn" title="근무조 불일치 — 등록 ${esc(mm.code)} ${esc(mm.sched)} · 실제 출근 ${esc(mm.actual)}"><span class="att-cal__block-txt">출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}</span><span class="att-cal__mm">!</span></div>`);
+    } else {
+      blocks.push(calBlock(calShiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+    }
+    if (r.isLate)            blocks.push(calBlock('att-cal__block--late',  `지각 ${r.lateMin || 0}분`));
+    if (r.isEarly)           blocks.push(calBlock('att-cal__block--early', `조퇴 ${r.earlyMin || 0}분`));
+    if (r.ot && r.ot.extra)  blocks.push(calBlock('att-cal__block--ot',    `연장 ${r.ot.extra}h`));
+    if (r.ot && r.ot.night)  blocks.push(calBlock('att-cal__block--night', `야간 ${r.ot.night}h`));
     return `
       <div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row">
           <span class="att-cal__day">${d}</span>
-          <span class="att-cal__day-tail">${chip}<span class="att-cal__dots">${dots.join('')}</span>${docMark}</span>
+          <span class="att-cal__day-tail">${chip}${docMark}</span>
         </div>
-        <div class="att-cal__time">${esc(r.checkIn)} <span class="t-muted">~</span> ${esc(r.checkOut)}</div>
-        ${r.ot && r.ot.extra ? `<div class="att-cal__ot">연장 ${r.ot.extra}h</div>` : ''}
+        <div class="att-cal__blocks">${blocks.join('')}</div>
       </div>
     `;
   }
@@ -1717,6 +1765,12 @@
   function bind(pageEl) {
     if (pageEl.dataset.attStatusBound === '1') return;
     pageEl.dataset.attStatusBound = '1';
+
+    /* 연/월 피커(App.YmPicker) 월 선택 — 월간/주간 공통. 주간 모드면 선택한 달의 기본 주로 점프
+       (weekMonday 초기화 → 그 달 1일이 속한 주, 이번 달이면 오늘 주). 주 단위 이동은 화살표로 처리. */
+    pageEl.addEventListener('ympick:change', e => {
+      if (e.detail.name === 'ym') { STATE.ym = e.detail.ym; STATE.weekMonday = null; renderAll(pageEl); }
+    });
 
     pageEl.addEventListener('click', e => {
       /* 월 이동 + 오늘 — 부서 주간 모드면 같은 콘트롤러가 '주' 단위로 동작(해당 월 안에서) */
@@ -1897,9 +1951,13 @@
       dateFrom: STATE.selectedDate || TODAY,
       dateTo:   STATE.selectedDate || TODAY,
       reason: '',
+      /* 결재선 — 전자결재(문서작성) 근태신청서와 동일한 .approval-line 패턴. 기본 1차 결재자(팀장) 시드. */
+      approvers: [{ name: '이팀장', empId: '', dept: ME_DEPT }],
+      /* 첨부 파일 — 전자결재 기안 양식과 동일하게 첨부 가능. [{name, size}] */
+      files: [],
     };
     const titleEl = document.getElementById('att-apply-title');
-    if (titleEl) titleEl.textContent = mode === 'leave' ? '연차/휴가 신청' : mode === 'hol' ? '휴가 신청' : '근태 신청';
+    if (titleEl) titleEl.textContent = `기안 · ${applyDocName(mode)}`;
     renderApplyModal();
     openModalEl('modal-att-apply');
   }
@@ -1910,20 +1968,93 @@
     return compLeaveBalance() > 0 ? HOL_GROUPS.concat([COMP_LEAVE_GROUP]) : HOL_GROUPS;
   }
 
-  /* 근태 신청 모달 — 탭별 안내 띠. 휴가 탭은 발생/잔여 연차 + 대체 휴가 잔여를 표시.
-     ATT/HOL 양쪽 모두 동일한 높이(.att-apply__info min-height)로 렌더해 토글 시 모달이 흔들리지 않게 한다. */
-  function renderApplyInfoStrip(tab) {
-    if (tab === 'HOL') {
-      const comp = compLeaveBalance();
+  /* 전자결재 기안 양식의 문서명 — 근태신청서 / 연차·휴가 신청서 */
+  function applyDocName(mode) { return (mode === 'leave' || mode === 'hol') ? '연차·휴가 신청서' : '근태신청서'; }
+  function applyTypeLabel(mode) { return (mode === 'leave' || mode === 'hol') ? '휴가 종류' : '근태 종류'; }
+
+  /* 결재선 — 전자결재(문서작성) 근태신청서와 동일한 .approval-line 컴포넌트 재사용(추가 CSS 불요).
+     STATE.applyDraft.approvers 를 단계별 칩으로 렌더. data-att-apr-* 훅으로 추가/변경/제거. */
+  function renderApplyApprovalLine() {
+    const aprs = (STATE.applyDraft && STATE.applyDraft.approvers) || [];
+    const stages = aprs.map((s, idx) => {
+      const isLast = idx === aprs.length - 1;
       return `
-        <div class="att-apply__balance">
-          <span class="att-apply__bchip">발생 연차 <strong>${ME_LEAVE.granted}일</strong></span>
-          <span class="att-apply__bchip att-apply__bchip--remain">잔여 연차 <strong>${leaveRemain()}일</strong></span>
-          <span class="att-apply__bchip att-apply__bchip--comp">대체 휴가 <strong>${comp}일</strong></span>
+        <div class="approval-stage">
+          <span class="approval-stage__badge">${idx + 1}차</span>
+          <button type="button" class="approval-stage__person" data-att-apr-replace="${idx}" title="결재자 변경"><span>${esc(s.name || '선택')}</span></button>
+          <button type="button" class="approval-stage__remove" data-att-apr-remove="${idx}" aria-label="제거">×</button>
         </div>
+        ${!isLast ? '<span class="approval-arrow">→</span>' : ''}
       `;
-    }
-    return '';
+    }).join('');
+    const addBtn = aprs.length < 3 ? `<button type="button" class="approval-add" data-att-apr-add>+ 추가</button>` : '';
+    return `<div class="approval-line">${stages}${addBtn}</div>`;
+  }
+  /* 첨부 파일 — 전자결재 기안 양식과 동일한 .file-field / .dz / .dz-list 컴포넌트. */
+  function _applyFmtSize(n) {
+    if (typeof n !== 'number') return n || '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  function renderApplyFiles() {
+    const files = (STATE.applyDraft && STATE.applyDraft.files) || [];
+    const list = files.map((f, i) => `
+      <div class="dz-file">
+        <span>📄</span>
+        <span class="dz-file__name">${esc(f.name)}</span>
+        <span class="dz-file__size">${esc(_applyFmtSize(f.size))}</span>
+        <button type="button" class="dz-file__remove" data-att-file-remove="${i}" aria-label="제거">✕</button>
+      </div>`).join('');
+    return `
+      <div class="file-field" data-att-file-field>
+        <div class="dz" data-att-file-dz tabindex="0">
+          <svg class="dz__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="30" height="30"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div class="dz__title">파일을 끌어 놓거나 클릭하여 선택</div>
+          <div class="dz__sub">최대 10MB · PDF, JPG, PNG, XLSX, DOCX</div>
+          <input type="file" hidden multiple data-att-file-input>
+        </div>
+        <div class="dz-list" data-att-file-list>${list}</div>
+      </div>`;
+  }
+  /* 결재자 선택 — 전자결재 구성원 picker(App.openEmpPicker) 재사용. idx<0 이면 추가, 아니면 해당 단계 교체. */
+  function pickApprover(idx) {
+    if (typeof App.openEmpPicker !== 'function') { window.toast && window.toast('결재자 선택 다이얼로그를 사용할 수 없습니다.', 'warning'); return; }
+    App.openEmpPicker({
+      action: 'callback', multi: false, zIndex: 1200,
+      onConfirm(selected) {
+        const p = Array.isArray(selected) ? selected[0] : selected;
+        if (!p) return;
+        const ap = { name: p.name || '', empId: p.empId || p.id || '', dept: p.dept || '' };
+        const d = STATE.applyDraft;
+        if (!d) return;
+        if (idx < 0) { if (d.approvers.length < 3) d.approvers.push(ap); }
+        else d.approvers[idx] = ap;
+        renderApplyModal();
+      },
+    });
+  }
+
+  /* 연차휴가신청서(HOL) 상단 잔여 카드 — 발생 연차 / 잔여 연차 / 대체 휴가 를 큰 카드로 강조.
+     모달 최상단에 배치해 신청 전 잔여를 한눈에 인지. 색상은 기존 칩 색 의미 유지(발생=brand, 잔여=success, 대체=warning). */
+  function renderApplyBalanceCards(tab) {
+    if (tab !== 'HOL') return '';
+    const comp = compLeaveBalance();
+    const cards = [
+      { label: '발생 연차', value: ME_LEAVE.granted, mod: '' },
+      { label: '잔여 연차', value: leaveRemain(),    mod: 'att-apply__card--remain' },
+      { label: '대체 휴가', value: comp,             mod: 'att-apply__card--comp' },
+    ];
+    return `
+      <div class="att-apply__cards">
+        ${cards.map(c => `
+          <div class="att-apply__card ${c.mod}">
+            <div class="att-apply__card-label">${esc(c.label)}</div>
+            <div class="att-apply__card-value">${c.value}<small>일</small></div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   /* 기간 옆 일수 표기 — 휴가(HOL)에서만 (n일) 노출. 날짜 변경 시 updateApplyDays 로 즉시 갱신. */
@@ -1973,45 +2104,66 @@
       const items = currentGroup.items;
       if (!items.find(it => it.code === d.code)) d.code = items[0].code;
 
+      /* 대분류 + 세부구분 — 한 줄 인라인(구분/기간 여백 축소). flex-basis 명시로 나란히 배치. */
       pickerHTML = `
-        <div class="att-apply__selects">
-          <div class="att-apply__select">
-            <label class="att-apply__select-lbl">대분류</label>
-            <select class="select" id="att-apply-group">
-              ${groups.map(g => `<option value="${esc(g.code)}" ${g.code === d.groupCode ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="att-apply__select">
-            <label class="att-apply__select-lbl">세부 구분</label>
-            <select class="select" id="att-apply-item">
-              ${items.map(it => `<option value="${esc(it.code)}" ${it.code === d.code ? 'selected' : ''}>${esc(it.label)}</option>`).join('')}
-            </select>
-          </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="select" id="att-apply-group" style="flex:0 0 140px;">
+            ${groups.map(g => `<option value="${esc(g.code)}" ${g.code === d.groupCode ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}
+          </select>
+          <select class="select" id="att-apply-item" style="flex:1 1 0;min-width:0;">
+            ${items.map(it => `<option value="${esc(it.code)}" ${it.code === d.code ? 'selected' : ''}>${esc(it.label)}</option>`).join('')}
+          </select>
         </div>
-        <div class="att-apply__info">${renderApplyInfoStrip(d.tab)}</div>
       `;
     }
 
+    const req = '<em style="color:var(--color-danger);font-style:normal;">*</em>';
+    const gridCol1 = 'style="grid-template-columns:110px 1fr;"';
+    const gridCol2 = 'style="grid-template-columns:110px 1fr 110px 1fr;"';
+    const docNo = `DOC-${TODAY.slice(0, 4)}-AUTO`;
     body.innerHTML = `
-      <div class="att-apply__form">
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">구분 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val">${pickerHTML}</div>
+      ${renderApplyBalanceCards(d.tab)}
+      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+          <div class="fm-tbl__label">문서번호</div>
+          <div class="fm-tbl__value"><a class="link-code">${esc(docNo)}</a> <small class="t-muted">(상신 시 자동 채번)</small></div>
+          <div class="fm-tbl__label">문서명</div>
+          <div class="fm-tbl__value">${esc(applyDocName(d.mode))}</div>
         </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">기간 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val att-apply__val--inline">
-            <input type="date" class="input" id="att-apply-from" value="${esc(d.dateFrom)}" />
-            <span class="t-muted" style="margin:0 6px;">~</span>
-            <input type="date" class="input" id="att-apply-to" value="${esc(d.dateTo)}" />
-            ${applyDaysHTML(d)}
+        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+          <div class="fm-tbl__label">기안자</div>
+          <div class="fm-tbl__value">${esc(ME_NAME)} <span class="t-muted" style="margin-left:4px;">${esc(ME_ID)}</span></div>
+          <div class="fm-tbl__label">부서</div>
+          <div class="fm-tbl__value">${esc(ME_DEPT)}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">${esc(applyTypeLabel(d.mode))} ${req}</div>
+          <div class="fm-tbl__value">${pickerHTML}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">기간 ${req}</div>
+          <div class="fm-tbl__value">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;">
+              <input type="date" class="input" id="att-apply-from" style="width:170px;" value="${esc(d.dateFrom)}" />
+              <span class="t-muted" style="margin:0 6px;">~</span>
+              <input type="date" class="input" id="att-apply-to" style="width:170px;" value="${esc(d.dateTo)}" />
+              ${applyDaysHTML(d)}
+            </div>
           </div>
         </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">사유 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val">
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">사유 ${req}</div>
+          <div class="fm-tbl__value">
             <textarea class="input" id="att-apply-reason" rows="3" style="width:100%;" placeholder="신청 사유를 입력하세요">${esc(d.reason)}</textarea>
           </div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">결재선 ${req}</div>
+          <div class="fm-tbl__value">${renderApplyApprovalLine()}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">첨부 파일</div>
+          <div class="fm-tbl__value">${renderApplyFiles()}</div>
         </div>
       </div>
       ${isHalfDay(d.code) ? `<div class="att-half-warn">⚠ 반차 신청 — 당일 초과근무 신청은 자동 차단됩니다.</div>` : ''}
@@ -2054,12 +2206,42 @@
       modal.querySelectorAll('[data-modal-close], [data-att-apply-cancel]').forEach(b => b.addEventListener('click', () => closeModalEl('modal-att-apply')));
       const ok = modal.querySelector('[data-att-apply-submit]');
       if (ok) ok.addEventListener('click', submitApply);
+      /* 결재선 — 추가/변경/제거 (매 렌더마다 재생성되므로 위임으로 1회 바인딩) */
+      modal.addEventListener('click', e => {
+        if (e.target.closest('[data-att-apr-add]'))     { pickApprover(-1); return; }
+        const rep = e.target.closest('[data-att-apr-replace]');
+        if (rep) { pickApprover(Number(rep.dataset.attAprReplace)); return; }
+        const del = e.target.closest('[data-att-apr-remove]');
+        if (del) {
+          const dd = STATE.applyDraft;
+          if (dd && dd.approvers) { dd.approvers.splice(Number(del.dataset.attAprRemove), 1); renderApplyModal(); }
+          return;
+        }
+        /* 첨부 — 제거 / dz 클릭 시 파일 선택 (input 자체 클릭은 무시하여 중복 방지) */
+        const frm = e.target.closest('[data-att-file-remove]');
+        if (frm) {
+          const dd = STATE.applyDraft;
+          if (dd && dd.files) { dd.files.splice(Number(frm.dataset.attFileRemove), 1); renderApplyModal(); }
+          return;
+        }
+        if (e.target.closest('[data-att-file-input]')) return;
+        const dz = e.target.closest('[data-att-file-dz]');
+        if (dz) { const inp = dz.querySelector('[data-att-file-input]'); if (inp) inp.click(); return; }
+      });
+      /* 첨부 파일 선택 — draft.files 에 누적 후 재렌더 */
+      modal.addEventListener('change', e => {
+        const inp = e.target.closest('[data-att-file-input]');
+        if (inp && inp.files && inp.files.length) {
+          const dd = STATE.applyDraft;
+          if (dd) { Array.from(inp.files).forEach(f => dd.files.push({ name: f.name, size: f.size })); renderApplyModal(); }
+        }
+      });
     }
   }
   function submitApply() {
     const d = STATE.applyDraft;
     if (!d.code) {
-      window.toast && window.toast('근태 코드를 선택해 주세요.', 'warning');
+      window.toast && window.toast('근태 종류를 선택해 주세요.', 'warning');
       return;
     }
     if (!d.reason || !d.reason.trim()) {
@@ -2068,6 +2250,12 @@
     }
     if (d.dateFrom > d.dateTo) {
       window.toast && window.toast('기간이 올바르지 않습니다.', 'warning');
+      return;
+    }
+    /* 결재선 — 최소 1명 지정 (전자결재 상신 필수) */
+    const aprs = (d.approvers || []).filter(a => a && a.name && a.name.trim());
+    if (!aprs.length) {
+      window.toast && window.toast('결재선을 1명 이상 지정해 주세요.', 'warning');
       return;
     }
     /* 대체 휴가 — 신청 일수가 보유 잔여를 초과할 수 없음 */
@@ -2084,10 +2272,8 @@
     const isLeave = isLeaveCode(d.code);
     const kind = (d.mode === 'leave' || d.mode === 'hol') ? 'leave' : (isLeave ? 'leave' : 'att');
     const noPrefix = kind === 'leave' ? 'LEAVE' : 'ATT';
-    /* 결재 문서 표기 — 휴가 신청(hol)은 '휴가', 연차/반차(leave)는 '연차/휴가', 근태는 '근태' */
-    const docLabel = d.mode === 'hol' ? '휴가' : (kind === 'leave' ? '연차/휴가' : '근태');
 
-    /* 신청 레코드 등록 */
+    /* 신청 레코드 등록 — 기안 양식에서 지정한 결재선을 그대로 결재 단계로 반영 */
     const rec = {
       id: 'APP-' + Date.now(),
       no: _nextAppNo(noPrefix),
@@ -2097,53 +2283,28 @@
       dateFrom: d.dateFrom, dateTo: d.dateTo,
       reason: d.reason.trim(),
       status: 'pending',
-      submittedAt: TODAY + ' ' + new Date().toTimeString().slice(0,5),
+      submittedAt: TODAY + ' ' + new Date().toTimeString().slice(0, 5),
       decidedAt:   '',
-      approvers: [{ stage: 1, name: '이팀장', status: '대기', at: '' }],
+      approvers: aprs.map((a, i) => ({ stage: i + 1, name: a.name, status: '대기', at: '' })),
+      files: (d.files || []).map(f => ({ name: f.name, size: f.size })),
     };
     getApps().unshift(rec);
 
     /* 출산/휴가(출산휴가) 상신 시 → 휴직 관리(App.HRLoa)에도 이력을 함께 등록.
        (storyboard mock — 승인 가정. 현황은 휴직 기간 기준 자동 판정) */
-    const pushLoaIfMaternity = (aprRec) => {
-      const loaType = LOA_TYPE_BY_CODE[rec.code];
-      if (!loaType || !(App.HRLoa && App.HRLoa.add)) return;
+    const loaType = LOA_TYPE_BY_CODE[rec.code];
+    if (loaType && App.HRLoa && App.HRLoa.add) {
       App.HRLoa.add({
         empId: ME_ID, empName: ME_NAME, empDept: ME_DEPT, empPosition: ME_POS,
         type: loaType,
         startDate: rec.dateFrom, endDate: rec.dateTo,
-        approvalNo: (aprRec && aprRec.no) || rec.no,
-        approvedAt: TODAY,
+        approvalNo: rec.no, approvedAt: TODAY,
       });
-    };
-
-    /* 전자결재 모달 노출 — 결재선 지정 + 상신 */
-    if (typeof App.openSystemApprovalModal === 'function') {
-      App.openSystemApprovalModal({
-        docName: `${docLabel} 신청`,
-        titlePrefix: docLabel,
-        codeLabel: '코드',
-        nameLabel: '구분',
-        matCode: d.code,
-        matName: label,
-        customReasons: [label],
-        defaultReason: label,
-        title: `${docLabel} 신청 — ${label} (${fmtDisp(d.dateFrom)}${d.dateFrom !== d.dateTo ? ' ~ ' + fmtDisp(d.dateTo) : ''})`,
-        content: d.reason.trim(),
-        payload: { attAppId: rec.id, code: d.code, dateFrom: d.dateFrom, dateTo: d.dateTo },
-        onSubmit(aprRec) {
-          window.toast && window.toast(`${label} 신청이 상신되었습니다.`, 'success');
-          pushLoaIfMaternity(aprRec);
-          const pageEl = document.getElementById('page-att-status');
-          if (pageEl) renderAll(pageEl);
-        },
-      });
-    } else {
-      window.toast && window.toast(`${label} 신청 상신 완료`, 'success');
-      pushLoaIfMaternity(null);
-      const pageEl = document.getElementById('page-att-status');
-      if (pageEl) renderAll(pageEl);
     }
+
+    window.toast && window.toast(`${label} 신청이 상신되었습니다.`, 'success');
+    const pageEl = document.getElementById('page-att-status');
+    if (pageEl) renderAll(pageEl);
   }
 
   /* =========================================================
@@ -2642,14 +2803,18 @@
   /* =========================================================
    *  품의서 상세 모달 — 캘린더 셀의 📄 또는 신청 내역의 [상세]
    * ========================================================= */
+  /* 전자결재 기안 양식의 문서명 — 근태신청서 / 연차·휴가 신청서 / 초과근무(연장·휴일) 신청서 */
+  function docNameOf(a) {
+    if (a.kind === 'ot') return a.otKind === 'holiday' ? '휴일근무 신청서' : '연장근무 신청서';
+    return a.kind === 'leave' ? '연차·휴가 신청서' : '근태신청서';
+  }
   function openDocModal(appId) {
     const app = getApps().find(a => a.id === appId);
     if (!app) return;
     const titleEl = document.getElementById('att-doc-title');
     if (titleEl) {
-      titleEl.textContent = app.kind === 'ot'
-        ? (app.otKind === 'night' ? '연장근무 신청서' : '휴일근무 신청서')
-        : (app.kind === 'leave' ? '연차/휴가 신청 품의서' : '근태 신청 품의서');
+      /* 전자결재 기안 상세와 동일 포맷 — 기안 상세 · {문서명} · {문서번호} */
+      titleEl.textContent = `기안 상세 · ${docNameOf(app)} · ${app.no}`;
     }
     const body = document.getElementById('att-doc-body');
     if (body) body.innerHTML = renderDocBody(app);
@@ -2690,47 +2855,92 @@
            <div class="fm-tbl__label">구분</div>
            <div class="fm-tbl__value">${esc(a.codeLabel || codeLabel(a.code))}</div>
          </div>`;
-    const apr = (a.approvers || []).map(s => `
-      <div class="att-doc-apr">
-        <div class="att-doc-apr__stage">${s.stage}차</div>
-        <div class="att-doc-apr__name">${esc(s.name)}</div>
-        <div class="att-doc-apr__status">
-          <span class="pill pill--${s.status === '결재' ? 'success' : s.status === '반려' ? 'danger' : 'warning'}">${esc(s.status)}</span>
-          ${s.at ? `<small class="t-muted" style="margin-left:6px;">${esc(fmtDisp(s.at))}</small>` : ''}
-        </div>
-      </div>
-    `).join('');
+    /* 결재선 — 시스템 전자결재 기안 상세와 동일한 grid 테이블(단계·결재자·결재·결재일시·의견) */
+    const stagesTbl = `
+      <table class="grid" style="width:100%;">
+        <thead>
+          <tr>
+            <th style="width:60px;text-align:center;">단계</th>
+            <th style="width:140px;">결재자</th>
+            <th style="width:100px;text-align:center;">결재</th>
+            <th style="width:200px;text-align:center;">결재일시</th>
+            <th>의견</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(a.approvers || []).length ? a.approvers.map((s, idx) => `
+            <tr>
+              <td class="col-center">${idx + 1}차</td>
+              <td>${esc(s.name)}</td>
+              <td class="col-center"><span class="pill pill--${s.status === '결재' ? 'success' : s.status === '반려' ? 'danger' : 'warning'}">${esc(s.status)}</span></td>
+              <td class="col-center">${s.at ? esc(fmtDisp(s.at)) : '<span class="t-muted">—</span>'}</td>
+              <td>${s.comment ? esc(s.comment) : '<span class="t-muted">—</span>'}</td>
+            </tr>
+          `).join('') : `<tr><td colspan="5" class="col-center" style="padding:20px;color:var(--color-text-muted);">결재선이 지정되지 않았습니다.</td></tr>`}
+        </tbody>
+      </table>`;
+
+    /* 첨부 파일 — 시스템 전자결재 기안 상세와 동일한 .dz-list / .dz-file + 다운로드(도메인 표준 App.downloadFile) */
+    const files = a.files || [];
+    const fmtSize = (n) => {
+      if (typeof n !== 'number') return n || '';
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / 1024 / 1024).toFixed(1) + ' MB';
+    };
+    const attachmentsHTML = files.length
+      ? `<div class="dz-list" style="margin-bottom:18px;">
+          ${files.map(f => `
+            <div class="dz-file">
+              <span>📄</span>
+              <span class="dz-file__name">${esc(f.name)}</span>
+              <span class="dz-file__size">${esc(fmtSize(f.size))}</span>
+              <button type="button" class="btn btn--xs btn--soft-primary" data-att-doc-download="${esc(f.name)}" style="margin-left:auto;">다운로드</button>
+            </div>`).join('')}
+        </div>`
+      : `<div class="t-muted" style="margin-bottom:18px;font-size:var(--fs-sm);">첨부 파일이 없습니다.</div>`;
+
     return `
-      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
-        <div class="fm-tbl__row fm-tbl__row--2" style="grid-template-columns:110px 1fr 110px 1fr;">
-          <div class="fm-tbl__label">신청번호</div>
-          <div class="fm-tbl__value"><strong>${esc(a.no)}</strong></div>
-          <div class="fm-tbl__label">상태</div>
-          <div class="fm-tbl__value"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></div>
+      <div class="fm-tbl" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);margin-bottom:18px;">
+        <div class="fm-tbl__row fm-tbl__row--2">
+          <div class="fm-tbl__label">문서번호</div>
+          <div class="fm-tbl__value"><a class="link-code">${esc(a.no)}</a></div>
+          <div class="fm-tbl__label">문서명</div>
+          <div class="fm-tbl__value">${esc(docNameOf(a))}</div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--2" style="grid-template-columns:110px 1fr 110px 1fr;">
-          <div class="fm-tbl__label">신청자</div>
+        <div class="fm-tbl__row fm-tbl__row--2">
+          <div class="fm-tbl__label">기안자</div>
           <div class="fm-tbl__value">${esc(a.empName)} <span class="t-muted" style="margin-left:4px;">${esc(a.empId)}</span></div>
           <div class="fm-tbl__label">부서</div>
           <div class="fm-tbl__value">${esc(a.empDept)}</div>
         </div>
+        <div class="fm-tbl__row fm-tbl__row--2">
+          <div class="fm-tbl__label">상태</div>
+          <div class="fm-tbl__value"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></div>
+          <div class="fm-tbl__label">기안일시</div>
+          <div class="fm-tbl__value">${esc(fmtDisp(a.submittedAt) || '-')}</div>
+        </div>
+      </div>
+
+      <div style="margin:18px 0 8px;"><strong>${esc(docNameOf(a))} 상세</strong></div>
+      <div class="fm-tbl" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);margin-bottom:18px;">
         ${codeRow}
         ${periodRow}
         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
           <div class="fm-tbl__label">사유</div>
           <div class="fm-tbl__value">${esc(a.reason)}</div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--2" style="grid-template-columns:110px 1fr 110px 1fr;">
-          <div class="fm-tbl__label">상신 일시</div>
-          <div class="fm-tbl__value">${esc(fmtDisp(a.submittedAt) || '-')}</div>
-          <div class="fm-tbl__label">처리 일시</div>
-          <div class="fm-tbl__value">${esc(fmtDisp(a.decidedAt) || '-')}</div>
-        </div>
+        ${a.statusReason ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
+          <div class="fm-tbl__label">상태 사유</div>
+          <div class="fm-tbl__value">${esc(a.statusReason)}</div>
+        </div>` : ''}
       </div>
-      <div style="margin-top:14px;">
-        <div style="font-weight:var(--fw-semibold);margin-bottom:6px;">결재 내역</div>
-        <div class="att-doc-aprs">${apr || '<span class="t-muted">결재선이 지정되지 않았습니다.</span>'}</div>
-      </div>
+
+      <div style="margin-bottom:8px;"><strong>첨부 파일 (${files.length}건)</strong></div>
+      ${attachmentsHTML}
+
+      <div style="margin-bottom:8px;"><strong>결재선 — 단계별 상태</strong></div>
+      ${stagesTbl}
     `;
   }
   function bindDocModal(modal) {
@@ -2739,6 +2949,11 @@
       modal.dataset.attDocBound = '1';
       modal.addEventListener('click', e => { if (e.target === modal) closeModalEl('modal-att-doc'); });
       modal.querySelectorAll('[data-modal-close], [data-att-doc-close]').forEach(b => b.addEventListener('click', () => closeModalEl('modal-att-doc')));
+      /* 첨부 파일 다운로드 — 도메인 표준 App.downloadFile */
+      modal.addEventListener('click', e => {
+        const dl = e.target.closest('[data-att-doc-download]');
+        if (dl) { e.preventDefault(); if (typeof App.downloadFile === 'function') App.downloadFile(dl.dataset.attDocDownload, { context: '근태 신청 첨부파일' }); }
+      });
     }
   }
 
@@ -2783,6 +2998,13 @@
     wrap.innerHTML = html.trim();
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
     const modal = document.getElementById('att-modal');
+    /* 연/월 피커(App.YmPicker) 월 선택 — 임직원 상세 모달(캘린더/신청내역 공용). 모달은 body 직속이라 여기서 수신 */
+    modal.addEventListener('ympick:change', (e) => {
+      if (e.detail.name !== 'emp') return;
+      STATE.modalYm = e.detail.ym;
+      STATE.modalDailyFilter = null;
+      modal.querySelector('[data-att-modal-body]').innerHTML = renderEmpModalBody();
+    });
     modal.addEventListener('click', (e) => {
       if (e.target === modal || e.target.closest('[data-att-modal-close]')) {
         modal.classList.remove('is-open');
@@ -2896,22 +3118,17 @@
     STATE.modalView = 'cal';
     STATE.modalYm = STATE.ym;
     STATE.modalDailyFilter = null;
-    openAttModal('직원별 근태 현황', renderEmpModalBody());
+    const meta = `${emp.name}·${emp.id}·${emp.dept}·${emp.rank || '-'}·${emp.position || '-'}`;
+    openAttModal(`직원별 근태 현황 (${meta})`, renderEmpModalBody());
   }
   function renderEmpModalBody() {
     const empId = STATE.modalEmpId;
     const emp = EMP_LIST.find(e => e.id === empId);
     if (!emp) return '';
-    const shift = App.AttShifts && App.AttShifts.get(emp.shift);
     const tabs = [['status', '근태 현황'], ['apps', '신청 내역']];
+    /* 이름 뱃지는 모달 타이틀로 이동 — 본문 상단은 탭만 노출(상단 여백 축소) */
     const head = `
-      <div style="margin-bottom:12px;">
-        <div class="att-target-chip" style="cursor:default;">
-          <span class="att-target-chip__name">${esc(emp.name)}</span>
-          <span class="att-target-chip__meta">${esc(emp.id)} · ${esc(emp.dept)}${shift ? ` · ${esc(shift.label || shift.code + '조')}` : ''}</span>
-        </div>
-      </div>
-      <div class="att-scope-tabs" style="margin:0 -18px 14px;background:transparent;">
+      <div class="att-scope-tabs" style="margin:-8px -18px 14px;background:transparent;">
         ${tabs.map(([k, l]) => `<button type="button" class="att-scope-tab ${STATE.modalTab === k ? 'is-active' : ''}" data-att-emp-tab="${k}">${esc(l)}</button>`).join('')}
       </div>
     `;
@@ -2931,7 +3148,7 @@
           <button type="button" data-att-emp-ym-today>오늘</button>
           <button type="button" data-att-emp-ym-next aria-label="다음 달">›</button>
         </div>
-        <div class="att-tb__title">${fmtYM(ym)}</div>
+        ${App.YmPicker.html({ name: 'emp', ym: ym, todayYm: TODAY.slice(0, 7) })}
         <div class="att-tb__views">
           <button type="button" data-att-emp-view="cal"  class="${view === 'cal'  ? 'is-active' : ''}">캘린더</button>
           <button type="button" data-att-emp-view="dash" class="${view === 'dash' ? 'is-active' : ''}">대시보드</button>
@@ -3090,7 +3307,7 @@
             <button type="button" data-att-emp-ym-today>오늘</button>
             <button type="button" data-att-emp-ym-next aria-label="다음 달">›</button>
           </div>
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
+          ${App.YmPicker.html({ name: 'emp', ym: ym, todayYm: TODAY.slice(0, 7), labelStyle: 'font-size:var(--fs-lg);' })}
         </div>
         <button class="btn btn--sm" type="button" data-att-modal-apps-dl="${esc(empId)}" title="신청 내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 신청내역 다운로드</button>
       </div>
@@ -3203,6 +3420,8 @@
     APP_STATUSES,
     VIEW_MODES,
     codeLabel, codeShortLabel, isHalfDay,
+    /* 캘린더 셀 블록 공용 헬퍼 — 나의/부서별 근태현황, 부서별 연차현황 통일 */
+    calShiftColorCls, calShiftChip, calBlock, calLeaveLabel, calShiftMismatch,
     getRecords, monthStats,
     ymd, pad2, parseYM, daysInMonth, isWeekend, fmtDateDow,
     nowHMS,

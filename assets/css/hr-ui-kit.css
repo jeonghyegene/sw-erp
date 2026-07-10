@@ -4962,6 +4962,37 @@ textarea.doc-editor__paper {
   border-radius: 50%;
   border: 2px solid #fff;
 }
+/* 아바타 래퍼 — presence 배지가 원형 아바타 밖으로 넘칠 수 있게 overflow 미클리핑 */
+.hr-card__avatar-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+/* 근태 presence 배지 — 사진 우측 하단, "불 들어오는" dot + 텍스트.
+   근무중=녹(pulse) / 퇴근=회 / 미출근=slate / 휴가=purple. tm-roster·hr-card 상태 색과 통일. */
+.hr-card__presence {
+  position: absolute; right: -4px; bottom: -2px;
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 18px; padding: 0 7px 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  font-size: 10px; font-weight: var(--fw-bold);
+  letter-spacing: -0.02em; white-space: nowrap;
+}
+.hr-card__presence-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.hr-card__presence--working { color: var(--color-success); }
+.hr-card__presence--working .hr-card__presence-dot {
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55);
+  animation: hrPresencePulse 1.6s ease-in-out infinite;
+}
+.hr-card__presence--out    { color: var(--color-text-muted); }
+.hr-card__presence--absent { color: var(--color-text-sub); }
+.hr-card__presence--leave  { color: #6D28D9; }
+@keyframes hrPresencePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
+}
 .hr-card__body {
   display: flex; flex-direction: column;
   gap: 8px;
@@ -4982,6 +5013,14 @@ textarea.doc-editor__paper {
   white-space: nowrap;
   letter-spacing: -0.02em;
   margin-right: 2px;
+}
+/* 직위·직책 — 이름 옆 회색 보조 텍스트(칩 아님). 길면 flex-wrap 으로 다음 줄. */
+.hr-card__role {
+  font-size: var(--fs-sm);
+  color: var(--color-text-sub);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  min-width: 0;
 }
 .hr-card__meta {                          /* (호환 유지) 별도 줄에 chip 묶음을 둘 때 사용 */
   display: flex; flex-wrap: wrap;
@@ -5018,11 +5057,18 @@ textarea.doc-editor__paper {
   color: var(--color-brand-primary);
   font-weight: var(--fw-semibold);
 }
-/* 도급직 표시 — warning 톤(amber) */
-.hr-card__chip--outsource {
+/* 휴직 — 재직상태 배지(amber). 인사정보관리 화면의 휴직 pill 과 동일 톤으로 통일. */
+.hr-card__chip--leave {
   background: rgba(245, 158, 11, 0.10);
   border-color: rgba(245, 158, 11, 0.30);
   color: #B45309;
+  font-weight: var(--fw-semibold);
+}
+/* 도급직 — 고용형태 배지(중립 slate). 휴직(amber)과 시각 구분 + 칩 정돈. */
+.hr-card__chip--outsource {
+  background: #E2E8F0;
+  border-color: transparent;
+  color: var(--color-text-sub);
   font-weight: var(--fw-semibold);
 }
 .hr-card__status {
@@ -5046,16 +5092,17 @@ textarea.doc-editor__paper {
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
 }
-/* 근태 상태 추가 변형 — 미출근(주)/휴가(청) */
-.hr-card__status--warning {
-  background: rgba(217, 119, 6, 0.10);
-  color: var(--color-warning);
-  border: 1px solid rgba(217, 119, 6, 0.22);
+/* 근태 상태 변형 — 미출근(slate·중립)/휴가(purple·강조). tm-roster 색 체계와 통일.
+   미출근은 경고색이 아닌 중립 회색(아침 기본값이라 조용해야 함), 휴가는 눈에 띄는 보라. */
+.hr-card__status--pending {
+  background: #E2E8F0;
+  color: var(--color-text-sub);
+  border: 1px solid transparent;
 }
-.hr-card__status--info {
-  background: rgba(37, 99, 235, 0.10);
-  color: var(--color-info);
-  border: 1px solid rgba(37, 99, 235, 0.22);
+.hr-card__status--leave {
+  background: #EDE9FE;
+  color: #6D28D9;
+  border: 1px solid rgba(109, 40, 217, 0.18);
 }
 .hr-card__bottom {
   display: flex; align-items: center;
@@ -5141,6 +5188,7 @@ a.hr-card__contact-value:hover {
 .hr-card--compact:hover { box-shadow: none; border-color: var(--color-border); }
 .hr-card--compact .hr-card__contact,
 .hr-card--compact .hr-card__status,
+.hr-card--compact .hr-card__presence,
 .hr-card--compact .hr-card__fav { display: none; }
 .hr-card--compact .hr-card__head { padding-right: 4px; }  /* fav 자리 비우니 우측 여백 회수 */
 

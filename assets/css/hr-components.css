@@ -876,7 +876,7 @@ textarea.input {
 .shift-chip--c1 { background: #ECFDF5; border-color: #A7F3D0; color: #047857; }
 .shift-chip--c2 { background: #FFFBEB; border-color: #FDE68A; color: #B45309; }
 .shift-chip--c3 { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
-.shift-chip--c4 { background: #F5F3FF; border-color: #DDD6FE; color: #6D28D9; }
+.shift-chip--c4 { background: #F7FEE7; border-color: #D9F99D; color: #4D7C0F; } /* 라임 — 보라 제거(휴가 보라와 겹침 방지) */
 .shift-chip--c5 { background: #ECFEFF; border-color: #A5F3FC; color: #0E7490; }
 .shift-chip--c6 { background: #FFF7ED; border-color: #FED7AA; color: #C2410C; }
 .shift-chip--c7 { background: #EEF2FF; border-color: #C7D2FE; color: #4338CA; }
@@ -1472,11 +1472,16 @@ textarea.input {
    toolbar(고정) + grid-wrap(flex:1) + grid-scroll(데이터 행만 스크롤) 구조가 동작하도록
    att-page__body 의 기본(surface-alt 배경/패딩/overflow:auto)을 흰 배경 flex 컬럼으로 치환. */
 .att-page__body--apps {
-  background: var(--color-surface);
+  background: var(--color-surface-alt);
   padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+/* 상단 조회 툴바 — 회색 본문 위에서 흰 고정 바로 분리(하단 경계선). 그 아래 회색 위에 카드 박스가 뜬다. */
+.att-page__body--apps > .toolbar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .att-emp-head {
@@ -1626,10 +1631,10 @@ textarea.input {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .lv-cal__chip-name { font-weight: var(--fw-semibold); }
-.lv-cal__chip--leave { background: #DCFCE7; color: #15803D; }
-.lv-cal__chip--half  { background: #ECFCCB; color: #4D7C0F; }
+.lv-cal__chip--leave { background: #EDE9FE; color: #6D28D9; } /* 휴가 — 보라(임직원현황·근태 캘린더 통일) */
+.lv-cal__chip--half  { background: #EDE9FE; color: #6D28D9; } /* 반차 — 휴가와 동일 보라 */
 .lv-cal__chip--trip  { background: #DBEAFE; color: #1D4ED8; }
-.lv-cal__chip--field { background: #EDE9FE; color: #6D28D9; }
+.lv-cal__chip--field { background: #CFFAFE; color: #0E7490; } /* 외근 — 청록(휴가 보라와 겹침 방지) */
 .lv-cal__chip--edu   { background: #FEF3C7; color: #B45309; }
 .lv-cal__count {
   font-size: 10px; font-weight: var(--fw-semibold); color: var(--color-text-muted);
@@ -1685,6 +1690,102 @@ textarea.input {
   color: var(--color-brand-primary);
   font-weight: var(--fw-medium);
 }
+
+/* ===== 근태 캘린더 — 출퇴근/근태 블록(bar) =====
+ * 경영·홍보 스케쥴 캘린더의 이벤트 바(.sched-month__event) 패턴을 근태에 적용.
+ * 셀 안에 상태별 색상 블록을 세로로 쌓아(stack) 출퇴근·지각·조퇴·연장·야간·휴가를
+ * 텍스트를 읽기 전에 색으로 즉시 인지하도록 한다. (SWADPIA §6 상태 색 일관)
+ *
+ * 출퇴근 블록의 색은 그날 근무조(shift) 색상(.shift-chip--c0~c9 / --day, 전 근태 화면 공용
+ * 파스텔 팔레트)을 그대로 물려받아 근무조 정체성을 캘린더에서도 유지한다.
+ * 지각/조퇴/연장/야간/휴가 tint 는 연차 캘린더(.lv-cal__chip)와 동일 값. */
+.att-cal__blocks {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 1px;
+}
+.att-cal__block {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 10px; line-height: 1.4;
+  font-weight: var(--fw-semibold);
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.att-cal__block-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* 출퇴근 블록 — 근무조 색상(.shift-chip--*)을 물려받으므로 자체 배경 없음.
+   근무조 미배정 등 색상 클래스가 없을 때만 이 기본(연회색) 을 사용. */
+.att-cal__block--work     { background: var(--color-surface-alt); color: var(--color-text-sub); }
+.att-cal__block--late     { background: #FEF3C7; color: #B45309; }                          /* 지각 */
+.att-cal__block--early    { background: #FFEDD5; color: #C2410C; }                          /* 조퇴 */
+.att-cal__block--ot       { background: #DBEAFE; color: #1D4ED8; }                          /* 연장 */
+.att-cal__block--night    { background: #E0E7FF; color: #3730A3; }                          /* 야간 — 남색(휴가 보라와 구분) */
+.att-cal__block--leave    { background: #EDE9FE; color: #6D28D9; }                          /* 휴가 — 임직원현황 보라(.pill--purple)와 통일 */
+/* 경고 블록 — 근무조 불일치 / 반차 미신청 등. 출퇴근 블록 자체를 찐 다홍(경고) solid 로 칠하고
+   느낌표(!) 만 붙인다. 경고 텍스트 라인은 두지 않는다(정신 없음). 클릭 시 상세 안내 모달. */
+.att-cal__block--warn { background: var(--color-danger); color: #fff; }
+.att-cal__block--warn.is-clickable { cursor: pointer; }
+.att-cal__block--warn.is-clickable:hover { filter: brightness(0.94); }
+.att-cal__mm {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; flex: 0 0 auto; margin-left: auto;
+  border-radius: 50%; background: #fff; color: var(--color-danger);
+  font-size: 10px; font-weight: var(--fw-bold); line-height: 1;
+}
+/* 근무조 라벨 칩(A조 등) — 근무조 색상(.shift-chip--c0~c9) 파스텔을 그대로 사용해
+   출퇴근 블록과 동일 색으로 근무조 정체성 통일. */
+.att-cal__shiftc {
+  font-size: 10px; line-height: 1; font-weight: var(--fw-semibold);
+  padding: 2px 5px; border-radius: var(--radius-sm); white-space: nowrap;
+}
+/* 범례용 미니 스와치 — 블록 색상 클래스를 그대로 재사용하고 크기만 축소 */
+.att-cal__sw {
+  display: inline-block; width: 12px; height: 12px;
+  padding: 0 !important; border-radius: 3px;
+  vertical-align: middle;
+}
+.att-cal__mm--legend { margin-left: 0; }
+/* 범례 출퇴근 스와치 — 출퇴근 블록은 근무조별 색상(.shift-chip--c*)을 물려받으므로 범례에선
+   대표 색(파랑 파스텔, shift-chip--c0 팔레트)으로 표시. 텍스트 없는 미니 스와치라 border 로 가시성 확보. */
+.att-cal__sw--work { background: #EFF6FF; border: 1px solid #BFDBFE; }
+
+/* ===== 근태 안내 모달 — 이슈(근무조 불일치 / 반차 미신청)별 카드 =====
+   여러 이슈가 한 날에 겹치면 카드를 세로로 나열. 좌측 경고 액센트 바로 이슈를 시각 그룹핑. */
+.att-notice {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.att-notice::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--color-danger);
+}
+.att-notice + .att-notice { margin-top: 12px; }
+.att-notice__hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px 10px 16px;
+  font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--color-text);
+}
+.att-notice__ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; flex: 0 0 auto;
+  border-radius: 50%; background: var(--color-danger); color: #fff;
+  font-size: 12px; font-weight: var(--fw-bold); line-height: 1;
+}
+.att-notice__tag {
+  margin-left: auto; font-size: var(--fs-xs); font-weight: var(--fw-medium);
+  color: var(--color-danger); background: rgba(220, 38, 38, 0.08);
+  padding: 2px 8px; border-radius: var(--radius-pill);
+}
+.att-notice__bd { padding: 0 14px 14px 16px; }
+.att-notice__desc { margin: 0 0 12px; color: var(--color-text-sub); font-size: var(--fs-sm); line-height: 1.6; }
+.att-notice__act { margin-top: 14px; display: flex; justify-content: flex-end; }
+/* 안내 카드 내부 상세 — 라벨/값 인라인 리스트(회색 박스 대신 가벼운 구분선) */
+.att-notice__dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: baseline; }
+.att-notice__dl dt { font-size: var(--fs-sm); color: var(--color-text-muted); white-space: nowrap; }
+.att-notice__dl dd { margin: 0; font-size: var(--fs-sm); color: var(--color-text); }
+.att-notice__dl dd.is-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
 .att-cal__legend {
   display: flex; align-items: center; gap: 14px;
   margin-top: 12px;
@@ -1698,6 +1799,9 @@ textarea.input {
   width: 8px; height: 8px;
   margin-right: 4px;
 }
+/* 블록 스와치 범례 항목 — 스와치 + 라벨 정렬 */
+.att-cal__legend > span { display: inline-flex; align-items: center; gap: 4px; }
+.att-cal__legend .att-cal__sw { margin: 0; }
 
 /* =========================================================
  *  연차 계획 — 캘린더 셀 내 인원 pill / 대시보드 색상 점
@@ -1879,6 +1983,18 @@ textarea.input {
 }
 .table-card + .table-card,
 .table-card--mt { margin-top: 14px; }
+/* 풀높이 카드 — 신청 내역처럼 상단 조회 툴바 아래에서 남은 높이를 채우는 데이터 카드.
+   카드를 flex 컬럼으로 만들어 내부 .grid-wrap(데이터 행)만 스크롤되게 하고
+   (툴바·그리드 헤더·페이지네이션은 고정), 좌우 20px·상하 여백으로 카드가 떠 보이게 한다.
+   부서별 근태현황의 부서 테이블 박스와 동일 톤. */
+.table-card--fill {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 12px 20px 16px;
+}
+.table-card--fill > .grid-wrap { flex: 1 1 0; min-height: 0; }
 .table-card__cap {
   display: flex;
   align-items: center;
@@ -1977,6 +2093,33 @@ textarea.input {
 .att-apply__bchip strong { font-size: var(--fs-md); color: var(--color-brand-primary); }
 .att-apply__bchip--remain strong { color: var(--color-success); }
 .att-apply__bchip--comp strong { color: var(--color-warning); }
+
+/* 연차휴가신청서 상단 잔여 카드 — 발생/잔여/대체 휴가를 큰 카드로 강조.
+   큰 수치로 강조. 색 의미는 칩과 동일(발생=brand / 잔여=success / 대체=warning). */
+.att-apply__cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.att-apply__card {
+  padding: 16px 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.att-apply__card-label { font-size: var(--fs-xs); color: var(--color-text-muted); }
+.att-apply__card-value {
+  margin-top: 6px;
+  font-size: var(--fs-2xl); font-weight: var(--fw-bold); line-height: 1;
+  color: var(--color-brand-primary);
+}
+.att-apply__card-value small {
+  font-size: var(--fs-sm); font-weight: var(--fw-regular);
+  color: var(--color-text-muted); margin-left: 3px;
+}
+.att-apply__card--remain .att-apply__card-value { color: var(--color-success); }
+.att-apply__card--comp .att-apply__card-value { color: var(--color-warning); }
 
 /* 근태 신청 — 탭 (ATT/HOL) */
 .att-apply__tabs {
@@ -3322,6 +3465,25 @@ textarea.input {
 }
 
 /* ===================================================================
+   급여 명세서 조회 — 리스트 뷰 (급여 정산과 동일: 검색 패널 + 툴바 + 그리드)
+   레이아웃/칩은 표준 .search / .toolbar / .search__quick 을 그대로 사용.
+   =================================================================== */
+/* 상세 뷰 — 목록으로 돌아가는 뒤로가기 버튼 + 부제(귀속월·구분) */
+.psl-pagebar__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.psl-pagebar__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-sub);
+}
+.psl-pagebar__sub .pill { vertical-align: middle; }
+
+/* ===================================================================
    급여 명세서 — 인쇄용 심플 표 (참고: 급상여명세서.png)
    - 흰 배경 + 1px 가는 border 만 사용
    - 색상은 거의 무채색, 합계행/실지급액만 옅은 톤
@@ -3490,6 +3652,19 @@ textarea.input {
   color: var(--color-text-sub);
   margin: -2px 0 6px;
 }
+/* 급여 산정 내역 — 소제목 (시간외 근로수당 / 지각·조퇴 차감) */
+.payslip__remark-subtitle {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-sub);
+  margin: 12px 0 5px;
+}
+/* 통상시급 기준 표 — 좁게, 한 곳에만 표기 */
+.payslip__basis-tbl {
+  width: auto;
+  min-width: 220px;
+}
+.payslip__basis-tbl tbody th { width: 120px; }
 /* 수당 그룹 헤더 행 (연장/야간/휴일근무수당) — 소계 우측 강조 */
 .payslip__remark-tbl--grouped tbody tr.is-group th,
 .payslip__remark-tbl--grouped tbody tr.is-group td {

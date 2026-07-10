@@ -2,14 +2,14 @@
  * Page: HR > 발령 및 계약 > 발령
  *
  * 입사자 관리(App.HRMembers)에서 입사확정된 사람에 대해
- * 전보 / 승진 / 수습해제 / 복직 / 휴직 발령을 처리하는 화면.
+ * 전보 / 승진 / 수습해제 발령을 처리하는 화면.
  *
  *   목록 view(list):
  *     그리드: 체크박스 + No + 발령번호 + 성명(링크) + 발령유형 + 발령내용
  *           + 발령일 + 상태 + 발령 담당자 + 작성일시
  *     [발령] 버튼     → 신규 발령 작성 화면(editor) 진입
  *     [발령 취소] 버튼 → 선택된 「예정」 항목을 「취소」 상태로 변경
- *     성명 클릭       → 사령장(전보·수습해제·복직·휴직) / 임명장(승진) OffCanvas 미리보기
+ *     성명 클릭       → 사령장(전보·수습해제) / 임명장(승진) OffCanvas 미리보기
  *     검색 필터: 작성일 기본 1개월 / 성명·사번·발령번호 / 발령유형 5종 + 상태 3종
  *
  *   작성 view(editor) — 근로계약서 작성 화면과 동일한 풀스크린 split 패턴:
@@ -46,13 +46,11 @@
 
   /* 발령 유형 5가지 — 사령장/임명장 구분 포함 */
   /* 수습해제는 별도 발령 종류로 처리하지 않음 — 「수습 평가」 후속 처리에서 자동 수행되도록 통합됨. */
-  const KIND_LIST = ['전보', '승진', '복직', '휴직'];
+  const KIND_LIST = ['전보', '승진'];
   const KIND_DOC = {
     '전보':     '사령장',
     '승진':     '임명장',
     '수습해제': '사령장',
-    '복직':     '사령장',
-    '휴직':     '사령장',
   };
 
   /* ============ 마스터 (입사자/조직 데이터에서 수집) ============ */
@@ -60,7 +58,6 @@
   const RANKS = ['대표이사', '부대표이사', '전무이사', '상무이사', '부장', '차장', '과장', '대리', '주임', '사원'];
   const POSITIONS = ['임원', '본부장', '소장', '팀장', '파트장', '팀원', '파트원'];
   const JOBS = ['인사', '재무', '총무', '생산관리', '품질관리', '개발', '디자인'];
-  const LEAVE_KIND = ['육아', '병가', '개인사정', '학업', '군복무'];
 
   /* 부서별 근무 정책(App.AttWorkPolicy) — 전보 시 새 부서의 근무형태/사용 스케줄 산출. */
   function deptPolicyOf(deptName) {
@@ -153,38 +150,6 @@
   }
   let EMPLOYEES = [];
 
-  /* ============ 휴직/복직 후보 (휴직 관리 App.HRLoa 연동) ============
-   *   휴직 발령 대상 = 전자결재 승인되어 「휴직예정(scheduled)」 인 직원.
-   *   복직 발령 대상 = 현재 「휴직중(ongoing)」 인 직원.
-   *   각 후보는 휴직 사유(라벨) / 휴직 종료 예정일 / 복직 예정일 메타를 함께 보유. */
-  function loaRecordsByStatus(status) {
-    if (window.App && App.HRLoa && typeof App.HRLoa.byStatus === 'function') {
-      return App.HRLoa.byStatus(status);
-    }
-    return [];
-  }
-  /** 휴직 레코드 → 발령 대상 직원(EDIT.emps) 엔트리로 변환. 인사 마스터에서 직위/직책/직무 보강. */
-  function loaToEmp(r) {
-    const master = (window.App && App.HRMembers && App.HRMembers.list ? App.HRMembers.list() : [])
-      .find(m => m.id === r.empId) || {};
-    const leaveLabel = (window.App && App.HRLoa && App.HRLoa.typeLabel) ? App.HRLoa.typeLabel(r.type) : r.type;
-    const expectedReturn = r.returnDate || (r.endDate ? ymd(addDays(new Date(r.endDate), 1)) : '');
-    return {
-      id: r.empId,
-      name: r.empName,
-      dept: r.empDept || master.dept || '',
-      rank: master.rank || '',
-      position: r.empPosition || master.position || '',
-      job: master.job || '',
-      /* 휴직/복직 연동 메타 */
-      loaId: r.id,
-      leaveKindLabel: leaveLabel,
-      leaveEndDate: r.endDate || '',
-      expectedReturn,            // 복직 예정일 기본값 (휴직 종료 예정일 + 1)
-      returnDate: expectedReturn, // 사용자 조정 가능한 복직일 (복직 발령에서 편집)
-    };
-  }
-
   /* ============ Mock 발령 데이터 ============ */
   function buildContent(kind, emp, i) {
     if (kind === '전보') {
@@ -201,13 +166,6 @@
     if (kind === '수습해제') {
       return { text: '수습 해제 (정규직 전환)', toDept: emp.dept, toRank: emp.rank, toPosition: emp.position };
     }
-    if (kind === '복직') {
-      return { text: '휴직 → 복직', toDept: emp.dept, toRank: emp.rank, toPosition: emp.position };
-    }
-    if (kind === '휴직') {
-      const lv = pick(LEAVE_KIND, i);
-      return { text: `재직 → ${lv} 휴직`, leaveKind: lv, toDept: emp.dept, toRank: emp.rank, toPosition: emp.position };
-    }
     return { text: '' };
   }
 
@@ -219,18 +177,12 @@
     const cases = [
       { kind:'전보',     status:'pending',   regOffset:-2,  effectOffset:7  },
       { kind:'승진',     status:'pending',   regOffset:-1,  effectOffset:14 },
-      { kind:'복직',     status:'pending',   regOffset:-3,  effectOffset:10 },
-      { kind:'휴직',     status:'done',      regOffset:-12, effectOffset:-5 },
       { kind:'전보',     status:'done',      regOffset:-18, effectOffset:-10 },
       { kind:'승진',     status:'cancelled', regOffset:-7,  effectOffset:3  },
       { kind:'전보',     status:'pending',   regOffset:-4,  effectOffset:8  },
-      { kind:'복직',     status:'done',      regOffset:-20, effectOffset:-14 },
-      { kind:'휴직',     status:'pending',   regOffset:-6,  effectOffset:11 },
       { kind:'승진',     status:'done',      regOffset:-25, effectOffset:-18 },
       { kind:'전보',     status:'done',      regOffset:-15, effectOffset:-8 },
       { kind:'승진',     status:'pending',   regOffset:-2,  effectOffset:13 },
-      { kind:'복직',     status:'pending',   regOffset:-8,  effectOffset:6  },
-      { kind:'휴직',     status:'cancelled', regOffset:-22, effectOffset:-15 },
       { kind:'전보',     status:'pending',   regOffset:-1,  effectOffset:9  },
     ];
 
@@ -282,8 +234,6 @@
     toDept: '',
     toRank: '',
     toPosition: '',
-    leaveKind: '육아',
-    leaveEndDate: '',
   };
 
   /* ============ 필터 ============ */
@@ -602,8 +552,6 @@
     EDIT.toRank = '';
     EDIT.toPosition = '';
     EDIT.toDuty = '';
-    EDIT.leaveKind = '육아';
-    EDIT.leaveEndDate = '';
     /* Layer modal 패턴 — 페이지 전환 없이 모달로 발령 등록 폼 표시 */
     renderEditorView(document.getElementById('page-hr-appoint'));
     openAptModal();
@@ -646,7 +594,7 @@
               <label class="form-label is-required">유형</label>
               <div class="tabs tabs--segmented">
                 <div class="tabs__nav">
-                  ${KIND_LIST.filter(k => k !== '복직').map(k => `
+                  ${KIND_LIST.map(k => `
                     <button type="button" class="tabs__tab ${EDIT.kind === k ? 'is-active' : ''}" data-apt-kind="${esc(k)}">${esc(k)}</button>
                   `).join('')}
                 </div>
@@ -710,11 +658,6 @@
       toPosition: EDIT.kind === '승진' ? (e ? (e.toPosition || e.position) : '') : (EDIT.toPosition || (e ? e.position : '')),
       fromJob: e ? e.job : '',
       toJob: EDIT.kind === '전보' ? (e ? (e.toJob || e.job) : '') : (EDIT.toJob || (e ? e.job : '')),
-      /* 휴직 — 사유/종료예정일은 (대표)직원의 전자결재 연동값 */
-      leaveKind: (EDIT.kind === '휴직' && e) ? e.leaveKindLabel : EDIT.leaveKind,
-      leaveEndDate: (EDIT.kind === '휴직' && e) ? e.leaveEndDate : EDIT.leaveEndDate,
-      /* 복직 — 복직 예정일(직원별 조정값) */
-      returnDate: (EDIT.kind === '복직' && e) ? (e.returnDate || e.expectedReturn || '') : '',
     };
     return {
       id: '(자동 부여)',
@@ -733,8 +676,6 @@
 
   /** 유형별 대상 직원 선택 범위 안내 문구 */
   function empScopeHint(kind) {
-    if (kind === '복직') return '(「휴직중」 인 직원만 선택 가능)';
-    if (kind === '휴직') return '';
     return '';
   }
 
@@ -903,56 +844,6 @@
              <p class="t-muted" style="font-size:var(--fs-xs);margin-top:6px;">승진 직위·직책 기본값은 각 직원의 이전 값입니다. 바꿀 항목만 변경하세요 (직책 그대로 두면 직책은 유지됩니다).</p>`
           : `<p class="form-help">대상 직원을 선택하세요.</p>`}
       `;
-    } else if (EDIT.kind === '복직') {
-      /* 복직 — 「휴직중」 직원만 선택 가능. 복직 예정일은 휴직 설정 복직일을 기본값으로 두되 직원별 조정 가능. */
-      host.innerHTML = `
-        ${sectionHead('복직 정보')}
-        ${EDIT.emps.length
-          ? `<p class="t-muted" style="font-size:var(--fs-xs);margin:-2px 0 8px;">복직 예정일은 휴직 시 설정된 복직일이 기본값입니다. 필요 시 직원별로 조정하세요.</p>
-             <div class="grid-wrap" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);">
-               <div class="grid-scroll">
-                 <table class="tbl" style="font-size:var(--fs-sm);">
-                   <thead><tr>
-                     <th>성명</th><th style="width:90px;">복직 부서</th><th style="width:150px;">복직 예정일</th>
-                   </tr></thead>
-                   <tbody>
-                     ${EDIT.emps.map(em => `
-                       <tr>
-                         <td>${esc(em.name)} <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">${esc(em.id)}</span></td>
-                         <td>${esc(em.dept || '-')}</td>
-                         <td><input class="input input--sm" type="date" data-apt-return="${esc(em.id)}" value="${esc(em.returnDate || em.expectedReturn || '')}" style="width:100%;" /></td>
-                       </tr>`).join('')}
-                   </tbody>
-                 </table>
-               </div>
-             </div>`
-          : `<p class="form-help">「휴직중」 인 직원을 선택하세요.</p>`}
-      `;
-    } else if (EDIT.kind === '휴직') {
-      /* 휴직 — 전자결재 승인된(휴직예정) 직원만 선택. 사유/종료예정일은 전자결재 정보 그대로 연동(읽기 전용). */
-      host.innerHTML = `
-        ${sectionHead('휴직 정보')}
-        ${EDIT.emps.length
-          ? `<p class="t-muted" style="font-size:var(--fs-xs);margin:-2px 0 8px;">휴직 사유 · 종료 예정일은 전자결재 승인 정보를 그대로 사용합니다 (직원별 상이).</p>
-             <div class="grid-wrap" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);">
-               <div class="grid-scroll">
-                 <table class="tbl" style="font-size:var(--fs-sm);">
-                   <thead><tr>
-                     <th>성명</th><th>휴직 사유</th><th style="width:110px;text-align:center;">종료 예정일</th>
-                   </tr></thead>
-                   <tbody>
-                     ${EDIT.emps.map(em => `
-                       <tr>
-                         <td>${esc(em.name)} <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">${esc(em.id)}</span></td>
-                         <td>${esc(em.leaveKindLabel || '-')}</td>
-                         <td style="text-align:center;">${esc(fmtD(em.leaveEndDate) || '-')}</td>
-                       </tr>`).join('')}
-                   </tbody>
-                 </table>
-               </div>
-             </div>`
-          : ``}
-      `;
     }
   }
   function bindEditor(pageEl) {
@@ -962,8 +853,7 @@
         const k = btn.dataset.aptKind;
         if (k === EDIT.kind) return;
         EDIT.kind = k;
-        /* 유형 변경 시 유형별 필드 값 초기화. 복직/휴직은 선택 가능한 대상자 풀이
-         *   다르므로(휴직중 / 휴직승인) 선택된 직원도 함께 초기화한다. */
+        /* 유형 변경 시 유형별 필드 값 및 선택된 직원 초기화. */
         EDIT.toDept = '';
         EDIT.toJob  = '';
         EDIT.toRank = '';
@@ -993,7 +883,7 @@
     /* 발령일 */
     bindField('#apt-edit-effect', 'effectDate');
 
-    /* 유형별 필드 (전보·승진=직원별 발령/승진 값, 복직=직원별 복직 예정일) */
+    /* 유형별 필드 (전보·승진=직원별 발령/승진 값) */
     bindKindFieldInputs();
 
     /* 발령 등록 버튼 — #modal-apt-create 는 body 직속 모달이라 pageEl 하위가 아님.
@@ -1045,19 +935,6 @@
     bulkBind('data-apt-bulk-rank', 'toRank');      // 승진
     bulkBind('data-apt-bulk-pos',  'toPosition');  // 승진
   }
-  /** 복직 — 직원별 「복직 예정일」 date 입력 바인딩 (EDIT.emps[i].returnDate 갱신) */
-  function bindReturnDateInputs() {
-    document.querySelectorAll('[data-apt-return]').forEach(inp => {
-      const handler = () => {
-        const emp = EDIT.emps.find(x => x.id === inp.dataset.aptReturn);
-        if (emp) emp.returnDate = inp.value;
-        syncPreview();
-        validateEditor();
-      };
-      inp.addEventListener('input', handler);
-      inp.addEventListener('change', handler);
-    });
-  }
   function bindField(sel, key) {
     const el = document.querySelector(sel); if (!el) return;
     const handler = () => {
@@ -1102,14 +979,6 @@
         valid = false;
       }
     }
-    if (EDIT.kind === '복직') {
-      /* 복직 — 모든 대상자의 복직 예정일이 채워져 있어야 함 */
-      if (EDIT.emps.some(x => !x.returnDate)) {
-        empMsg = '복직 예정일이 비어 있는 직원이 있습니다.';
-        valid = false;
-      }
-    }
-    /* 휴직 — 사유/종료예정일은 전자결재 연동 값이므로 별도 입력 검증 불필요 (대상자 선택만 확인). */
 
     const msgEl = $('#apt-edit-emp-msg');
     if (msgEl) {
@@ -1188,10 +1057,6 @@
         if (tp !== e.position) parts.push(`직책 ${e.position || '-'}→${tp || '-'}`);
         contentLines.push(`· ${e.name}: ${parts.join(', ') || '직위·직책 유지'}`);
       });
-    } else if (EDIT.kind === '복직') {
-      EDIT.emps.forEach(e => contentLines.push(`· ${e.name}: ${e.dept || '-'} 복직 (복직 예정일 ${e.returnDate || e.expectedReturn || '-'})`));
-    } else if (EDIT.kind === '휴직') {
-      EDIT.emps.forEach(e => contentLines.push(`· ${e.name}: ${e.leaveKindLabel || '-'} (종료 예정 ${e.leaveEndDate || '-'})`));
     }
 
     /* 발령 모달은 열어둔 채로 전자결재 모달이 위에 표시되도록 일시 숨김 */
@@ -1218,8 +1083,6 @@
         toDept: EDIT.toDept,
         toRank: EDIT.toRank,
         toPosition: EDIT.toPosition,
-        leaveKind: EDIT.leaveKind,
-        leaveEndDate: EDIT.leaveEndDate,
       },
       onSubmit(rec) {
         /* 승인 요청 등록 완료 — 실제 발령 row 도 추가 (status 는 결재 대기, 발령일이 미래면 예정 / 과거면 완료 처리는
@@ -1284,20 +1147,6 @@
         };
       } else if (EDIT.kind === '수습해제') {
         content = { text: '수습 해제 (정규직 전환)', toDept: e.dept, toRank: e.rank, toPosition: e.position };
-      } else if (EDIT.kind === '복직') {
-        /* 복직 — 부서는 휴직 직전 부서 그대로. 복직 예정일은 직원별 조정값(returnDate). */
-        content = {
-          text: '휴직 → 복직',
-          toDept: e.dept, toRank: e.rank, toPosition: e.position,
-          returnDate: e.returnDate || e.expectedReturn || '',
-        };
-      } else if (EDIT.kind === '휴직') {
-        /* 휴직 — 사유/종료예정일은 전자결재 연동값(직원별 상이). */
-        content = {
-          text: `재직 → ${e.leaveKindLabel || ''} 휴직`,
-          leaveKind: e.leaveKindLabel || '', leaveEndDate: e.leaveEndDate || '',
-          toDept: e.dept, toRank: e.rank, toPosition: e.position,
-        };
       } else {
         content = { text: '' };
       }
@@ -1328,30 +1177,20 @@
    *   dept/rank(직위)/position(직책)/job(직무) 가 드롭다운 옵션과 1:1 일치한다.
    *   (조직 전체 picker 데이터는 pos 단일 필드만 제공 → 직위·직책 중복/옵션 불일치 발생)
    *
-   *   유형별 후보 풀:
-   *     · 전보/승진 → 입사확정된 전체 직원
-   *     · 복직      → 「휴직중(ongoing)」 직원 (휴직 관리 연동, 복직 예정일 메타 포함)
-   *     · 휴직      → 「휴직예정(전자결재 승인)」 직원 (휴직 사유/종료예정일 메타 포함) */
+   *   후보 풀: 전보/승진 모두 입사확정된 전체 직원 */
   function openEmpPicker() {
     if (!(window.App && typeof App.openEmpPicker === 'function')) {
       window.toast && window.toast('직원 선택 모듈이 준비되지 않았습니다.', 'warning');
       return;
     }
-    /* 후보 빌드. 이미 선택된 직원은 세션 편집값(toDept/toJob/toRank/returnDate 등)을 보존하기 위해
+    /* 후보 빌드. 이미 선택된 직원은 세션 편집값(toDept/toJob/toRank 등)을 보존하기 위해
      *   기존 EDIT.emps 객체를 그대로 재사용하고, 신규 후보는 복사본으로 만들어 마스터 오염을 막는다. */
     const keep = new Map(EDIT.emps.map(x => [x.id, x]));
-    let base;
-    if (EDIT.kind === '복직')      base = loaRecordsByStatus('ongoing').map(loaToEmp);
-    else if (EDIT.kind === '휴직') base = loaRecordsByStatus('scheduled').map(loaToEmp);
-    else                           base = EMPLOYEES.map(e => Object.assign({}, e));   // 전보·승진 — 전체 직원(복사본)
+    const base = EMPLOYEES.map(e => Object.assign({}, e));   // 전보·승진 — 전체 직원(복사본)
     const candidates = base.map(e => keep.get(e.id) || e);
-    /* off-canvas 표시용 필드(pos/photo) 보강 — 우리 데이터(rank/position/job/LOA메타)는 그대로 유지 */
+    /* off-canvas 표시용 필드(pos/photo) 보강 — 우리 데이터(rank/position/job)는 그대로 유지 */
     candidates.forEach(e => {
-      if (!e.pos) {
-        e.pos = EDIT.kind === '복직' ? (e.expectedReturn ? '복직예정 ' + e.expectedReturn : (e.position || e.rank || ''))
-              : EDIT.kind === '휴직' ? (e.leaveKindLabel || '')
-              : [e.rank, e.position].filter(Boolean).join(' · ');
-      }
+      if (!e.pos) e.pos = [e.rank, e.position].filter(Boolean).join(' · ');
       if (!e.photo) e.photo = e.photoUrl || '';
     });
 
@@ -1368,7 +1207,7 @@
     App.openEmpPicker({
       action: 'callback',
       multi: true,
-      employees: candidates,                        // ← 발령 대상 후보만 주입 (복직/휴직은 필터링됨)
+      employees: candidates,                        // ← 발령 대상 후보(입사확정 전체 직원)
       preselectedIds: EDIT.emps.map(x => x.id),     // 재진입 시 기존 선택 유지
       onConfirm(selected) {
         restoreZ();
@@ -1387,7 +1226,6 @@
   /** renderKindFields 가 select DOM 을 다시 그린 뒤 유형별 입력을 재바인딩 (공통 헬퍼) */
   function bindKindFieldInputs() {
     bindTransferInputs();     // 전보·승진 — 직원별 발령/승진 값 + 일괄 적용
-    bindReturnDateInputs();   // 복직 — 직원별 복직 예정일
   }
 
   /* =========================================================
@@ -1441,20 +1279,6 @@
       detailRows = `
         <tr><th>소속 부서</th><td>${esc(c.toDept || row.empDept)}</td></tr>
         <tr><th>전환 구분</th><td>수습 → 정규직</td></tr>
-      `;
-    } else if (row.kind === '복직') {
-      /* 복직 — 복직 부서는 표기하지 않음(휴직 직전 부서 유지). 복직 예정일은 직원별 상이하므로 단일 대상자일 때만 표기. */
-      detailRows = `
-        ${isMulti ? '' : `<tr><th>복직 예정일</th><td>${c.returnDate ? esc(fmtD(c.returnDate)) : '미정'}</td></tr>`}
-        <tr><th>구분</th><td>휴직 → 복직</td></tr>
-      `;
-    } else if (row.kind === '휴직') {
-      /* 휴직 — 소속 부서는 표기하지 않음. 사유/종료예정일은 전자결재 연동값(직원별 상이) → 단일 대상자일 때만 표기. */
-      const endDate = c.leaveEndDate ? esc(fmtD(c.leaveEndDate)) : '미정';
-      detailRows = `
-        ${isMulti ? '' : `<tr><th>휴직 사유</th><td>${esc(c.leaveKind || '-')}</td></tr>
-        <tr><th>복직 예정일</th><td>${endDate}</td></tr>`}
-        <tr><th>구분</th><td>재직 → 휴직</td></tr>
       `;
     }
 
@@ -1522,7 +1346,7 @@
             </table>`
           : `<table class="doc-paper__tbl">
               <thead>
-                <tr><th style="width:40px;">No</th><th>성명</th><th style="width:100px;">사번</th><th>현 소속</th><th style="width:120px;">현 직위 / 직책</th>${row.kind === '휴직' ? '<th>휴직 사유</th><th style="width:100px;">종료 예정일</th>' : ''}${row.kind === '복직' ? '<th style="width:110px;">복직 예정일</th>' : ''}</tr>
+                <tr><th style="width:40px;">No</th><th>성명</th><th style="width:100px;">사번</th><th>현 소속</th><th style="width:120px;">현 직위 / 직책</th></tr>
               </thead>
               <tbody>
                 ${row._multiEmps.map((e, i) => `
@@ -1532,8 +1356,6 @@
                     <td>${esc(e.id)}</td>
                     <td>${esc(e.dept || '-')}</td>
                     <td>${esc(e.rank || '-')} / ${esc(e.position || '-')}</td>
-                    ${row.kind === '휴직' ? `<td>${esc(e.leaveKindLabel || '-')}</td><td style="text-align:center;">${esc(fmtD(e.leaveEndDate) || '-')}</td>` : ''}
-                    ${row.kind === '복직' ? `<td style="text-align:center;">${esc(fmtD(e.returnDate || e.expectedReturn) || '-')}</td>` : ''}
                   </tr>
                 `).join('')}
               </tbody>

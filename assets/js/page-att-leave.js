@@ -156,9 +156,9 @@
   /* 캘린더형 이벤트 — 선택 부서 구성원의 연차/반차 + 외근/출장/교육 을 일자별로 묶는다.
      반환: { 'YYYY-MM-DD': [ { name, label, cls, reason } ] } (선택 월만) */
   const CAL_CHIP = {
-    '연차':      { cls: 'leave', label: '연차' },
-    '반차(오전)': { cls: 'half',  label: '오전반차' },
-    '반차(오후)': { cls: 'half',  label: '오후반차' },
+    '연차':      { cls: 'leave', label: '휴가: 연차' },
+    '반차(오전)': { cls: 'half',  label: '휴가: 오전 반차' },
+    '반차(오후)': { cls: 'half',  label: '휴가: 오후 반차' },
     '출장':      { cls: 'trip',  label: '출장' },
     '외근':      { cls: 'field', label: '외근' },
     '교육':      { cls: 'edu',   label: '교육' },
@@ -169,7 +169,7 @@
     members.forEach(r => {
       const emp = r.emp;
       buildHistory(emp).forEach(h => {
-        const meta = CAL_CHIP[h.type] || { cls: 'leave', label: h.type };
+        const meta = CAL_CHIP[h.type] || { cls: 'leave', label: `휴가: ${h.type}` };
         push(h.date, { name: emp.name, label: meta.label, cls: meta.cls, reason: h.reason });
       });
       buildFieldwork(emp).forEach(f => {
@@ -195,7 +195,7 @@
           </div>`;
     /* 월 이동 ‹오늘› — 캘린더로 과거 연차현황을 조회. 부서 선택(또는 팀원) 시 노출 */
     const monthNav = `
-          <div class="att-tb__title">${STATE.calYm.slice(2).replace('-', '/')}</div>
+          ${App.YmPicker.html({ name: 'cal', ym: STATE.calYm, todayYm: App.AttStatus.TODAY.slice(0, 7) })}
           <div class="att-tb__nav">
             <button type="button" data-lv-cal-prev aria-label="이전">‹</button>
             <button type="button" data-lv-cal-today>오늘</button>
@@ -341,14 +341,9 @@
     const { byEmp } = getLeave();
     const me = byEmp.find(x => x.emp.id === empId) || byEmp[0];
     const tabs = [['status', '연차 현황'], ['apps', '신청 내역']];
+    /* 이름 뱃지는 모달 타이틀로 이동 — 본문 상단은 탭만 노출(상단 여백 축소) */
     const head = `
-      <div style="margin-bottom:12px;">
-        <div class="att-target-chip" style="cursor:default;">
-          <span class="att-target-chip__name">${esc(me.emp.name)}</span>
-          <span class="att-target-chip__meta">${esc(me.emp.id)} · ${esc(me.emp.dept)} · ${esc(me.emp.rank || '-')} · ${esc(me.emp.position || '-')}</span>
-        </div>
-      </div>
-      <div class="att-scope-tabs" style="margin:0 -18px 14px;background:transparent;">
+      <div class="att-scope-tabs" style="margin:-8px -18px 14px;background:transparent;">
         ${tabs.map(([k, l]) => `<button type="button" class="att-scope-tab ${STATE.modalTab === k ? 'is-active' : ''}" data-lv-emp-tab="${k}">${esc(l)}</button>`).join('')}
       </div>
     `;
@@ -554,7 +549,8 @@
     STATE.modalCalYm = STATE.calYm || '2026-05';
     ensureLvModal();
     const modal = document.getElementById('lv-modal');
-    modal.querySelector('[data-lv-modal-title]').textContent = '직원별 연차 현황';
+    const meta = emp ? ` (${emp.name}·${emp.id}·${emp.dept}·${emp.rank || '-'}·${emp.position || '-'})` : '';
+    modal.querySelector('[data-lv-modal-title]').textContent = `직원별 연차 현황${meta}`;
     modal.querySelector('[data-lv-modal-body]').innerHTML = renderEmpDetailContent();
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
@@ -665,8 +661,7 @@
               <thead>
                 <tr>
                   <th style="width:100px;">사번</th>
-                  <th style="width:90px;">성명</th>
-                  <th style="width:70px;">직위</th>
+                  <th style="width:160px;">성명</th>
                   <th style="width:70px;">직책</th>
                   <th style="width:90px;text-align:right;">이월 잔여</th>
                   <th style="width:90px;text-align:right;">당해 발생</th>
@@ -684,9 +679,9 @@
                       <div data-lv-emp-open="${esc(r.emp.id)}" style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;">
                         <span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span>
                         <span style="font-weight:var(--fw-medium);white-space:nowrap;color:var(--color-brand-primary);">${esc(r.emp.name)}</span>
+                        ${(r.emp.dept || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${r.emp.rank ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.rank)}</span>` : ''}</span>` : ''}
                       </div>
                     </td>
-                    <td style="white-space:nowrap;">${esc(r.emp.rank || '-')}</td>
                     <td style="white-space:nowrap;">${esc(r.emp.position || '-')}</td>
                     <td style="text-align:right;color:var(--color-info);">${r.carry}일</td>
                     <td style="text-align:right;">${r.granted}일</td>
@@ -710,7 +705,7 @@
   /* 범례 — 근무스케줄 현황 범례와 동일하게 화면 하단 고정 바(.shift-grid-legend) 로 표시 */
   function calLegend() {
     const items = [
-      ['leave', '연차'], ['half', '반차'], ['trip', '출장'], ['field', '외근'], ['edu', '교육'],
+      ['leave', '휴가(연차)'], ['half', '휴가(반차)'], ['trip', '출장'], ['field', '외근'], ['edu', '교육'],
     ];
     return `
       <div class="shift-grid-legend">
@@ -849,6 +844,11 @@
   function bind(pageEl) {
     if (pageEl.dataset.lvBound === '1') return;
     pageEl.dataset.lvBound = '1';
+
+    /* 연/월 피커(App.YmPicker) 월 선택 — 부서/팀원 캘린더 뷰 */
+    pageEl.addEventListener('ympick:change', e => {
+      if (e.detail.name === 'cal') { STATE.calYm = e.detail.ym; renderAll(pageEl); }
+    });
 
     pageEl.addEventListener('click', e => {
       /* 권한 토글 (우측 하단 floating) */

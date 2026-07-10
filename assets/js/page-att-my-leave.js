@@ -1,5 +1,5 @@
 /* =========================================================
- * Page: 연차 관리 > 나의 연차현황 (본인 시점 전용)
+ * Page: 휴가 관리 > 나의 연차현황 (본인 시점 전용)
  *
  *   「부서별 연차현황」(page-att-leave) 이 권한자(전체/부서/임직원별) 뷰라면,
  *   본 화면은 로그인 사용자(App.AttStatus.ME) 본인의 연차만 보여준다.
@@ -173,7 +173,7 @@
       <div class="att-tb">
         <div class="att-tb__left">
           ${showMonth ? `
-            <div class="att-tb__title">${fmtYM(STATE.calYm)}</div>
+            ${App.YmPicker.html({ name: 'cal', ym: STATE.calYm, todayYm: App.AttStatus.TODAY.slice(0, 7) })}
             <div class="att-tb__nav">
               <button type="button" data-myl-cal-prev aria-label="이전 달">‹</button>
               <button type="button" data-myl-cal-today>오늘</button>
@@ -384,37 +384,39 @@
     return `
       <div class="toolbar">
         <div class="toolbar__left">
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
+          ${App.YmPicker.html({ name: 'apps', ym: ym, todayYm: App.AttStatus.TODAY.slice(0, 7), labelStyle: 'font-size:var(--fs-lg);' })}
           <div class="att-tb__nav">
             <button type="button" data-myl-app-prev aria-label="이전 달">‹</button>
             <button type="button" data-myl-app-today>오늘</button>
             <button type="button" data-myl-app-next aria-label="다음 달">›</button>
           </div>
         </div>
-        <div class="toolbar__right">
-          <span class="toolbar__count">총 <strong>${n}</strong>건</span>
-        </div>
       </div>
-      <div class="grid-wrap" style="flex:1;min-height:0;">
-        <div class="grid-scroll">
-          <table class="tbl tbl--hover">
-            <thead>
-              <tr>
-                <th style="width:56px;text-align:right;">No</th>
-                <th style="width:140px;">신청번호</th>
-                <th style="width:170px;">종류</th>
-                <th style="width:210px;">신청 일자</th>
-                <th>사유</th>
-                <th style="width:90px;text-align:center;">상태</th>
-                <th style="min-width:180px;">상태 사유</th>
-                <th style="width:140px;">상신 일시</th>
-                <th style="width:64px;text-align:center;"></th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+      <div class="table-card table-card--fill">
+        <div class="toolbar">
+          <div class="toolbar__left"><span class="toolbar__count">총 <strong>${n}</strong>건</span></div>
         </div>
-        ${renderAppsPager(n, start, size)}
+        <div class="grid-wrap">
+          <div class="grid-scroll">
+            <table class="tbl tbl--hover">
+              <thead>
+                <tr>
+                  <th style="width:56px;text-align:right;">No</th>
+                  <th style="width:140px;">신청번호</th>
+                  <th style="width:170px;">종류</th>
+                  <th style="width:210px;">신청 일자</th>
+                  <th>사유</th>
+                  <th style="width:90px;text-align:center;">상태</th>
+                  <th style="min-width:180px;">상태 사유</th>
+                  <th style="width:140px;">상신 일시</th>
+                  <th style="width:64px;text-align:center;"></th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          ${renderAppsPager(n, start, size)}
+        </div>
       </div>
     `;
   }
@@ -483,6 +485,12 @@
   function bind(pageEl) {
     if (pageEl.dataset.mylBound === '1') return;
     pageEl.dataset.mylBound = '1';
+    /* 연/월 피커(App.YmPicker) 월 선택 — 캘린더 뷰(cal) / 신청 내역(apps) */
+    pageEl.addEventListener('ympick:change', e => {
+      const { name, ym } = e.detail;
+      if (name === 'cal') { STATE.calYm = ym; renderAll(pageEl); }
+      else if (name === 'apps') { STATE.appYm = ym; STATE.appPage = 1; renderAll(pageEl); }
+    });
     pageEl.addEventListener('click', e => {
       const A = App.AttStatus;
 

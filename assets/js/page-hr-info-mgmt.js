@@ -4668,7 +4668,8 @@
       ? App.HRContract.historyRowsByEmp(emp.id) : [];
     /* '+ 계약서 작성' 버튼 — [서명 요청] 과 동일한 계약서 작성 오버레이(openEditorOverlay) 진입.
        근로: 외부인력 아님 + 조직정보(직위·직책) 등록 시. 임금: 임금계약 대상 + 근로계약 작성완료 시. */
-    /* '+ 계약서 작성' 버튼 — 등록 상태가 '변경 승인 대기' 면 비활성화(승인 완료 후 작성 가능). */
+    /* '+ 계약서 작성' 버튼 — 인사정보 카드의 정보 변경 결재는 근로/임금 계약과 무관하므로
+       '변경 승인 대기' 상태여도 계약서 작성은 항상 가능하게 활성화한다. */
     const newCtrBtn = (kindKey, show, disabled, disabledTitle) => {
       if (!(show && !selfView && !hideActs && canEditEmployment())) return '';
       if (disabled) {
@@ -4679,15 +4680,15 @@
     };
     const laborHist = subBlockHTML({
       first: true, key:'ctrhist-labor', title: '근로 계약 이력', visibility: 'public',
-      badge: newCtrBtn('labor', !ext && orgSet, !!emp.contractApprovalPending),
+      badge: newCtrBtn('labor', !ext && orgSet, false),
       body: contractHistoryTableHTML(allHist.filter(it => it.kind === '근로계약서')),
     });
     /* 임금 계약 이력 [+ 계약서 작성] — 버튼은 활성 상태로 노출하고, 클릭 시 선행 조건을 검사한다.
        정책: 금일 기준 유효한 근로 계약서가 없으면 클릭 시 안내가 뜨고 진입이 막힌다(아래 click 핸들러).
-       (버튼을 비활성화하면 클릭이 안 돼 안내도 뜨지 않으므로 활성 유지 — 변경 승인 대기만 비활성.) */
+       (버튼을 비활성화하면 클릭이 안 돼 안내도 뜨지 않으므로 항상 활성 유지.) */
     const wageHist = subBlockHTML({
       key:'ctrhist-wage', title: '임금 계약 이력', visibility: 'public',
-      badge: newCtrBtn('wage', wageApplicable, !!emp.wageApprovalPending),
+      badge: newCtrBtn('wage', wageApplicable, false),
       body: contractHistoryTableHTML(allHist.filter(it => it.kind === '임금계약서')),
     });
 
@@ -4942,15 +4943,11 @@
       ['계좌번호', emp.bankAccount || ''],
       ['예금주',   emp.bankHolder  || displayName(emp)],
     ]);
-    const paydayBody = fieldGridHTML([
-      ['지급일', emp.payDay ? `매월 ${emp.payDay}일` : ''],
-    ]) + `<div style="margin-top:8px;font-size:12px;color:var(--color-text-muted);line-height:1.5;">※ 급여 지급일이 휴일 또는 주말인 경우 익 영업일에 지급</div>`;
     return sectionShellHTML({
       key: 'payroll-pay', level: 1, title: '지급 정보', visibility: 'private',
       actions: isMyInfoView() ? ['request'] : (canEditEmployment() ? ['edit'] : []),
       body:
-        subBlockHTML({ first: true, title: '지급 계좌', body: bankBody }) +
-        subBlockHTML({ title: '지급일', body: paydayBody }),
+        subBlockHTML({ first: true, title: '지급 계좌', body: bankBody }),
     });
   }
 
@@ -5087,13 +5084,6 @@
     </div>
     <div class="modal__body">
       <div class="empi-tax-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;">
-        <div style="grid-column:1 / -1;">
-          <label style="${lblStyle}">대상 여부 <em style="color:var(--color-danger);font-style:normal;">*</em></label>
-          <div style="display:flex;gap:20px;align-items:center;">
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="empi-tax-enabled" value="Y"> 대상</label>
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="empi-tax-enabled" value="N"> 비대상</label>
-          </div>
-        </div>
         <div data-empi-tax-dep>
           <label style="${lblStyle}">감면 유형</label>
           <select class="select" data-empi-tax-type style="width:100%;">${typeOpts}</select>
@@ -5139,15 +5129,6 @@
     wrap.innerHTML = html.trim();
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
   }
-  /* 비대상 선택 시 하위 입력 비활성 + 흐리게 */
-  function syncTaxModalDisabled(modal) {
-    const enabled = (modal.querySelector('[name="empi-tax-enabled"]:checked') || {}).value || '';
-    const off = enabled === 'N';
-    modal.querySelectorAll('[data-empi-tax-dep]').forEach(wrap => {
-      wrap.style.opacity = off ? '0.5' : '';
-      wrap.querySelectorAll('input, select').forEach(el => { el.disabled = off; });
-    });
-  }
   function openPayrollTaxEdit() {
     const emp = CARD_STATE.emp;
     if (!emp) return;
@@ -5155,16 +5136,12 @@
     const modal = document.getElementById('modal-empi-tax');
     if (!modal) return;
     const tx = emp.taxReduction || {};
-    /* 감면 여부 기본값 = 비대상(N). 기존 값이 있으면 그대로. */
-    const enabledVal = tx.enabled || 'N';
-    modal.querySelectorAll('[name="empi-tax-enabled"]').forEach(r => { r.checked = (r.value === enabledVal); });
     modal.querySelector('[data-empi-tax-type]').value  = tx.type || '';
     modal.querySelector('[data-empi-tax-rate]').value  = tx.rate || '';
     modal.querySelector('[data-empi-tax-start]').value = tx.startDate || '';
     modal.querySelector('[data-empi-tax-end]').value   = tx.endDate || '';
     modal.querySelector('[data-empi-tax-accum]').value = formatMoney(tx.accumAmount || 0);   /* 기본 0원 */
     if (window.App && App.Forms && App.Forms.clearAll) App.Forms.clearAll(modal);
-    syncTaxModalDisabled(modal);
     openModal('modal-empi-tax');
   }
   function bindPayrollTaxModal() {
@@ -5172,9 +5149,6 @@
     const modal = document.getElementById('modal-empi-tax');
     if (!modal || modal.dataset.bound === '1') return;
     modal.dataset.bound = '1';
-    modal.addEventListener('change', (e) => {
-      if (e.target.name === 'empi-tax-enabled') syncTaxModalDisabled(modal);
-    });
     /* 감면 누계액 — 입력 시 천 단위 콤마 */
     const accumInput = modal.querySelector('[data-empi-tax-accum]');
     if (accumInput) accumInput.addEventListener('input', () => {
@@ -5188,44 +5162,52 @@
       if (!emp) { closeModal('modal-empi-tax'); return; }
       const F = window.App && App.Forms;
       if (F && F.clearAll) F.clearAll(modal);
-      const enabled = (modal.querySelector('[name="empi-tax-enabled"]:checked') || {}).value || '';
       const typeEl  = modal.querySelector('[data-empi-tax-type]');
       const rateEl  = modal.querySelector('[data-empi-tax-rate]');
       const startEl = modal.querySelector('[data-empi-tax-start]');
       const endEl   = modal.querySelector('[data-empi-tax-end]');
       const accumEl  = modal.querySelector('[data-empi-tax-accum]');
 
-      if (!enabled) {
-        if (F && F.setFieldError) F.setFieldError(modal.querySelector('[name="empi-tax-enabled"]'), '감면 여부를 선택해 주세요.');
-        else window.toast && window.toast('감면 여부를 선택해 주세요.', 'warning');
-        return;
+      /* 등록/편집은 곧 감면 대상 등록이므로 항상 대상(Y)으로 저장 */
+      let ok = true;
+      if (!typeEl.value)  { if (F) F.setFieldError(typeEl, '감면 유형을 선택해 주세요.'); ok = false; }
+      if (!startEl.value) { if (F) F.setFieldError(startEl, '감면 시작일을 선택해 주세요.'); ok = false; }
+      if (startEl.value && endEl.value && endEl.value < startEl.value) {
+        if (F) F.setFieldError(endEl, '종료일은 시작일 이후여야 합니다.'); ok = false;
+      }
+      if (!ok) return;
+      const tx = {
+        enabled: 'Y',
+        type: typeEl.value,
+        rate: rateEl.value,
+        startDate: startEl.value,
+        endDate: endEl.value,
+        annualLimit: TAX_ANNUAL_LIMIT,   /* 200만원 고정 */
+        accumAmount: Number((accumEl.value || '').replace(/[^0-9]/g, '')) || 0,   /* 누계액 — 기본 0원 */
+      };
+
+      function commitTax() {
+        emp.taxReduction = tx;
+        renderCardBody();
+        closeModal('modal-empi-tax');
+        window.toast && window.toast('소득세 감면 정보가 저장되었습니다.', 'success');
       }
 
-      let tx;
-      if (enabled === 'N') {
-        tx = { enabled: 'N' };
+      /* 감면 시작일·종료일은 저장 후 수정 불가 → 저장 전 재확인.
+       *   confirmModal 호스트는 기본 z-index 1100 이라 1150 인 감면 모달 뒤에 가려짐 → 위로 올림. */
+      if (window.App && typeof App.confirmModal === 'function') {
+        App.confirmModal({
+          title: '감면 정보 저장',
+          message: '감면 시작일과 감면 종료일은 저장 후 수정할 수 없습니다. 이대로 저장하시겠습니까?',
+          confirmText: '저장',
+          cancelText: '취소',
+          onConfirm: commitTax,
+        });
+        const host = document.querySelector('[data-confirm-modal-host]');
+        if (host) host.style.zIndex = '1200';
       } else {
-        let ok = true;
-        if (!typeEl.value)  { if (F) F.setFieldError(typeEl, '감면 유형을 선택해 주세요.'); ok = false; }
-        if (!startEl.value) { if (F) F.setFieldError(startEl, '감면 시작일을 선택해 주세요.'); ok = false; }
-        if (startEl.value && endEl.value && endEl.value < startEl.value) {
-          if (F) F.setFieldError(endEl, '종료일은 시작일 이후여야 합니다.'); ok = false;
-        }
-        if (!ok) return;
-        tx = {
-          enabled: 'Y',
-          type: typeEl.value,
-          rate: rateEl.value,
-          startDate: startEl.value,
-          endDate: endEl.value,
-          annualLimit: TAX_ANNUAL_LIMIT,   /* 200만원 고정 */
-          accumAmount: Number((accumEl.value || '').replace(/[^0-9]/g, '')) || 0,   /* 누계액 — 기본 0원 */
-        };
+        commitTax();
       }
-      emp.taxReduction = tx;
-      renderCardBody();
-      closeModal('modal-empi-tax');
-      window.toast && window.toast('소득세 감면 정보가 저장되었습니다.', 'success');
     });
   }
 
@@ -6381,12 +6363,7 @@
           if (window.App && typeof App.sweetAlert === 'function') App.sweetAlert({ icon: 'info', title, message });
           else window.alert(message);
         };
-        /* 변경 승인 대기 중 차단 */
-        const pendingApproval = isWageBtn ? !!emp.wageApprovalPending : !!emp.contractApprovalPending;
-        if (pendingApproval) {
-          alertInfo('변경 승인 대기 중', '계약 정보 변경 승인이 완료된 후 계약서를 작성할 수 있습니다.');
-          return;
-        }
+        /* 인사정보 카드의 정보 변경 결재는 근로/임금 계약과 무관 — '변경 승인 대기' 상태여도 계약서 작성 허용. */
 
         if (!isWageBtn) {
           /* 근로계약서 — 근무 정보 완료 후 근로 계약 정보 설정 모달 → (완료) → 서명 요청 모달 */
@@ -8006,10 +7983,9 @@
   }
 
   /* 섹션 편집 본문 — 지급 정보 (인사담당자 직접 수정)
-   *   수정 가능: 은행·계좌번호·예금주.  지급일은 임금 계약 관할이라 read-only 표시. */
+   *   수정 가능: 은행·계좌번호·예금주. */
   function renderCardEditBank(emp) {
     const v = (s) => esc(s == null ? '' : s);
-    const payday = emp.payDay ? `매월 ${emp.payDay}일` : '미설정';
     return `
       <div class="fm-tbl fm-tbl--compact">
         <div class="fm-tbl__row fm-tbl__row--2">
@@ -8026,13 +8002,6 @@
           <div class="fm-tbl__label">계좌번호</div>
           <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;">
             <input class="input" type="text" data-empi-pp-bankaccount value="${v(emp.bankAccount)}" placeholder="'-' 없이 숫자만 입력" style="width:100%;" />
-          </div>
-        </div>
-        <div class="fm-tbl__row fm-tbl__row--1">
-          <div class="fm-tbl__label">지급일</div>
-          <div class="fm-tbl__value" style="background:var(--color-surface-alt);padding:6px 12px;">
-            <input class="input" type="text" value="${v(payday)}" readonly tabindex="-1" style="width:100%;background:var(--color-surface-alt);color:var(--color-text-muted);cursor:default;" />
-            <div class="form-help">지급일은 임금 계약 정보에서 관리됩니다.</div>
           </div>
         </div>
       </div>

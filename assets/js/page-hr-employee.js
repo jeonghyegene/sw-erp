@@ -575,17 +575,27 @@
     `;
   }
 
-  /* 근태 기반 현재 근무상태 — 사원의 "오늘" 출퇴근 상태를 표시.
-   *   재직/퇴직(e.active) 과 무관하며, 근태에서 출근·퇴근 체크한 결과를 반영하는 자리.
-   *   ⚠️ 데모: 사원별 결정적 mock. 실데이터 연동 시 사원별 오늘 근태 조회 API로 교체.
-   *     예) App.Attendance.todayState(e.id) → 'in' | 'out' | 'absent' | 'leave' */
+  /* 근태 기반 현재 근무상태 — 사원의 "오늘" 출퇴근 상태 (4상태).
+   *   재직/퇴직(e.active) 과 무관하며, 오늘 근태(출퇴근 체크)만 판정한다.
+   *   하루 흐름: [미출근 or 휴가] → 체크인 → [근무중] → 체크아웃 → [퇴근] → 자정 리셋.
+   *     · 미출근 = 출근 이력 없음(하루 기본값). 중립 회색이라 아침 화면이 조용함.
+   *     · 퇴근 → 미출근으로 되돌아가지 않음(출근 이력이 있으므로). 자정에만 리셋.
+   *   ⚠️ 데모: 사원별 결정적 mock. 실데이터 연동 시 아래 seed 계산 한 줄을
+   *     App.Attendance.todayState(e.id) 반환값('working'|'out'|'leave'|'absent')으로
+   *     교체하면 ATT_STATE 매핑은 그대로 동작한다.
+   *   kind → 사진 우측 하단 presence 배지 색(.hr-card__presence--kind) 결정. */
+  const ATT_STATE = {
+    working: { label: '근무중', kind: 'working' },  // 체크인 O · 체크아웃 X (녹·pulse)
+    out:     { label: '퇴근',   kind: 'out' },      // 체크아웃 O (회)
+    leave:   { label: '휴가',   kind: 'leave' },    // 연차·병가·반차 (보라)
+    absent:  { label: '미출근', kind: 'absent' },   // 미체크(하루 기본값·중립 slate)
+  };
   function attendanceState(e) {
+    // 실데이터: const st = App.Attendance.todayState(e.id);
     const seed = String(e.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
     const m = seed % 10;
-    if (m <= 5) return { label: '출근',  cls: 'hr-card__status--success' };  // 출근 체크 후 근무 중
-    if (m <= 7) return { label: '퇴근',  cls: 'hr-card__status--muted' };    // 퇴근 체크 완료
-    if (m === 8) return { label: '휴가', cls: 'hr-card__status--info' };     // 연차/휴가
-    return { label: '미출근', cls: 'hr-card__status--warning' };             // 아직 출근 전
+    const st = m <= 5 ? 'working' : m <= 7 ? 'out' : m === 8 ? 'leave' : 'absent';
+    return ATT_STATE[st] || ATT_STATE.absent;
   }
 
   function renderHrCard(e) {
@@ -593,27 +603,29 @@
       ? `<img src="${esc(e.photo)}" alt="${esc(e.name)}" />`
       : esc(e.name.charAt(0));
     const avatarCls = e.photo ? 'hr-card__avatar' : `hr-card__avatar av--c${e.color}`;
-    // 카드뷰 상태 — 근태 기반 (출근/퇴근/미출근/휴가)
+    // 사진 우측 하단 presence 배지 — 근태(근무중/퇴근/미출근/휴가). 불 들어오는 dot + 텍스트.
+    //   휴직자는 근태 대신 재직상태(휴직 배지)로 대체하므로 presence 미표시.
     const att = attendanceState(e);
-    const statusCls = `hr-card__status ${att.cls}`;
-    const statusLabel = att.label;
-    const isWorking = att.label === '출근';   // 현재 근무 중 여부 (아바타 presence dot 기준)
-    // 직위·직책을 가운뎃점(·)으로 묶어 단일 chip 으로 표시
+    const presence = e.onLeave ? '' :
+      `<span class="hr-card__presence hr-card__presence--${att.kind}" title="${att.label}">`
+        + `<span class="hr-card__presence-dot"></span>${att.label}</span>`;
+    // 이름 옆 — 직위·직책은 회색 텍스트, 배지는 휴직/도급만 (칩 정리로 인지 부담 최소화)
     const rankPosition = e.position ? `${esc(e.rank)} · ${esc(e.position)}` : esc(e.rank);
-    const favActive = STATE.favorites.has(e.id) ? ' is-active' : '';
+    const leaveChip = e.onLeave ? '<span class="hr-card__chip hr-card__chip--leave" title="휴직">휴직</span>' : '';
     const outsourceChip = e.contractOut ? '<span class="hr-card__chip hr-card__chip--outsource" title="도급직">도급</span>' : '';
+    const favActive = STATE.favorites.has(e.id) ? ' is-active' : '';
     return `
       <div class="hr-card" data-emp-card="${esc(e.id)}">
-        <div class="${avatarCls}">
-          ${avatarInner}
-          ${isWorking ? '' : '<span class="av__dot av__dot--off"></span>'}
+        <div class="hr-card__avatar-wrap">
+          <div class="${avatarCls}">${avatarInner}</div>
+          ${presence}
         </div>
         <div class="hr-card__body">
           <div class="hr-card__head">
             <div class="hr-card__name">${esc(e.name)}</div>
-            <span class="hr-card__chip hr-card__chip--primary">${rankPosition}</span>
+            <span class="hr-card__role">${rankPosition}</span>
+            ${leaveChip}
             ${outsourceChip}
-            <span class="${statusCls}">${statusLabel}</span>
           </div>
           <div class="hr-card__contact">
             <div class="hr-card__contact-item">

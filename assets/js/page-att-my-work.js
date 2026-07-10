@@ -68,6 +68,38 @@
   function halfLabel(k) { return k === 'am' ? '오전 반차' : '오후 반차'; }
   function halfCount(recs) { return recs.filter(r => halfHint(r)).length; }
 
+  /* 근무조 색상 클래스 — 전 근태 화면 공용 파스텔 팔레트(.shift-chip--c0~c9 / --day).
+     근무스케줄 현황(page-att-shift)의 shiftColorCls 와 동일 규칙(근무조 목록 인덱스 % 10). */
+  function shiftColorCls(code) {
+    const list = (App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : [];
+    const idx = list.findIndex(s => s.code === code);
+    return idx >= 0 ? `shift-chip--c${idx % 10}` : 'shift-chip--day';
+  }
+  /* 근무조 라벨 칩(A조 등) — 근무조 색상 파스텔을 그대로 사용. (권한자 화면과 공유하는
+     A.shiftChipHTML 대신 나의 근태현황 전용으로 근무조 색을 입힌 칩을 렌더) */
+  function shiftChipLocal(code) {
+    if (!code || code === '-') return '';
+    const shift = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
+    const label = shift ? (shift.label || code) : code;
+    const tip = shift ? `${shift.start}~${shift.end}${shift.isNight ? ' · 야간' : ''}` : '';
+    return `<span class="att-cal__shiftc ${shiftColorCls(code)}" title="${esc(tip)}">${esc(label)}</span>`;
+  }
+  /* 근태 블록(bar) 마크업 — 텍스트는 ellipsis 되는 span. 색상 클래스만 갈아끼운다. */
+  function blockHTML(colorCls, text, title) {
+    const t = title ? ` title="${esc(title)}"` : '';
+    return `<div class="att-cal__block ${colorCls}"${t}><span class="att-cal__block-txt">${text}</span></div>`;
+  }
+  /* 경고 출퇴근 블록 — 근무조 불일치/반차 미신청 등. 찐 다홍 solid + 느낌표. 클릭 시 안내 모달.
+     warnData: { date, mm:{code,sched,actual}|null, half:'am'|'pm'|null } */
+  function warnBlockHTML(checkIn, checkOut, warnData) {
+    const attrs = ` data-mw-warn="${esc(warnData.date)}"`
+      + (warnData.mm ? ` data-mm-code="${esc(warnData.mm.code)}" data-mm-sched="${esc(warnData.mm.sched)}" data-mm-actual="${esc(warnData.mm.actual)}"` : '')
+      + (warnData.half ? ` data-warn-half="${esc(warnData.half)}"` : '');
+    return `<div class="att-cal__block att-cal__block--warn is-clickable"${attrs} title="근태 경고 — 클릭하여 상세 확인">`
+      + `<span class="att-cal__block-txt">출근 ${esc(checkIn)} 퇴근 ${esc(checkOut)}</span>`
+      + `<span class="att-cal__mm">!</span></div>`;
+  }
+
   const STATE = {
     level: 'status',      /* Level 1 탭: 'status'(근태 현황) | 'apps'(근태 신청 현황) */
     span: 'month',        /* 'month'(월간, 기본) | 'week'(주간 일자별 + 총합) */
@@ -192,7 +224,7 @@
       const f = (d) => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
       titleHTML = `<div class="att-tb__title" style="font-size:var(--fs-lg);">${f(a)} ~ ${f(b)}</div>`;
     } else {
-      titleHTML = `<div class="att-tb__title">${fmtYM(STATE.ym)}</div>`;
+      titleHTML = App.YmPicker.html({ name: 'status', ym: STATE.ym, todayYm: A.TODAY.slice(0, 7) });
     }
     const viewToggle = isWeek ? '' : `
       <div class="att-tb__views">
@@ -304,38 +336,40 @@
     return `
       <div class="toolbar">
         <div class="toolbar__left">
-          <div class="att-tb__title" style="font-size:var(--fs-lg);">${fmtYM(ym)}</div>
+          ${App.YmPicker.html({ name: 'apps', ym: ym, todayYm: A.TODAY.slice(0, 7), labelStyle: 'font-size:var(--fs-lg);' })}
           <div class="att-tb__nav">
             <button type="button" data-mw-app-prev aria-label="이전 달">‹</button>
             <button type="button" data-mw-app-today>오늘</button>
             <button type="button" data-mw-app-next aria-label="다음 달">›</button>
           </div>
         </div>
-        <div class="toolbar__right">
-          <span class="toolbar__count">총 <strong>${n}</strong>건</span>
-        </div>
       </div>
-      <div class="grid-wrap" style="flex:1;min-height:0;">
-        <div class="grid-scroll">
-          <table class="tbl tbl--hover">
-            <thead>
-              <tr>
-                <th style="width:56px;text-align:right;">No</th>
-                <th style="width:140px;">신청번호</th>
-                <th style="width:90px;text-align:center;">구분</th>
-                <th style="width:170px;">종류</th>
-                <th style="width:210px;">신청 일자/시간</th>
-                <th>사유</th>
-                <th style="width:90px;text-align:center;">상태</th>
-                <th style="min-width:180px;">상태 사유</th>
-                <th style="width:140px;">상신 일시</th>
-                <th style="width:64px;text-align:center;"></th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+      <div class="table-card table-card--fill">
+        <div class="toolbar">
+          <div class="toolbar__left"><span class="toolbar__count">총 <strong>${n}</strong>건</span></div>
         </div>
-        ${renderAppsPager(n, start, size)}
+        <div class="grid-wrap">
+          <div class="grid-scroll">
+            <table class="tbl tbl--hover">
+              <thead>
+                <tr>
+                  <th style="width:56px;text-align:right;">No</th>
+                  <th style="width:140px;">신청번호</th>
+                  <th style="width:90px;text-align:center;">구분</th>
+                  <th style="width:170px;">종류</th>
+                  <th style="width:210px;">신청 일자/시간</th>
+                  <th>사유</th>
+                  <th style="width:90px;text-align:center;">상태</th>
+                  <th style="min-width:180px;">상태 사유</th>
+                  <th style="width:140px;">상신 일시</th>
+                  <th style="width:64px;text-align:center;"></th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          ${renderAppsPager(n, start, size)}
+        </div>
       </div>
     `;
   }
@@ -542,11 +576,13 @@
     return `
       <div class="shift-grid-legend">
         <strong>범례</strong>
-        <span class="shift-grid-legend__item"><span class="att-cal__dot att-cal__dot--late"></span>지각<small class="t-muted">(분)</small></span>
-        <span class="shift-grid-legend__item"><span class="att-cal__dot att-cal__dot--early"></span>조퇴<small class="t-muted">(분)</small></span>
-        <span class="shift-grid-legend__item"><span class="att-cal__dot att-cal__dot--ot"></span>연장<small class="t-muted">(h)</small></span>
-        <span class="shift-grid-legend__item"><span class="att-cal__dot att-cal__dot--night"></span>야간<small class="t-muted">(h)</small></span>
-        <span class="shift-grid-legend__item"><span class="att-cal__dot att-cal__dot--hol"></span>휴가</span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block shift-chip--c0 att-cal__sw"></span>출퇴근</span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--warn att-cal__sw"></span>경고</span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--late att-cal__sw"></span>지각<small class="t-muted">(분)</small></span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--early att-cal__sw"></span>조퇴<small class="t-muted">(분)</small></span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--ot att-cal__sw"></span>연장<small class="t-muted">(h)</small></span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--night att-cal__sw"></span>야간<small class="t-muted">(h)</small></span>
+        <span class="shift-grid-legend__item"><span class="att-cal__block att-cal__block--leave att-cal__sw"></span>휴가</span>
         <span class="shift-grid-legend__item"><span class="att-cal__doc-mark">📄</span>품의서</span>
       </div>
     `;
@@ -570,7 +606,7 @@
     const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
     const today = r.date === A.TODAY ? 'is-today' : '';
     const docMark = docMarkHTML(r.date);
-    const chip = (A.shiftChipHTML ? A.shiftChipHTML(r.shift) : '');
+    const chip = shiftChipLocal(r.shift);
 
     if (r.kind === 'holiday') {
       return `<div class="att-cal__cell att-cal__cell--off ${wdCls} ${today}">
@@ -579,10 +615,12 @@
       </div>`;
     }
     if (r.kind === 'att') {
-      return `<div class="att-cal__cell att-cal__cell--leave ${wdCls} ${today}">
+      const leaveTxt = (A && A.calLeaveLabel) ? A.calLeaveLabel(r) : `휴가: ${esc(r.label)}`;
+      const leaveBlocks = [ blockHTML('att-cal__block--leave', leaveTxt, r.label) ];
+      if (r.checkIn) leaveBlocks.push(blockHTML(shiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+      return `<div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row"><span class="att-cal__day">${d}</span><span class="att-cal__day-tail">${chip}${docMark}</span></div>
-        <div class="att-cal__label">${esc(r.label)}</div>
-        ${r.checkIn ? `<div class="att-cal__time">${esc(r.checkIn)} ~ ${esc(r.checkOut)}</div>` : ''}
+        <div class="att-cal__blocks">${leaveBlocks.join('')}</div>
       </div>`;
     }
     if (r.kind === 'future') {
@@ -590,36 +628,35 @@
         <div class="att-cal__day-row"><span class="att-cal__day">${d}</span><span class="att-cal__day-tail">${chip}${docMark}</span></div>
       </div>`;
     }
-    const dots = [];
-    if (r.isLate)             dots.push('<span class="att-cal__dot att-cal__dot--late" title="지각"></span>');
-    if (r.isEarly)            dots.push('<span class="att-cal__dot att-cal__dot--early" title="조퇴"></span>');
-    if (r.ot && r.ot.extra)   dots.push('<span class="att-cal__dot att-cal__dot--ot" title="연장근무"></span>');
-    if (r.ot && r.ot.night)   dots.push('<span class="att-cal__dot att-cal__dot--night" title="야간"></span>');
-    /* 범례별 상세 수치 — 지각/조퇴는 분(分), 연장/야간는 시간(h) */
-    const marks = [];
-    if (r.isLate)            marks.push(`지각 ${r.lateMin || 0}분`);
-    if (r.isEarly)           marks.push(`조퇴 ${r.earlyMin || 0}분`);
-    if (r.ot && r.ot.extra)  marks.push(`연장 ${r.ot.extra}h`);
-    if (r.ot && r.ot.night)  marks.push(`야간 ${r.ot.night}h`);
+    /* 상태 블록(bar) 스택 — 출퇴근/지각/조퇴/연장/야간을 색상 블록으로 쌓아 즉시 인지 */
     const mm = shiftMismatch(r);
-    if (mm) dots.push('<span class="att-cal__dot att-cal__dot--mismatch" title="근무조 불일치"></span>');
-    const mmWarn = mm
-      ? `<div class="att-cal__warn" title="등록 근무조 ${esc(mm.code)}조 ${esc(mm.sched)} · 실제 출근 ${esc(mm.actual)}">⚠ 근무조 불일치</div>`
-      : '';
     const half = halfHint(r);
-    const halfWarn = half
-      ? `<button type="button" class="att-cal__warn att-cal__warn--link" data-mw-half="${esc(half)}" title="${esc(halfLabel(half))} 정황 — 반차 신청서 미등록. 클릭하여 신청서·사유서 작성">⚠ ${esc(halfLabel(half))} 미신청 ›</button>`
-      : '';
+    const blocks = [];
+    /* 1) 출퇴근 블록 — 평소엔 근무조 색상. 근무조 불일치 또는 반차 미신청이면 경고(찐 다홍) 블록 +
+          느낌표(!). 경고 텍스트는 셀에 두지 않고, 블록을 누르면 안내 모달에서 상세 확인. */
+    if (mm || half) {
+      blocks.push(warnBlockHTML(r.checkIn, r.checkOut, {
+        date: r.date,
+        mm: mm ? { code: mm.code, sched: mm.sched, actual: mm.actual } : null,
+        half: half || null,
+      }));
+    } else {
+      blocks.push(blockHTML(shiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+    }
+    /* 2) 지각/조퇴/연장/야간 — 각각 블록으로 누적 (지각은 분, 연장/야간은 시간) */
+    if (r.isLate)            blocks.push(blockHTML('att-cal__block--late',  `지각 ${r.lateMin || 0}분`));
+    if (r.isEarly)           blocks.push(blockHTML('att-cal__block--early', `조퇴 ${r.earlyMin || 0}분`));
+    if (r.ot && r.ot.extra)  blocks.push(blockHTML('att-cal__block--ot',    `연장 ${r.ot.extra}h`));
+    if (r.ot && r.ot.night)  blocks.push(blockHTML('att-cal__block--night', `야간 ${r.ot.night}h`));
     return `
-      <div class="att-cal__cell ${wdCls} ${today} ${mm || half ? 'is-mismatch' : ''}">
+      <div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row">
           <span class="att-cal__day">${d}</span>
-          <span class="att-cal__day-tail">${chip}<span class="att-cal__dots">${dots.join('')}</span>${docMark}</span>
+          <span class="att-cal__day-tail">${chip}${docMark}</span>
         </div>
-        <div class="att-cal__time">${esc(r.checkIn)} <span class="t-muted">~</span> ${esc(r.checkOut)}</div>
-        ${mmWarn}
-        ${halfWarn}
-        ${marks.length ? `<div class="att-cal__ot">${marks.join(' · ')}</div>` : ''}
+        <div class="att-cal__blocks">
+          ${blocks.join('')}
+        </div>
       </div>
     `;
   }
@@ -639,6 +676,113 @@
     if (legendSlot) legendSlot.innerHTML = (STATE.level === 'status' && STATE.span !== 'week' && STATE.view === 'cal') ? calLegend() : '';
     ensureJobcatFab(pageEl);
     updateJobcatFab(pageEl);
+  }
+
+  /* 근무조 불일치 지연 출근 사유서 — 전자결재(사유서 양식) 상신. (대시보드 / 캘린더 안내 모달 공용)
+     mm(선택): { code, sched, actual } 가 있으면 지연 출근 상세를 사유서 본문에 미리 채운다. */
+  function openReasonApproval(date, mm) {
+    if (typeof App.openSystemApprovalModal !== 'function') {
+      window.toast && window.toast('사유서 작성 화면을 준비 중입니다.', 'info');
+      return;
+    }
+    const opts = {
+      docName: '근무조 불일치 사유서',
+      titlePrefix: '사유서',
+      title: `지연 출근 사유서 — ${fmtD(date)}`,
+      onSubmit() { window.toast && window.toast('사유서가 상신되었습니다.', 'success'); },
+    };
+    if (mm) {
+      const shift = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(mm.code) : null;
+      const shiftName = (shift && shift.label) ? `${mm.code} ${shift.label}` : mm.code;
+      const s = toMin(mm.sched), a = toMin(mm.actual);
+      const diffMin = (s != null && a != null) ? a - s : null;
+      const diffTxt = diffMin == null ? '' : (diffMin > 0 ? ` (${diffMin}분 지연)` : ` (${-diffMin}분 이른 출근)`);
+      opts.defaultReason = '지연 출근';
+      opts.content =
+        `[근무조 불일치 — 지연 출근]\n`
+        + `· 일자: ${fmtD(date)}\n`
+        + `· 등록 근무조: ${shiftName} (${mm.sched} 시작)\n`
+        + `· 실제 출근: ${mm.actual}${diffTxt}\n`
+        + `· 사유: `;
+    }
+    App.openSystemApprovalModal(opts);
+  }
+
+  /* 근무조 불일치 안내(카드) 마크업 */
+  function mmNoticeHTML(mm) {
+    const shift = (App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(mm.code) : null;
+    const shiftName = (shift && shift.label) ? `${mm.code} ${shift.label}` : mm.code;
+    const s = toMin(mm.sched), a = toMin(mm.actual);
+    const diffMin = (s != null && a != null) ? a - s : null;
+    const diffTxt = diffMin == null ? '' : (diffMin > 0 ? `${diffMin}분 지연 출근` : `${-diffMin}분 이른 출근`);
+    return `
+      <div class="att-notice">
+        <div class="att-notice__hd"><span class="att-notice__ico">!</span>근무조 불일치<span class="att-notice__tag">확인 필요</span></div>
+        <div class="att-notice__bd">
+          <p class="att-notice__desc">등록된 근무조 시작시간과 실제 출근시간이 다릅니다. 착오가 아니라면 지연 출근 사유서를 작성해 주세요.</p>
+          <dl class="att-notice__dl">
+            <dt>등록 근무조</dt><dd>${esc(shiftName)} <span class="t-muted">(${esc(mm.sched)} 시작)</span></dd>
+            <dt>실제 출근</dt><dd class="is-danger">${esc(mm.actual)}${diffTxt ? ` <span class="t-muted" style="font-weight:var(--fw-regular);">· ${esc(diffTxt)}</span>` : ''}</dd>
+          </dl>
+          <div class="att-notice__act"><button class="btn btn--sm btn--primary" type="button" data-mw-mm-reason>사유서 작성</button></div>
+        </div>
+      </div>`;
+  }
+  /* 반차 미신청 안내(카드) 마크업 */
+  function halfNoticeHTML(half) {
+    const hl = halfLabel(half);
+    return `
+      <div class="att-notice">
+        <div class="att-notice__hd"><span class="att-notice__ico">!</span>${esc(hl)} 미신청<span class="att-notice__tag">확인 필요</span></div>
+        <div class="att-notice__bd">
+          <p class="att-notice__desc">${esc(hl)} 사용 정황이 있으나 휴가 신청서가 등록되지 않았습니다. 나의 연차현황에서 휴가 신청서를 작성해 주세요.</p>
+          <div class="att-notice__act"><button class="btn btn--sm btn--primary" type="button" data-mw-half-apply>휴가 신청</button></div>
+        </div>
+      </div>`;
+  }
+
+  /* 근태 안내 모달 — 타이틀 '안내'. 근무조 불일치 / 반차 미신청 이슈를 카드로 표시.
+     한 날에 둘 다 겹치면 두 카드를 세로로 함께 노출한다. payload = { date, mm, half } */
+  function openAttNoticeModal(p) {
+    const dateDisp = fmtD(p.date);
+    const cards = [];
+    if (p.mm)   cards.push(mmNoticeHTML(p.mm));
+    if (p.half) cards.push(halfNoticeHTML(p.half));
+    if (!cards.length) return;
+
+    const prev = document.getElementById('mw-notice-modal'); if (prev) prev.remove();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal-backdrop is-open" id="mw-notice-modal" style="z-index:1200;">
+        <div class="modal" style="width:92vw;max-width:460px;display:flex;flex-direction:column;">
+          <div class="modal__header">
+            <div class="modal__title">안내</div>
+            <button class="modal__close" type="button" data-mw-notice-close aria-label="닫기">✕</button>
+          </div>
+          <div class="modal__body">
+            <p style="margin:0 0 14px;color:var(--color-text);line-height:1.6;">
+              <strong>${esc(dateDisp)}</strong> 근태에 확인이 필요한 항목이 ${cards.length > 1 ? `<strong style="color:var(--color-danger);">${cards.length}건</strong> ` : ''}있습니다.
+            </p>
+            ${cards.join('')}
+          </div>
+          <div class="modal__footer">
+            <button class="btn btn--sm" type="button" data-mw-notice-close>닫기</button>
+          </div>
+        </div>
+      </div>`;
+    const backdrop = wrap.firstElementChild;
+    document.body.appendChild(backdrop);
+    document.body.style.overflow = 'hidden';
+    function close() {
+      backdrop.remove();
+      if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
+    }
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop || e.target.closest('[data-mw-notice-close]')) { close(); return; }
+      if (e.target.closest('[data-mw-mm-reason]'))  { close(); openReasonApproval(p.date, p.mm); return; }
+      /* 오후 반차 미신청 → 나의 연차현황의 '휴가 신청' 모달 재사용 (App.AttStatus.openApplyModal('hol')) */
+      if (e.target.closest('[data-mw-half-apply]')) { close(); App.AttStatus && App.AttStatus.openApplyModal && App.AttStatus.openApplyModal('hol'); return; }
+    });
   }
 
   function bind(pageEl) {
@@ -727,28 +871,26 @@
         return;
       }
 
-      /* 반차 미신청 안내 → 휴가(반차) 신청서 작성 모달 */
+      /* 반차 미신청 안내 → 나의 연차현황의 '휴가 신청' 모달 재사용 */
       if (e.target.closest('[data-mw-half]')) {
-        A.openApplyModal && A.openApplyModal('leave');
+        A.openApplyModal && A.openApplyModal('hol');
         return;
       }
 
-      /* 근무조 불일치 → 사유서 작성 (전자결재 상신) */
-      const reason = e.target.closest('[data-mw-reason]');
-      if (reason) {
-        const date = reason.dataset.mwReason;
-        if (typeof App.openSystemApprovalModal === 'function') {
-          App.openSystemApprovalModal({
-            docName: '근무조 불일치 사유서',
-            titlePrefix: '사유서',
-            title: `근무조 불일치 사유서 — ${date}`,
-            onSubmit() { window.toast && window.toast('사유서가 상신되었습니다.', 'success'); },
-          });
-        } else {
-          window.toast && window.toast('사유서 작성 화면을 준비 중입니다.', 'info');
-        }
+      /* 캘린더 출퇴근 경고 블록(!) 클릭 → 안내 모달 (근무조 불일치 / 반차 미신청, 겹치면 함께) */
+      const warnEl = e.target.closest('[data-mw-warn]');
+      if (warnEl) {
+        openAttNoticeModal({
+          date: warnEl.dataset.mwWarn,
+          mm:   warnEl.dataset.mmCode ? { code: warnEl.dataset.mmCode, sched: warnEl.dataset.mmSched, actual: warnEl.dataset.mmActual } : null,
+          half: warnEl.dataset.warnHalf || null,
+        });
         return;
       }
+
+      /* 대시보드(표) 뷰의 근무조 불일치 → 사유서 작성 (전자결재 상신) */
+      const reason = e.target.closest('[data-mw-reason]');
+      if (reason) { openReasonApproval(reason.dataset.mwReason); return; }
 
       /* 신청 액션 — 근태 신청 / 초과근무 신청(상단 탭바) + 근무조 변경 신청(toolbar).
          모달 상신 처리 후 '근태 신청 현황' 탭은 진입 시 myApps() 를 새로 읽어 최신 내역을 반영한다. */
@@ -766,6 +908,13 @@
     pageEl.addEventListener('change', e => {
       const ps = e.target.closest('[data-mw-pagesize]');
       if (ps) { STATE.appPageSize = Number(ps.value) || 20; STATE.appPage = 1; renderAll(pageEl); }
+    });
+
+    /* 연/월 피커(App.YmPicker) 월 선택 — 토글/연이동/바깥클릭은 전역 컨트롤러가 처리 */
+    pageEl.addEventListener('ympick:change', e => {
+      const { name, ym } = e.detail;
+      if (name === 'status') { STATE.ym = ym; STATE.dailyFilter = null; renderAll(pageEl); }
+      else if (name === 'apps') { STATE.appYm = ym; STATE.appPage = 1; renderAll(pageEl); }
     });
   }
 

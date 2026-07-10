@@ -295,18 +295,28 @@
         <p class="task__when">지금 누가 출근했는지 / 휴가인지 등 오늘의 근무 상태를 볼 때.</p>
         <div class="task__path">📍 <b>임직원 현황</b> › 사원 카드 배지</div>
 
-        <div class="task__label">카드 배지 의미 <span class="verify">확인 필요</span></div>
+        <div class="task__label">① 사진 우측 하단 — 오늘 근태 배지(점+글자) <span class="verify">확인 필요</span></div>
         <table class="fields">
           <thead><tr><th style="width:120px;">배지</th><th>의미</th></tr></thead>
           <tbody>
-            <tr><td><span class="pill pill--success">출근</span></td><td>현재 근무 중</td></tr>
-            <tr><td><span class="pill">퇴근</span></td><td>업무 종료</td></tr>
-            <tr><td><span class="pill pill--info">휴가</span></td><td>연차·휴가 사용 중</td></tr>
-            <tr><td><span class="pill pill--warning">미출근</span></td><td>아직 출근 기록 없음</td></tr>
+            <tr><td><span class="pill pill--success">● 근무중</span></td><td>출근 체크 후 근무 중(점이 깜빡임)</td></tr>
+            <tr><td><span class="pill">● 퇴근</span></td><td>퇴근 체크 완료(업무 종료)</td></tr>
+            <tr><td><span class="pill pill--purple">● 휴가</span></td><td>연차·병가·반차 사용 중</td></tr>
+            <tr><td><span class="pill pill--slate">● 미출근</span></td><td>오늘 출근 기록 없음(중립 — 아침 기본값)</td></tr>
           </tbody>
         </table>
 
-        <div class="callout callout--warn">⚠️ 이 배지는 <b>재직/퇴직</b>이 아니라 <b>오늘 근태</b> 기준입니다. 재직 상태는 인사카드에서 확인하세요.</div>
+        <div class="task__label">② 이름 옆 — 재직/고용형태 배지</div>
+        <table class="fields">
+          <thead><tr><th style="width:120px;">표기</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>직위 · 직책</td><td>이름 옆 <b>회색 글씨</b>로 표시(배지 아님)</td></tr>
+            <tr><td><span class="pill pill--warning">휴직</span></td><td>휴직 중인 직원(휴직 시 근태 배지 대신 표시)</td></tr>
+            <tr><td><span class="pill pill--slate">도급</span></td><td>도급(외부 인력) 직원</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout callout--warn">⚠️ 사진의 근태 배지는 <b>재직/퇴직</b>이 아니라 <b>오늘 근태</b> 기준입니다. 재직/휴직 상태는 이름 옆 배지 또는 인사카드에서 확인하세요.</div>
       </article>
 
       <!-- A-4 -->

@@ -1344,3 +1344,120 @@
     parseNum, formatField, applyThousands,
   };
 })();
+
+/* =========================================================
+ * App.YmPicker — 연/월 선택 팝오버 (재사용 공유 컴포넌트)
+ *
+ *   달력/근태/연차 등 월 단위로 조회하는 화면의 "YY/MM ∨" 타이틀에 부착.
+ *   ‹ › 로 연 이동, 월 그리드 클릭으로 원하는 달로 즉시 점프한다.
+ *   (기존 ‹ 오늘 › 한칸 이동 화살표와 병행 — 화면마다 그대로 유지)
+ *
+ *   ── 사용법 ────────────────────────────────────────────
+ *   // 1) 타이틀 자리에 마크업 삽입
+ *   html`${App.YmPicker.html({ name: 'status', ym: STATE.ym, todayYm: A.TODAY.slice(0,7) })}`
+ *
+ *   // 2) 페이지 컨테이너에서 변경 이벤트 수신 (한 번만 바인딩)
+ *   pageEl.addEventListener('ympick:change', (e) => {
+ *     if (e.detail.name === 'status') { STATE.ym = e.detail.ym; renderAll(pageEl); }
+ *   });
+ *
+ *   opts:
+ *     ym         — 현재 선택된 'YYYY-MM' (필수)
+ *     name       — 같은 페이지 내 여러 피커 구분용 키 (이벤트 detail.name 으로 전달)
+ *     todayYm    — 오늘 강조용 'YYYY-MM' (선택, 없으면 강조 없음)
+ *     labelClass — 라벨 span 클래스 (기본 'att-tb__title')
+ *     labelStyle — 라벨 span inline style (선택, 예: 'font-size:var(--fs-lg);')
+ *
+ *   전역 컨트롤러(문서 클릭 위임)는 로드시 1회 설치되어 토글/연이동/바깥클릭을
+ *   스스로 처리하고, 월 선택 시 래퍼에서 'ympick:change' (bubbles) 를 디스패치한다.
+ * ========================================================= */
+(function () {
+  const App = (window.App = window.App || {});
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  /* 팝오버 패널 내부(연 헤더 + 월 그리드) — 연 이동 시에도 재사용 */
+  function panelInner(viewYear, selectedYm, todayYm) {
+    const sel = String(selectedYm || '');
+    const selY = parseInt(sel.slice(0, 4), 10), selM = parseInt(sel.slice(5, 7), 10);
+    let cells = '';
+    for (let m = 1; m <= 12; m++) {
+      const ym = viewYear + '-' + pad2(m);
+      const cls = [];
+      if (viewYear === selY && m === selM) cls.push('is-active');
+      if (ym === todayYm) cls.push('is-today');
+      cells += '<button type="button" class="ym-picker__month ' + cls.join(' ') + '" data-ympick-pick="' + ym + '">' + m + '월</button>';
+    }
+    return '<div class="ym-picker__head">'
+      + '<button type="button" class="ym-picker__nav" data-ympick-year="-1" aria-label="이전 해">‹</button>'
+      + '<span class="ym-picker__year">' + viewYear + '</span>'
+      + '<button type="button" class="ym-picker__nav" data-ympick-year="1" aria-label="다음 해">›</button>'
+      + '</div><div class="ym-picker__grid">' + cells + '</div>';
+  }
+
+  function html(opts) {
+    opts = opts || {};
+    const ym = String(opts.ym || '');
+    const todayYm = opts.todayYm || '';
+    const name = opts.name || '';
+    const labelClass = opts.labelClass || 'att-tb__title';
+    const labelStyle = opts.labelStyle ? (' style="' + opts.labelStyle + '"') : '';
+    const label = opts.label != null ? opts.label : (ym.slice(2, 4) + '/' + ym.slice(5, 7));
+    const chev = (window.Icons && window.Icons.chev) || '▾';
+    const viewYear = parseInt(ym.slice(0, 4), 10);
+    return '<div class="ym-picker" data-ympick data-ympick-name="' + name + '" data-ym="' + ym + '" data-today="' + todayYm + '">'
+      + '<button type="button" class="ym-picker__trigger" data-ympick-toggle aria-label="연/월 선택">'
+      + '<span class="' + labelClass + '"' + labelStyle + '>' + label + '</span>'
+      + '<span class="ym-picker__caret">' + chev + '</span>'
+      + '</button>'
+      + '<div class="ym-picker__panel">' + panelInner(viewYear, ym, todayYm) + '</div>'
+      + '</div>';
+  }
+
+  function closeAll(except) {
+    document.querySelectorAll('.ym-picker.is-open').forEach(o => { if (o !== except) o.classList.remove('is-open'); });
+  }
+
+  function install() {
+    if (install._done) return; install._done = true;
+    document.addEventListener('click', function (e) {
+      const toggle = e.target.closest('[data-ympick-toggle]');
+      if (toggle) {
+        const w = toggle.closest('[data-ympick]');
+        const opening = !w.classList.contains('is-open');
+        closeAll(w);
+        w.classList.toggle('is-open');
+        if (opening) {
+          w.querySelector('.ym-picker__panel').innerHTML =
+            panelInner(parseInt(String(w.dataset.ym).slice(0, 4), 10), w.dataset.ym, w.dataset.today || '');
+        }
+        return;
+      }
+      const yb = e.target.closest('[data-ympick-year]');
+      if (yb) {
+        const w = yb.closest('[data-ympick]');
+        const p = w.querySelector('.ym-picker__panel');
+        const curY = parseInt(p.querySelector('.ym-picker__year').textContent, 10);
+        p.innerHTML = panelInner(curY + Number(yb.dataset.ympickYear), w.dataset.ym, w.dataset.today || '');
+        return;
+      }
+      const pk = e.target.closest('[data-ympick-pick]');
+      if (pk) {
+        const w = pk.closest('[data-ympick]');
+        const ym = pk.dataset.ympickPick;
+        w.dataset.ym = ym;
+        w.classList.remove('is-open');
+        w.dispatchEvent(new CustomEvent('ympick:change', {
+          bubbles: true, detail: { name: w.dataset.ympickName || '', ym: ym },
+        }));
+        return;
+      }
+      /* 바깥 클릭 — 클릭 지점을 포함하지 않는 열린 피커만 닫기 */
+      document.querySelectorAll('.ym-picker.is-open').forEach(o => {
+        if (!o.contains(e.target)) o.classList.remove('is-open');
+      });
+    });
+  }
+  install();
+
+  App.YmPicker = { html: html, panelInner: panelInner, install: install };
+})();

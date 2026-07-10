@@ -136,7 +136,8 @@
     return rows;
   }
 
-  /* 근무조 색상 팔레트 — 기본 회색 + 빨·주·노·초·파·남·보·검(파스텔 톤). 근무조 명 옆 컬러칩 · 스케줄 시각 구분. */
+  /* 근무조 색상 팔레트 — 기본 회색 + 빨·주·노·초·파·남·검(파스텔 톤). 근무조 명 옆 컬러칩 · 스케줄 시각 구분.
+     ※ 보라는 휴가(임직원현황 보라)와 겹칠 수 있어 근무조 팔레트에서 제외한다. */
   const SHIFT_COLORS = [
     { key: 'gray',   label: '기본', hex: '#DDE1E6' },
     { key: 'red',    label: '빨강', hex: '#F6C9CB' },
@@ -145,7 +146,6 @@
     { key: 'green',  label: '초록', hex: '#C2E5C6' },
     { key: 'blue',   label: '파랑', hex: '#BFD7F0' },
     { key: 'navy',   label: '남색', hex: '#AEB8E0' },
-    { key: 'purple', label: '보라', hex: '#D8C7EC' },
     { key: 'black',  label: '검정', hex: '#A7AEBB' },
   ];
   function colorHexOf(key) { const c = SHIFT_COLORS.find(x => x.key === key); return c ? c.hex : SHIFT_COLORS[0].hex; }

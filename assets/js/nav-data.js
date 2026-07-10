@@ -95,7 +95,7 @@ window.NAV_DATA = [
         /* 근무스케줄 배치 — 부서장이 부서원 월별 근무스케줄 배치(배정표). 근무스케줄 현황의 [근무스케줄 배치] 버튼으로 진입. */
         { id: 'att-shift',        label: '근무스케줄 배치',       page: 'page-att-shift', hidden: true },
       ]},
-      { label: '연차 관리', icon: 'calendar', items: [
+      { label: '휴가 관리', icon: 'calendar', items: [
         /* 나의 연차현황 — 본인 연차 발생/사용/잔여 + 사용 이력 (본인 시점 전용). */
         { id: 'att-my-leave',   label: '나의 연차현황',   page: 'page-att-my-leave' },
         /* 부서별 연차현황 — 권한자 시점. 전체 / 임직원별 / 부서별 뷰. */
