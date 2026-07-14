@@ -2654,52 +2654,23 @@
       window.toast && window.toast('다운로드할 데이터가 없습니다.', 'warning');
       return;
     }
-    const headers = ['사번','성명','부서','직위','고용 형태','수습','도급','소속회사','입사일',
-                     '상태','인사정보','근로계약','임금계약','입사서류','발송 실패 사유'];
-    /* HTML pill 을 일반 텍스트로 변환 */
-    const stripTags = (h) => String(h || '').replace(/<[^>]+>/g, '').trim();
-    const labelOfStatus = (r) => {
-      if (r.mailFailCode && r.status === 'inProgress' && !MILESTONES.idDone(r)) return '이메일 실패';
-      if (r.status === 'contractExpired') return '계약만료';
-      if (r.status === 'retired')         return '퇴사';
-      if (r.status === 'completed')       return '완료';
-      if (r.status === 'registered')      return '등록';
-      /* inProgress — 가장 최근 도달 마일스톤 라벨로 표현 */
-      const ml = latestMilestone(r);
-      return ml ? MILESTONE_LABEL[ml] : '진행중';
-    };
-    const csvLines = [headers.join(',')];
-    rows.forEach(r => {
-      const cells = [
-        r.id, displayName(r), r.dept || '', r.rank || '',
-        EMP_TYPE_LABEL[r.empType] || '',
-        r.probation ? '수습' : '',
-        r.contractOut ? '도급' : '',
-        r.contractCompany || '',
-        r.joinDate || '',
-        labelOfStatus(r),
-        stripTags(infoStatusBadge(r)),
-        stripTags(laborBadge(r)),
-        stripTags(wageBadge(r)),
-        stripTags(docBadge(r)),
-        r.mailFailCode ? (FAIL_LABEL[r.mailFailCode] || r.mailFailCode) : '',
-      ];
-      csvLines.push(cells.map(v => {
-        const s = String(v == null ? '' : v);
-        return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      }).join(','));
-    });
-    /* BOM (Excel 에서 한글 깨짐 방지) */
-    const blob = new Blob(['﻿' + csvLines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
-    a.href = url;
-    a.download = `입사자_관리_${stamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    /* 현재 목록 테이블에 노출되는 마스터 프로필 항목을 그대로 출력 */
+    const headers = ['사번','성명','부서','직위','직책','근무지','사원 유형','근로 유형',
+                     '이메일','휴대폰번호','지급계좌번호'];
+    const dataRows = rows.map(r => [
+      r.id, displayName(r), r.dept || '', r.rank || '', r.position || '', r.site || '',
+      JOB_CAT_LABEL[r.jobCat] || '',
+      EMP_TYPE_LABEL[r.empType] || '',
+      r.email || '',
+      r.phone || '',
+      r.bankAccount || '',
+    ]);
+    /* 도메인 표준 Excel 생성기(App.xlsxDownload — SpreadsheetML, 외부 라이브러리 무의존).
+     *   근태집계 등 타 화면과 동일하게 .xls 로 저장 → Excel 이 형식 경고 없이 그대로 연다.
+     *   헤더행은 hdr 스타일(굵게 + 음영). */
+    const stamp = new Date().toISOString().slice(2,10).replace(/-/g,'');   // YYMMDD
+    const sheets = [{ name: '임직원', rows: [{ style: 'hdr', cells: headers }].concat(dataRows) }];
+    App.xlsxDownload(`임직원_관리_${stamp}.xls`, sheets, { context: '임직원 관리 리스트' });
     window.toast && window.toast(`${rows.length}건 다운로드되었습니다.`, 'success');
   }
 
@@ -5448,12 +5419,15 @@
     const period = indef
       ? `${dispYmd(start) || '-'} ~ 기간의 정함 없음`
       : `${dispYmd(start) || '-'} ~ ${dispYmd(end) || '-'}`;
-    const statusPill = expired
-      ? '<span class="pill pill--danger">만료</span>'
-      : '<span class="pill pill--success">적용 중</span>';
+    /* 임금계약 번호 — 연결된 임금계약서 번호. 누르면 서명본 미리보기 모달(data-empi-ctrhist-preview).
+       상태(적용 중/만료) 표기는 제거 — 계약 기간 + 계약 번호만 노출. */
+    const wageId = latest ? latest.id : (emp.wageContractId || '');
+    const idCell = wageId
+      ? `<span class="link-code" data-empi-ctrhist-preview="${esc(wageId)}" style="cursor:pointer;" title="임금계약서 미리보기">${esc(wageId)}</span>`
+      : '<span style="color:var(--color-text-muted);">-</span>';
     return fieldGridHTML([
-      ['계약 기간', period],
-      ['상태',     statusPill, { html: true }],
+      ['계약 기간',    period],
+      ['임금계약 번호', idCell, { html: true }],
     ]);
   }
 
