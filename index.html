@@ -297,8 +297,6 @@
       <section id="page-hr-contract" class="page"></section>
       <!-- ===== Page: HR > 계약·발령·휴직 > 휴직 관리 ===== -->
       <section id="page-hr-loa" class="page"></section>
-      <!-- ===== Page: HR > 설정 > 직위·직책 설정 ===== -->
-      <section id="page-hr-position" class="page"></section>
       <!-- ===== Page: HR > 포상·징계 ===== -->
       <section id="page-hr-prize-discipline" class="page"></section>
       <!-- ===== Page: HR > 퇴사 관리 > 퇴사 현황 ===== -->
@@ -325,26 +323,12 @@
       <section id="page-att-leave" class="page"></section>
       <!-- ===== Page: 휴가 관리 > 연차 계획서 ===== -->
       <section id="page-att-leave-plan" class="page"></section>
-      <!-- ===== Page: 휴가 관리 > 연차 설정 ===== -->
-      <section id="page-att-leave-set" class="page"></section>
       <!-- ===== Page: 근무스케줄 관리 > 부서별 근무스케줄 현황 ===== -->
       <section id="page-att-shift-status" class="page"></section>
       <!-- ===== Page: 근무스케줄 관리 > 부서별 근무스케줄 배치 ===== -->
       <section id="page-att-shift-batch" class="page"></section>
       <!-- ===== Page: 근무스케줄 관리 > 근무정책 설정 ===== -->
       <section id="page-att-work-policy" class="page"></section>
-      <!-- ===== Page: 근무스케줄 관리 > 근무조 설정 (메뉴 숨김) ===== -->
-      <section id="page-att-shift" class="page"></section>
-      <!-- ===== Page: 근태 > 경조사 > 경조사 내역 ===== -->
-      <section id="page-att-event" class="page"></section>
-      <!-- ===== Page: 근태 > 업무 보고 > 나의 업무 보고 ===== -->
-      <section id="page-att-report-my" class="page"></section>
-      <!-- ===== Page: 업무보고 관리 > 부서별 업무보고 현황 ===== -->
-      <section id="page-att-report-status" class="page"></section>
-      <!-- ===== Page: 업무보고 관리 > 업무보고 설정 ===== -->
-      <section id="page-att-wr-settings" class="page"></section>
-      <!-- ===== Page: 근태 > 설정 > 근태코드 설정 ===== -->
-      <section id="page-att-code" class="page"></section>
       <!-- ===== Page: HR > 급여 관리 > 급여 정산 ===== -->
       <section id="page-hr-pay-settlement" class="page"></section>
       <!-- ===== Page: HR > 급여 관리 > 급여 명세서 조회 ===== -->
@@ -415,100 +399,6 @@
   </aside>
 
   <!-- ===== 인사(HR) / 근태(ATT) 정적 모달·오프캔버스 (erp-hr 이식) ===== -->
-  <!-- ============ 인사 관리 — 인사카드 OffCanvas Drawer (SCR-EMP-02) ============ -->
-  <div class="oc-backdrop" data-oc-host="oc-hr-card"></div>
-  <aside class="offcanvas offcanvas--lg" id="oc-hr-card" role="dialog" aria-modal="true" aria-labelledby="oc-hr-card-title">
-    <header class="offcanvas__header">
-      <h2 class="offcanvas__title" id="oc-hr-card-title">인사카드</h2>
-      <button class="offcanvas__close" data-oc-close type="button" aria-label="닫기">✕</button>
-    </header>
-    <div class="offcanvas__body" id="oc-hr-card-body"><!-- JS 렌더 --></div>
-    <footer class="offcanvas__footer" id="oc-hr-card-footer"><!-- JS 렌더 (권한별 버튼) --></footer>
-  </aside>
-
-  <!-- ============ 인사 관리 — 인사정보 수정 요청 (SCR-EMP-03) ============ -->
-  <div class="modal-backdrop" id="modal-hr-edit" data-modal-id="hr-edit">
-    <div class="modal modal--lg">
-      <div class="modal__header">
-        <div class="modal__title">인사정보 수정 요청</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body">
-        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
-          <strong>대상:</strong> <span id="hr-edit-target"></span>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label is-required" for="hr-edit-field">수정 항목</label>
-          <select class="select input--full" id="hr-edit-field" style="width:100%">
-            <option value="">선택하세요</option>
-          </select>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
-          <div class="form-field">
-            <label class="form-label">기존 값</label>
-            <input class="input input--full" type="text" id="hr-edit-before" readonly />
-          </div>
-          <div class="form-field">
-            <label class="form-label is-required" for="hr-edit-after">변경 값</label>
-            <input class="input input--full" type="text" id="hr-edit-after" placeholder="새로운 값을 입력" />
-          </div>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label is-required" for="hr-edit-reason">수정 사유 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(최소 10자)</small></label>
-          <textarea class="input input--full" id="hr-edit-reason" rows="3" placeholder="변경이 필요한 사유를 10자 이상 입력해주세요."></textarea>
-          <div class="form-help" data-hr-edit-reason-msg></div>
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">증빙 첨부 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(선택)</small></label>
-          <div class="dz" id="hr-edit-dz" tabindex="0" style="padding:18px 14px;">
-            <svg class="dz__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <div class="dz__title" id="hr-edit-dz-title">파일을 끌어 놓거나 클릭하여 선택</div>
-            <input type="file" id="hr-edit-dz-input" hidden />
-          </div>
-        </div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn btn--primary" type="button" data-hr-edit-submit disabled>제출 (팀장 결재)</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ 인사 관리 — PDF 출력 옵션 (SCR-EMP-05) ============ -->
-  <div class="modal-backdrop" id="modal-hr-pdf" data-modal-id="hr-pdf">
-    <div class="modal">
-      <div class="modal__header">
-        <div class="modal__title">인사카드 PDF 출력</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body">
-        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
-          <strong>대상:</strong> <span id="hr-pdf-target"></span>
-        </div>
-
-        <div id="hr-pdf-info" style="padding:10px 12px;background:rgba(243,130,0,.08);border-left:3px solid var(--color-brand-accent);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:14px;">
-          <!-- JS 권한별 안내 -->
-        </div>
-
-        <div class="form-field">
-          <label class="form-label">출력 섹션 선택 <small style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(권한 외 섹션은 비활성)</small></label>
-          <div id="hr-pdf-sections" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;padding:10px 0;">
-            <!-- JS 렌더: <label class="chk"><input type="checkbox" value="..." checked><span>...</span></label> -->
-          </div>
-        </div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn" type="button" data-hr-pdf-print disabled>인쇄</button>
-        <button class="btn btn--primary" type="button" data-hr-pdf-download disabled>PDF 다운로드</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ 급여 관련 설정 — 시간외수당 계산식 모달 ============ -->
   <div class="modal-backdrop" id="modal-ps-ot" data-modal-id="ps-ot">
     <div class="modal modal--lg">
@@ -541,21 +431,6 @@
     </div>
   </div>
 
-  <!-- ============ 지급항목 설정 — 신규/수정 등록 모달 (Layer Modal) ============ -->
-  <div class="modal-backdrop" id="modal-pi-editor" data-modal-id="pi-editor">
-    <div class="modal modal--lg">
-      <div class="modal__header">
-        <div class="modal__title" id="pi-editor-title">지급항목 추가</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="pi-editor-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
-        <!-- renderEditorModal() 가 채움 -->
-      </div>
-      <div class="modal__footer" id="pi-editor-footer">
-        <!-- renderEditorModal() 가 채움 -->
-      </div>
-    </div>
-  </div>
 
   <!-- ============ 포상·징계 — 신규/수정 등록 모달 (Layer Modal) ============ -->
   <div class="modal-backdrop" id="modal-pd-editor" data-modal-id="pd-editor">
@@ -686,22 +561,6 @@
     </div>
   </div>
 
-  <!-- ============ 퇴사 처리 모달 (Layer Modal) ============
-       퇴사 현황 화면 툴바의 [+ 퇴사 처리] 버튼에서 호출. 대상자 선택은
-       전자결재 직원 선택 OffCanvas(App.openEmpPicker) 를 사용. -->
-  <div class="modal-backdrop" id="modal-lv-resign" data-modal-id="lv-resign">
-    <div class="modal modal--lg">
-      <div class="modal__header">
-        <div class="modal__title">퇴사 처리</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="lv-resign-body" style="padding:20px 24px;max-height:70vh;overflow:auto;"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn btn--primary" type="button" data-lv-resign-submit disabled>퇴사 처리</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ 평가 결과 모달 (Layer Modal) ============
        평가 회차의 [결과 보기](평가 확정 회차) 에서 App.HREvalResult.open(roundId) 으로 호출.
@@ -843,44 +702,6 @@
     </div>
   </div>
 
-  <!-- ============ 조직 관리 — 사원 부서 이동 모달 (SCR-ORG-03) ============ -->
-  <div class="modal-backdrop" id="modal-org-move" data-modal-id="org-move">
-    <div class="modal modal--lg" style="height:560px;max-height:80vh;">
-      <div class="modal__header">
-        <div class="modal__title">사원 부서 이동</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" style="padding:0;">
-        <div class="split" style="--split-left:50%;">
-          <aside class="split__left">
-            <div class="split__head"><h3>이동 대상 사원 <span id="org-move-count" style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(0명)</span></h3></div>
-            <div class="split__body">
-              <table class="tbl tbl--striped tbl--hover">
-                <thead>
-                  <tr>
-                    <th>사번</th>
-                    <th>성명</th>
-                    <th>현재 소속</th>
-                  </tr>
-                </thead>
-                <tbody id="org-move-emp-body"><!-- JS 렌더 --></tbody>
-              </table>
-            </div>
-          </aside>
-          <section class="split__right">
-            <div class="split__head"><h3>목적지 부서</h3></div>
-            <div class="split__body">
-              <ul class="tree tree--selectable" id="org-move-tree"><!-- JS 렌더 --></ul>
-            </div>
-          </section>
-        </div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" data-modal-close type="button">취소</button>
-        <button class="btn btn--primary" type="button" data-org-move-submit disabled>전보 결재 상신</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ 조직 관리 — Sweet Alert 호스트 (소속 사원 있음 등) ============ -->
   <div class="modal-backdrop modal-backdrop--over-modal" id="org-alert-modal">
@@ -1207,19 +1028,6 @@
     </div>
   </div>
 
-  <!-- ============ [근태] 신청 현황 (연차/초과근무) 모달 ============ -->
-  <div class="modal-backdrop" id="modal-att-applist" data-modal-id="att-applist">
-    <div class="modal modal--lg" style="max-width:880px;">
-      <div class="modal__header">
-        <div class="modal__title" id="att-applist-title">신청 내역</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="att-applist-body"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-att-applist-close>닫기</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ [근태] 경조사 전자결재 문서 상세 모달 (전자결재 내용) ============ -->
   <div class="modal-backdrop" id="modal-evt-doc" data-modal-id="evt-doc">
@@ -1235,19 +1043,6 @@
     </div>
   </div>
 
-  <!-- ============ [근태] 경조사 업무 처리 모달 (경조휴가/경조금/화환) ============ -->
-  <div class="modal-backdrop" id="modal-evt-proc" data-modal-id="evt-proc">
-    <div class="modal" style="width:780px;max-width:94vw;">
-      <div class="modal__header">
-        <div class="modal__title" id="evt-proc-title">경조사 업무 처리</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="evt-proc-body" style="padding:20px 24px;max-height:72vh;overflow:auto;"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-evt-proc-close>닫기</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ [근태] 신청 품의서 상세 모달 ============ -->
   <div class="modal-backdrop" id="modal-att-doc" data-modal-id="att-doc" style="z-index:1300;">
@@ -1259,20 +1054,6 @@
       <div class="modal__body" id="att-doc-body"></div>
       <div class="modal__footer">
         <button class="btn" type="button" data-att-doc-close>닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ [근무조] 마스터 (설정) 모달 ============ -->
-  <div class="modal-backdrop" id="modal-shift-master" data-modal-id="shift-master">
-    <div class="modal modal--xl" style="max-width:1200px;">
-      <div class="modal__header">
-        <div class="modal__title">스케줄 마스터</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="shift-master-body" style="padding:0;"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-shift-master-close>닫기</button>
       </div>
     </div>
   </div>
@@ -1379,20 +1160,6 @@
     </div>
   </div>
 
-  <!-- ============ [급여 정산] 지급 항목 추가 모달 ============ -->
-  <div class="modal-backdrop" id="modal-prs-additem" data-modal-id="prs-additem">
-    <div class="modal" style="width:560px;">
-      <div class="modal__header">
-        <div class="modal__title">지급 항목 추가</div>
-        <button class="modal__close" data-prs-additem-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="prs-additem-body"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-prs-additem-close>취소</button>
-        <button class="btn btn--primary" type="button" data-prs-additem-confirm>추가</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ [급여 정산] 일괄 입력 모달 (상여금·기타수당 등 수기 항목 전 대상자 일괄) ============ -->
   <div class="modal-backdrop" id="modal-prs-bulk" data-modal-id="prs-bulk">
@@ -1569,7 +1336,6 @@
   <script src="assets/js/page-hr-appoint.js"></script>
   <script src="assets/js/page-hr-loa.js"></script>
   <script src="assets/js/hr-joindocs-data.js"></script>
-  <script src="assets/js/page-hr-position.js"></script>
   <script src="assets/js/hr-eval-config-data.js?v=20260702b"></script>
   <script src="assets/js/page-hr-eval-round.js?v=20260702b"></script>
   <script src="assets/js/page-hr-eval-input.js"></script>
@@ -1585,7 +1351,7 @@
   <script src="assets/js/hr-paysettings-data.js"></script>
   <script src="assets/js/page-hr-pay-settlement.js"></script>
   <script src="assets/js/page-hr-payslip.js"></script>
-  <script src="assets/js/page-att-shift.js"></script>
+  <script src="assets/js/att-shift-data.js"></script>
   <script src="assets/js/page-att-status.js"></script>
   <script src="assets/js/page-att-my-work.js"></script>
   <script src="assets/js/page-att-my-leave.js"></script>
@@ -1594,12 +1360,7 @@
   <script src="assets/js/page-att-shift-status.js"></script>
   <script src="assets/js/page-att-shift-batch.js"></script>
   <script src="assets/js/page-hr-meal.js"></script>
-  <script src="assets/js/page-att-event.js"></script>
-  <script src="assets/js/page-att-report-my.js"></script>
-  <script src="assets/js/page-att-report-status.js"></script>
-  <script src="assets/js/page-att-wr-settings.js"></script>
   <script src="assets/js/page-att-settings.js"></script>
-  <script src="assets/js/page-att-code.js"></script>
 
   <script src="assets/js/app.js"></script>
 </body>

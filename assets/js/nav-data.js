@@ -67,7 +67,7 @@ window.NAV_DATA = [
            데이터는 hr-resign-data.js 의 App.HRResign 이 단일 소스로 보존. */
       ]},
       /* 「설정」 그룹 제거 — 항목이 모두 타 위치로 이관되어 빈 그룹이 됨.
-         · 「직위·직책 설정」(page-hr-position) — 공통 코드에서 관리(nav 제거). 화면/데이터 코드는 보존.
+         · 「직위·직책 설정」(page-hr-position) — 공통 코드로 이관. 화면·코드 삭제됨 (2026-07-14).
          · 「입사 서류 양식 설정」(page-hr-doctemplates) — 화면 제거됨. 서류 마스터 데이터는
            hr-joindocs-data.js 의 App.JoinDocsRegistry 가 단일 소스로 보존.
          · 「평가유형 설정」·「수습 평가 설정」 — 「평가 관리」 그룹의 각 평가 항목 바로 아래로 이동. */
@@ -91,8 +91,6 @@ window.NAV_DATA = [
         { id: 'att-shift-batch',  label: '부서별 근무스케줄 편성', page: 'page-att-shift-batch' },
         /* 근무정책 설정 — 근무조 마스터(시간대 정의) + 지각 허용 시간. */
         { id: 'att-work-policy',  label: '근무정책 설정',     page: 'page-att-work-policy' },
-        /* 근무스케줄 배치 — 부서장이 부서원 월별 근무스케줄 배치(배정표). 근무스케줄 현황의 [근무스케줄 배치] 버튼으로 진입. */
-        { id: 'att-shift',        label: '근무스케줄 배치',       page: 'page-att-shift', hidden: true },
       ]},
       { label: '휴무 관리', icon: 'calendar', items: [
         /* 나의 연차현황 — 본인 연차 발생/사용/잔여 + 사용 이력 (본인 시점 전용). */
@@ -101,28 +99,12 @@ window.NAV_DATA = [
         { id: 'att-leave',      label: '부서별 연차현황', page: 'page-att-leave' },
         /* 연차 계획서 — 본인 연차 사용 계획 작성/수정/삭제 + 팀장은 구성원 계획을 캘린더/대시보드로 조회. */
         { id: 'att-leave-plan', label: '연차 계획서',     page: 'page-att-leave-plan' },
-        /* ⏸ 임시 숨김 (2026-07-06) — 연차 설정 비노출. 다시 노출하려면 주석 해제.
-           연차 설정 — 연차 부여 기준 · 산정 방식 · 이월/소멸 정책.
-        { id: 'att-leave-set',  label: '연차 설정',       page: 'page-att-leave-set' }, */
+        /* 연차 설정(page-att-leave-set) — 화면·코드 삭제됨 (2026-07-14). */
       ]},
-      /* ⏸ 임시 숨김 (2026-07-06) — 요청에 따라 근태 > 경조사 관리 / 업무보고 관리 메뉴 비노출.
-         페이지·스키마 코드는 유지. 다시 노출하려면 아래 두 그룹 주석을 해제. */
-      /*
-      { label: '경조사 관리', icon: 'heart', items: [
-        // 경조사 현황 — 본인 경조사 신청 + 전체 신청 내역 조회 (HR 목록 패턴).
-        { id: 'att-event', label: '경조사 현황', page: 'page-att-event' },
-      ]},
-      { label: '업무보고 관리', icon: 'report', items: [
-        // 나의 업무보고 — 본인 부서 업무 분류별 주간 보고 작성.
-        { id: 'att-report-my',     label: '주간 업무보고 작성',   page: 'page-att-report-my' },
-        // 부서별 업무보고 현황 — 전체 / 임직원별 / 부서별 주간 보고 조회.
-        { id: 'att-report-status', label: '주간 업무보고 현황',   page: 'page-att-report-status' },
-        // 업무보고 설정 — 부서별 업무 분류(양식). 업무 보고 작성/현황이 참조.
-        { id: 'att-wr-set',        label: '업무보고 설정',       page: 'page-att-wr-settings' },
-      ]},
-      */
-      /* 「설정」 그룹 제거 — 「근태코드 설정」(page-att-code)이 유일 항목이었으나
-         근태(ATT)·휴가(HOL) 신청 사유 코드는 시스템에서 관리(nav 제거). 화면/데이터 코드는 보존. */
+      /* 경조사 관리 · 업무보고 관리 그룹 — 페이지·코드 삭제됨 (2026-07-14):
+         att-event / att-report-my / att-report-status / att-wr-settings. */
+      /* 「설정」 그룹 제거 — 「근태코드 설정」(page-att-code) 은 시스템 관리로 이관.
+         화면·코드 삭제됨 (2026-07-14). */
     ],
   },
 

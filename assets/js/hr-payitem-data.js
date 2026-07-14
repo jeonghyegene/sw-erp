@@ -343,20 +343,6 @@
     };
   }
 
-  function openEditor(id) {
-    STATE.editingId = id;
-    if (id) {
-      const src = STATE.items.find(m => m.id === id);
-      if (!src) return;
-      STATE.form = deepClone(src);
-    } else {
-      STATE.form = newFormDefaults();
-      STATE.form.code = nextCustomCode(STATE.items);
-    }
-    renderEditorModal();
-    openModalEl('modal-pi-editor');
-  }
-
   function closeEditor() {
     closeModalEl('modal-pi-editor');
     STATE.editingId = null;
@@ -803,28 +789,6 @@
       return latest
         ? { date: latest.updatedAt, user: latest.updatedBy || '-' }
         : { date: '-', user: '-' };
-    },
-    /* 인라인 임베드 — 「급여 기준 설정」 우측 패널 등에서 지급항목 리스트를 그대로 노출.
-     *   page-bar(목록 가기/추가) 는 그리지 않고 카드 그리드만 host 에 마운트.
-     *   카드 클릭 → openEditor() (전역 모달 사용).
-     *   #pi-cards-host 는 단일 ID 라 중복되면 안 되므로, 다른 위치에 잔존 시 de-id 처리. */
-    renderInline(host) {
-      if (!host) return;
-      ensureItemsLoaded();
-      /* 다른 곳(page-hr-payitem 풀 페이지 등)의 잔존 #pi-cards-host 와 ID 충돌 방지 */
-      document.querySelectorAll('#pi-cards-host').forEach(el => {
-        if (!host.contains(el)) el.removeAttribute('id');
-      });
-      host.innerHTML = `<div id="pi-cards-host" style="flex:1;min-height:0;overflow:auto;padding:0;background:transparent;"></div>`;
-      const cardsHost = host.querySelector('#pi-cards-host');
-      cardsHost.addEventListener('click', (e) => {
-        const sel = window.getSelection && window.getSelection();
-        if (sel && sel.type === 'Range' && String(sel).length > 0) return;
-        const card = e.target.closest('[data-pi-row]');
-        if (!card) return;
-        openEditor(card.dataset.piRow);
-      });
-      renderCards();
     },
   };
 

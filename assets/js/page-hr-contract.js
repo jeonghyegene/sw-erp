@@ -2485,29 +2485,6 @@ ${wageClauses(v)}
     renderEditorView(document.getElementById('modal-ctr-view'));
   }
 
-  function openBulkModal() {
-    BULK.single      = false;
-    BULK.workDocType = null;
-    /* 일괄(다중) 모드 — 단일 모드에서 축소했던 폭 원복 */
-    const bmInner = document.querySelector('#modal-ctr-bulk .modal');
-    if (bmInner) bmInner.style.maxWidth = '1700px';
-    BULK.phase       = 1;
-    BULK.kind        = '근로계약서';
-    BULK.keyword     = '';
-    BULK.deptId      = 'C0';
-    BULK.selectedIds = new Set();
-    BULK.drafts      = {};
-    BULK.histOpen    = new Set();
-    /* segmented tabs — 활성 탭 동기화 */
-    document.querySelectorAll('#ctr-bulk-kind-tabs [data-ctr-bulk-kind]').forEach(b => {
-      b.classList.toggle('is-active', b.dataset.ctrBulkKind === BULK.kind);
-    });
-    const kwEl = document.getElementById('ctr-bulk-kw');
-    if (kwEl) kwEl.value = '';
-    bindBulkModal();
-    applyBulkPhase();
-  }
-
   /* phase 1↔2 토글 — 헤더 타이틀 / 영역 / 푸터 버튼 노출 전환 */
   function applyBulkPhase() {
     const modal = document.getElementById('modal-ctr-bulk');

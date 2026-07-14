@@ -2869,8 +2869,6 @@
       }
 
       /* 사이드바 제거됨 — 토글 핸들러도 정리 (안전을 위해 selector 만 유지) */
-      /* 지급항목 추가 모달 */
-      if (e.target.closest('[data-prs-pi-add]')) { openAddItemModal(); return; }
       /* 지급항목 제거 (사이드바는 현재 read-only 라 안 보임. 방어적으로 유지) */
       const rmBtn = e.target.closest('[data-prs-pi-remove]');
       if (rmBtn) {
@@ -3147,8 +3145,6 @@
   function bindPayItemActions(pageEl) {
     const f = STATE.form;
     if (!f) return;
-    const addBtn = pageEl.querySelector('[data-prs-pi-add]');
-    if (addBtn) addBtn.addEventListener('click', openAddItemModal);
     pageEl.querySelectorAll('[data-prs-pi-remove]').forEach(b => {
       b.addEventListener('click', e => {
         const code = e.currentTarget.dataset.prsPiRemove;
@@ -3187,97 +3183,6 @@
         }
       });
     });
-  }
-
-  /* ============ 지급항목 추가 모달 ============ */
-  function openAddItemModal() {
-    const modal = document.getElementById('modal-prs-additem');
-    if (!modal) return;
-    const body = modal.querySelector('#prs-additem-body');
-    if (!body) return;
-    /* 지급 항목명 / 과세·비과세 / 통상임금 포함 여부 3가지로 신규 항목을 직접 생성 */
-    body.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        <div>
-          <label class="form-label is-required" for="prs-pi-name" style="display:block;margin-bottom:6px;font-weight:var(--fw-medium);">지급 항목명</label>
-          <input class="input" type="text" id="prs-pi-name" data-prs-pi-name placeholder="예: 직책수당" style="width:100%;" />
-          <div class="field-error" data-prs-pi-name-err hidden style="margin-top:4px;"></div>
-        </div>
-        <div>
-          <label class="form-label" style="display:block;margin-bottom:6px;font-weight:var(--fw-medium);">과세 구분</label>
-          <div style="display:flex;gap:20px;">
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="prs-pi-tax" value="taxable" checked /> 과세</label>
-            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="prs-pi-tax" value="nontax" /> 비과세</label>
-          </div>
-        </div>
-        <div>
-          <label class="form-label" style="display:block;margin-bottom:6px;font-weight:var(--fw-medium);">통상임금 포함 여부</label>
-          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" data-prs-pi-ordinary /> 통상임금에 포함</label>
-          <div class="form-help" style="margin-top:6px;color:var(--color-text-muted);font-size:var(--fs-xs);line-height:1.6;">
-            체크하면 기준 임금의 <strong>통상임금·통상시급</strong> 산정에 합산되어, 이를 곱해 산출하는 연장·야간·휴일수당 단가에 반영됩니다.
-          </div>
-        </div>
-      </div>
-    `;
-
-    openModal('modal-prs-additem');
-    /* 한 번만 바인딩 — backdrop 클릭 / 확인 / 취소 */
-    if (!modal.dataset.prsBound) {
-      modal.dataset.prsBound = '1';
-      modal.addEventListener('click', e => {
-        if (e.target === modal) closeModal('modal-prs-additem');
-      });
-      modal.querySelectorAll('[data-prs-additem-close]').forEach(b => b.addEventListener('click', () => closeModal('modal-prs-additem')));
-      const okBtn = modal.querySelector('[data-prs-additem-confirm]');
-      if (okBtn) okBtn.addEventListener('click', confirmAddItems);
-    }
-    const nameEl = modal.querySelector('[data-prs-pi-name]');
-    if (nameEl) {
-      nameEl.addEventListener('input', () => {
-        nameEl.classList.remove('is-invalid');
-        const err = modal.querySelector('[data-prs-pi-name-err]');
-        if (err) err.hidden = true;
-      });
-      setTimeout(() => nameEl.focus(), 0);
-    }
-  }
-  function confirmAddItems() {
-    const modal = document.getElementById('modal-prs-additem');
-    if (!modal) return;
-    const nameEl = modal.querySelector('[data-prs-pi-name]');
-    const errEl  = modal.querySelector('[data-prs-pi-name-err]');
-    const name   = ((nameEl && nameEl.value) || '').trim();
-    /* 인라인 필드 검증 — 토스트 금지 (도메인 표준) */
-    if (!name) {
-      if (nameEl) { nameEl.classList.add('is-invalid'); nameEl.focus(); }
-      if (errEl)  { errEl.textContent = '지급 항목명을 입력해 주세요.'; errEl.hidden = false; }
-      return;
-    }
-    const taxType      = (modal.querySelector('input[name="prs-pi-tax"]:checked') || {}).value || 'taxable';
-    const ordinaryWage = !!(modal.querySelector('[data-prs-pi-ordinary]') || {}).checked;
-    const code = nextCustomPayItemCode();
-    CUSTOM_PAY_ITEMS.push({ id: code, code, name, payMethod: 'fixed', taxType, ordinaryWage, _custom: true });
-
-    const f = STATE.form;
-    f.payItemCodes = (f.payItemCodes || []).concat([code]);
-    /* 통상임금 포함 항목이 추가되면 기준 임금(통상임금/통상시급)이 바뀌므로 ledger 재계산 */
-    if (f.ledger && f.ledger.rows && f.ledger.rows.length) {
-      f.ledger = computeLedger(f);
-      if (STATE.editingId) {
-        const src = STATE.rounds.find(x => x.id === STATE.editingId);
-        if (src) src.ledger = deepClone(f.ledger);
-      }
-    }
-    closeModal('modal-prs-additem');
-    window.toast && window.toast(`지급 항목 '${name}' 추가됨${ordinaryWage ? ' · 통상임금 반영' : ''}`, 'success');
-    /* config 모달이 열려 있으면 그 안 트리만 갱신 (모달 닫지 않고 연속 추가 가능) */
-    const cfgM = document.getElementById('modal-prs-config');
-    if (cfgM && cfgM.classList.contains('is-open')) {
-      const wrap = cfgM.querySelector('#prs-config-body .prs-tree');
-      if (wrap) wrap.outerHTML = renderPayItemTree(f, { editable: true, showCollapse: false });
-    } else {
-      renderFormView(document.getElementById('page-hr-pay-settlement'));
-    }
   }
 
   /* ============ 일괄 입력 (수기 항목 전 대상자 일괄) ============

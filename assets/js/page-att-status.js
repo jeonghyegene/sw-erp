@@ -1962,7 +1962,6 @@
         if (a === 'apply-leave') openApplyModal('leave');
         else if (a === 'apply-att')   openApplyModal('att');
         else if (a === 'apply-ot')    openOtModal();
-        else if (a === 'show-status') openAppListModal('leave');
         else if (a === 'shift-change') openShiftChangeModal();
         renderAll(pageEl);
         return;
@@ -2842,105 +2841,6 @@
   }
 
   /* =========================================================
-   *  신청 현황 통합 모달 — 탭으로 연차/초과근무/근태 전환
-   * ========================================================= */
-  const APPLIST_TABS = [
-    { key: 'leave', label: '연차/휴가' },
-    { key: 'ot',    label: '초과근무'  },
-    { key: 'att',   label: '근태'     },
-  ];
-  function openAppListModal(initialTab) {
-    STATE.applistTab = APPLIST_TABS.find(t => t.key === initialTab) ? initialTab : 'leave';
-    const titleEl = document.getElementById('att-applist-title');
-    if (titleEl) titleEl.textContent = '신청 현황';
-    renderAppListModal();
-    bindAppListModal(document.getElementById('modal-att-applist'));
-    openModalEl('modal-att-applist');
-  }
-  function renderAppListModal() {
-    const body = document.getElementById('att-applist-body');
-    if (!body) return;
-    const mine = myApps();
-    const tabCounts = {
-      leave: mine.filter(a => a.kind === 'leave').length,
-      ot:    mine.filter(a => a.kind === 'ot').length,
-      att:   mine.filter(a => a.kind === 'att').length,
-    };
-    body.innerHTML = `
-      <div class="att-applist-tabs">
-        ${APPLIST_TABS.map(t => `
-          <button type="button"
-                  class="att-applist-tab ${STATE.applistTab === t.key ? 'is-active' : ''}"
-                  data-att-applist-tab="${t.key}">
-            ${esc(t.label)} <span class="att-applist-tab__cnt">${tabCounts[t.key]}</span>
-          </button>
-        `).join('')}
-      </div>
-      <div class="att-applist-body">${renderAppListTable(STATE.applistTab)}</div>
-    `;
-  }
-  function renderAppListTable(listKind) {
-    const list = myApps().filter(a => a.kind === listKind);
-    if (!list.length) {
-      return `<div class="att-empty">표시할 신청 내역이 없습니다.</div>`;
-    }
-    list.sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
-    return `
-      <div style="overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);">
-        <table class="tbl tbl--hover">
-          <thead>
-            <tr>
-              <th style="width:130px;">신청번호</th>
-              <th style="width:160px;">구분</th>
-              <th style="width:200px;">${listKind === 'ot' ? '신청 일자/시간' : '신청 기간'}</th>
-              <th>사유</th>
-              <th style="width:90px;">상태</th>
-              <th style="width:140px;">상신 일시</th>
-              <th style="width:60px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map(a => {
-              const stat = APP_STATUSES[a.status] || { label: a.status, tone: 'muted' };
-              const dateCol = listKind === 'ot'
-                ? `${esc(fmtDisp(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
-                : (a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : `${esc(fmtDisp(a.dateFrom))} ~ ${esc(fmtDisp(a.dateTo))}`);
-              const codeCol = listKind === 'ot'
-                ? `<span class="pill ${a.otKind === 'holiday' ? 'pill--warning' : 'pill--info'}">${a.otKind === 'holiday' ? '휴일근무' : '연장근무'}</span> <small class="t-muted">${esc(a.reasonCode)}</small>`
-                : `<span class="pill pill--info">${esc(a.codeLabel || codeLabel(a.code))}</span>`;
-              return `
-                <tr>
-                  <td>${esc(a.no)}</td>
-                  <td>${codeCol}</td>
-                  <td>${dateCol}</td>
-                  <td>${esc(a.reason)}</td>
-                  <td><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
-                  <td>${esc(fmtDisp(a.submittedAt))}</td>
-                  <td><button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button></td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-  function bindAppListModal(modal) {
-    if (!modal) return;
-    if (!modal.dataset.attAppListBound) {
-      modal.dataset.attAppListBound = '1';
-      modal.addEventListener('click', e => { if (e.target === modal) closeModalEl('modal-att-applist'); });
-      modal.querySelectorAll('[data-modal-close], [data-att-applist-close]').forEach(b => b.addEventListener('click', () => closeModalEl('modal-att-applist')));
-      modal.addEventListener('click', e => {
-        const tab = e.target.closest('[data-att-applist-tab]');
-        if (tab) { STATE.applistTab = tab.dataset.attApplistTab; renderAppListModal(); return; }
-        const docBtn = e.target.closest('[data-att-doc-open]');
-        if (docBtn) { e.stopPropagation(); openDocModal(docBtn.dataset.attDocOpen); }
-      });
-    }
-  }
-
-  /* =========================================================
    *  품의서 상세 모달 — 캘린더 셀의 📄 또는 신청 내역의 [상세]
    * ========================================================= */
   /* 전자결재 기안 양식의 문서명 — 근태신청서 / 연차·휴가 신청서 / 초과근무(연장·휴일) 신청서 */
@@ -3577,8 +3477,8 @@
     ME: { id: ME_ID, name: ME_NAME, dept: ME_DEPT, pos: ME_POS, shift: ME_SHIFT, jobCat: ME_JOBCAT },
     /* 대체 휴가 — 사무직 휴일근무로 발생. 나의 연차현황에서 별도 카드로 노출 */
     compLeave: () => ({ earned: COMP_LEAVE.earned, used: COMP_LEAVE.used, balance: compLeaveBalance() }),
-    /* 신청/신청현황 모달 — 「나의 근태현황(page-att-my-work)」 toolbar 에서 호출 */
-    openApplyModal, openOtModal, openAppListModal, openShiftChangeModal,
+    /* 신청 모달 — 「나의 근태현황(page-att-my-work)」 toolbar 에서 호출 */
+    openApplyModal, openOtModal, openShiftChangeModal,
     /* 품의서(신청 문서) — 캘린더 셀 배지/상세 모달. 나의 근태현황에서 재사용 */
     appsByDate, openDocModal,
     /* 본인 신청 내역 — 「나의 근태현황」의 '근태 신청 현황' 인페이지 탭에서 재사용 */

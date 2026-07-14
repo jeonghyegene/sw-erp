@@ -1368,241 +1368,16 @@
         </section>
       </div>
 
-      <div class="oc-backdrop" data-oc-host="empi-detail-pane" id="empi-detail-backdrop"></div>
-      <aside class="offcanvas offcanvas--lg" id="empi-detail-pane" aria-hidden="true"></aside>
     `;
     renderTreeOnly();
     updateDeptTitle();
     bindMain(pageEl);
-    applyViewMode(pageEl);
     applyEmpiMobileSplitState(pageEl);   /* 모바일 진입 시 조직도 자동 접힘(디폴트) */
   }
 
-  /* Offcanvas 표시/숨김 + (필요 시) detail 본문 렌더.
-   *   .offcanvas 는 position:fixed 라 리스트 폭에 영향 없음. backdrop 도 함께 토글. */
-  function applyViewMode(pageEl) {
-    const root = pageEl || document.getElementById('page-hr-info-mgmt');
-    if (!root) return;
-    const detailPane = root.querySelector('#empi-detail-pane');
-    const backdrop   = root.querySelector('#empi-detail-backdrop');
-    if (!detailPane) return;
-    if (STATE.view === 'detail') {
-      renderDetailPane(detailPane);
-      detailPane.classList.add('is-open');
-      detailPane.setAttribute('aria-hidden', 'false');
-      if (backdrop) backdrop.classList.add('is-open');
-      document.body.style.overflow = 'hidden';
-    } else {
-      detailPane.classList.remove('is-open');
-      detailPane.setAttribute('aria-hidden', 'true');
-      detailPane.innerHTML = '';
-      if (backdrop) backdrop.classList.remove('is-open');
-      document.body.style.overflow = '';
-    }
-  }
-  function goToDetail(emp) {
-    if (!emp) return;
-    STATE.view = 'detail';
-    STATE.detailEmpId = emp.id;
-    STATE.drawerEmpId = emp.id;
-    STATE.drawerEmp = emp;
-    STATE.drawerTab = 'public';
-    STATE.drawerEditMode = false;
-    STATE.drawerDirty = false;
-    STATE.drawerPatch = {};
-    applyViewMode();
-  }
-  function goToList() {
-    STATE.view = 'list';
-    STATE.detailEmpId = null;
-    STATE.drawerEmp = null;
-    applyViewMode();
-    renderTable(); // 상세에서 변경된 값 반영
-  }
-
-  /* ============ HR 카드 (compact) — 상세 페이지 상단 ============
-   *   page-hr-employee.js 의 .hr-card 구조 재사용 + .hr-card--compact 변형으로
-   *   연락처·출근·즐겨찾기 영역 숨김.
-   *
-   *   아바타:
-   *     - emp.photoUrl 가 있으면 그대로 사용
-   *     - 없으면 id 끝자리(seed) 기준 1/3 비율로 데모용 프로필 사진(i.pravatar.cc) 부여,
-   *       나머지 2/3 는 성(姓) 이니셜 + av--c{1~6} 색상 placeholder
-   *
-   *   이름 밑 sub 텍스트: 부서 · 근무형태 · 도급(있을 때만) — 뱃지가 아닌 일반 텍스트 라인 */
-  function detailHrCardHTML(emp) {
-    const seed = Number(String(emp.id || '').slice(-2)) || 1;
-    const colorIdx = emp.colorIdx || (seed % 6) + 1;
-    const initial = (displayName(emp) || '?').charAt(0);
-    /* 데모 외국인 stock 사진 fallback 제거 — 사진은 emp.photoUrl 이 있을 때만 노출 */
-    const photoUrl = emp.photoUrl || '';
-    const avatarInner = photoUrl
-      ? `<img src="${esc(photoUrl)}" alt="${esc(displayName(emp))}" />`
-      : esc(initial);
-    const avatarCls = photoUrl ? 'hr-card__avatar' : `hr-card__avatar av--c${colorIdx}`;
-    const rank = emp.rank || '';
-    const position = emp.position || '';
-    const rankPos = rank && position ? `${esc(rank)} · ${esc(position)}` : esc(rank || position || '-');
-
-    /* 이름 밑 sub 라인: 부서 · 근무형태 · 도급 */
-    const subParts = [];
-    if (emp.dept) subParts.push(esc(emp.dept));
-    const empLbl = empTypeLabel(emp).replace(/<[^>]+>/g, '').trim();
-    if (empLbl && empLbl !== '-') subParts.push(empLbl);
-    if (emp.contractOut) subParts.push('도급');
-    const subText = subParts.join(' · ');
-
-    return `
-      <div class="hr-card hr-card--compact">
-        <div class="${avatarCls}">${avatarInner}</div>
-        <div class="hr-card__body">
-          <div class="hr-card__head">
-            <div class="hr-card__name">${esc(displayName(emp))}</div>
-            <span class="hr-card__chip hr-card__chip--primary">${rankPos}</span>
-          </div>
-          ${subText ? `<div class="hr-card__sub">${subText}</div>` : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  /* ============ 상세 페이지 footer 액션 바 ============
-   *   - 공개정보 / 비공개정보 탭: 수정/저장/취소 (Drawer footer 정책)
-   *   - 계약·서류 탭: 안내 텍스트만 (개별 항목 발송 버튼은 해당 패널 안에 인라인) */
-  function detailFooterHTML(emp) {
-    const tab = STATE.drawerTab;
-    const isBeforeInfoDone = !MILESTONES.infoDone(emp);
-    const isManager = STATE.currentRole === 'manager';
-    const canEdit = emp.status !== 'retired';
-
-    if (tab === 'docs') {
-      return `
-        <div class="detail-footer__hint">계약·서류 항목은 행별 [발송] / [재발송] 버튼으로 처리합니다.</div>
-        <div class="detail-footer__actions"></div>
-      `;
-    }
-
-    /* public / private 탭 — 편집 정책 (Drawer 와 동일) */
-    if (!canEdit) {
-      return `
-        <div class="detail-footer__hint">${esc(STATUS[emp.status]?.label || '')} 상태에서는 수정할 수 없습니다.</div>
-        <div class="detail-footer__actions"></div>
-      `;
-    }
-    if (!STATE.drawerEditMode) {
-      /* 비공개정보 탭에서는 [수정] 비활성화 — 별도 권한·결재 모듈 통해서만 수정 가능 */
-      const isPrivate = tab === 'private';
-      return `
-        <div class="detail-footer__hint">${isPrivate ? '비공개정보는 본 화면에서 수정할 수 없습니다.' : ''}</div>
-        <div class="detail-footer__actions">
-          <button class="btn btn--sm btn--primary" type="button" ${isPrivate ? 'disabled' : ''} data-empi-drawer-edit>수정</button>
-        </div>
-      `;
-    }
-    if (isBeforeInfoDone || isManager) {
-      return `
-        <div class="detail-footer__hint">변경 사항을 저장하면 즉시 반영됩니다.</div>
-        <div class="detail-footer__actions">
-          <button class="btn btn--sm" type="button" data-empi-drawer-cancel>취소</button>
-          <button class="btn btn--sm btn--primary" type="button" data-empi-drawer-save disabled>저장</button>
-        </div>
-      `;
-    }
-    return `
-      <div class="detail-footer__hint">정보 등록 이후의 수정은 인사팀장 결재 후 반영됩니다.</div>
-      <div class="detail-footer__actions">
-        <button class="btn btn--sm" type="button" data-empi-drawer-cancel>취소</button>
-        <button class="btn btn--sm btn--primary" type="button" data-empi-drawer-submit disabled>수정 상신</button>
-      </div>
-    `;
-  }
-
-  /* ============ 상세 페이지 렌더 — page-bar + HR card + tabs + footer ============ */
-  function renderDetailPane(host) {
-    const emp = STATE.drawerEmp || STATE.rows.find(r => r.id === STATE.detailEmpId);
-    if (!emp) {
-      host.innerHTML = `<div style="padding:24px;color:var(--color-text-muted);">사원 정보를 찾을 수 없습니다.</div>`;
-      return;
-    }
-    /* host 는 split__right (flex column) — 안쪽 scroll 영역에 overflow 위임. */
-    host.style.overflow = 'hidden';
-    host.innerHTML = `
-      <div class="split__head" style="min-height:48px;">
-        <h3>입사 현황 <span data-empi-detail-status style="margin-left:8px;">${statusPill(emp)}</span></h3>
-        <button class="modal__close" type="button" aria-label="닫기" data-empi-detail-close>✕</button>
-      </div>
-
-      <div data-empi-detail-scroll style="flex:1;min-height:0;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px;">
-        ${detailHrCardHTML(emp)}
-
-        <div data-empi-detail-body>
-          <div class="tabs tabs--underline" data-empi-detail-tabs>
-            <div class="tabs__nav" role="tablist">
-              <button class="tabs__tab${STATE.drawerTab === 'public' ? ' is-active' : ''}" type="button" data-tab="public">공개정보</button>
-              <button class="tabs__tab${STATE.drawerTab === 'private' ? ' is-active' : ''}" type="button" data-tab="private">비공개정보</button>
-              <button class="tabs__tab${STATE.drawerTab === 'contracts' ? ' is-active' : ''}" type="button" data-tab="contracts">계약</button>
-              <button class="tabs__tab${STATE.drawerTab === 'docs' ? ' is-active' : ''}" type="button" data-tab="docs">입사서류</button>
-              <button class="tabs__tab${STATE.drawerTab === 'history' ? ' is-active' : ''}" type="button" data-tab="history">이력</button>
-            </div>
-            <div class="tabs__panel${STATE.drawerTab === 'public' ? ' is-active' : ''}" data-panel="public">${renderPublicPanel(emp)}</div>
-            <div class="tabs__panel${STATE.drawerTab === 'private' ? ' is-active' : ''}" data-panel="private">${renderPrivatePanel(emp)}</div>
-            <div class="tabs__panel${STATE.drawerTab === 'contracts' ? ' is-active' : ''}" data-panel="contracts">${renderInfoCardContractsTab(emp)}</div>
-            <div class="tabs__panel${STATE.drawerTab === 'docs' ? ' is-active' : ''}" data-panel="docs">${renderInfoCardDocsTab(emp)}</div>
-            <div class="tabs__panel${STATE.drawerTab === 'history' ? ' is-active' : ''}" data-panel="history">${renderHistoryPanel(emp)}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="detail-footer" data-empi-detail-footer>${detailFooterHTML(emp)}</div>
-    `;
-    bindDetailPane(host, emp);
-    /* 공개정보 편집 — Drawer 와 동일 핸들러 재사용. host body 를 넘겨 detail pane 에 바인딩 */
-    const detailBody = host.querySelector('[data-empi-detail-body]');
-    if (detailBody) bindDrawerEdits(emp, detailBody);
-    /* footer 의 수정/저장 버튼 바인딩 — bindDrawerFooter 가 글로벌 $() 로 찾음
-     *   Drawer 의 #oc-empi-card-footer 는 비어있으므로 충돌 없음 */
-    bindDrawerFooter(emp);
-  }
-
-  /* 현재 활성 카드 뷰 재렌더 — 입사자 관리 2 는 detail pane, 그 외 (외부 호출) 는 Drawer */
-  function refreshActiveCardView() {
-    if (STATE.view === 'detail') {
-      const host = document.querySelector('#empi-detail-pane');
-      if (host && host.style.display !== 'none') {
-        renderDetailPane(host);
-        return;
-      }
-    }
-    /* 인사 관리/조직 관리 등 외부 페이지에서 열린 Drawer 재렌더 — 동일 oc-empi-card 사용 */
-    if (document.getElementById('oc-empi-card-body')) {
-      renderDrawer();
-    }
-  }
-
-  function bindDetailPane(host, emp) {
-    /* 드로어 닫기 (X) — 좌측 리스트는 그대로 유지, 우측 패널만 닫힘 */
-    host.querySelector('[data-empi-detail-close]').addEventListener('click', () => {
-      if (STATE.drawerDirty) {
-        const ok = confirm('수정 중인 내용이 있습니다. 저장하지 않고 닫을까요?');
-        if (!ok) return;
-      }
-      goToList();
-    });
-    /* 탭 전환 — 공개정보 떠나면 편집 모드 폐기 (Drawer 와 동일 정책) */
-    host.querySelectorAll('[data-empi-detail-tabs] .tabs__tab').forEach(t => {
-      t.addEventListener('click', () => {
-        const nextTab = t.dataset.tab;
-        const leavingPublic = STATE.drawerTab === 'public' && nextTab !== 'public';
-        if (leavingPublic && STATE.drawerEditMode) {
-          STATE.drawerEditMode = false;
-          STATE.drawerDirty = false;
-          STATE.drawerPatch = {};
-        }
-        STATE.drawerTab = nextTab;
-        renderDetailPane(host);
-      });
-    });
-  }
+  /* 인사정보카드는 modal-empi-card(5탭 layer modal)로 통일됨 — 구 Drawer(oc-empi-card) /
+   *   입사자 상세 패널(empi-detail-pane) 제거. 모달은 자체 핸들러로 갱신하므로 재렌더 훅 불요(no-op). */
+  function refreshActiveCardView() {}
 
   function bindMain(pageEl) {
     /* ====== 좌측 조직도 트리 ====== */
@@ -10855,116 +10630,6 @@
       'success');
   }
 
-  /* ============ SCR-EMP-03 일괄 등록 ============ */
-  const BULK = { rows: [], errors: [] };
-  function openBulkModal() {
-    BULK.rows = []; BULK.errors = [];
-    $('#empi-bulk-filename').textContent = '시스템 제공 양식만 허용';
-    $('#empi-bulk-result').style.display = 'none';
-    $('[data-empi-bulk-submit]').disabled = true;
-    openModal('modal-empi-bulk');
-  }
-  function bindBulkModal() {
-    const modal = document.getElementById('modal-empi-bulk');
-    if (!modal) return;
-    modal.querySelector('[data-empi-bulk-template]').addEventListener('click', () => {
-      window.toast && window.toast('양식 파일(.xlsx) 다운로드를 시작합니다.', 'info');
-    });
-    const dz = modal.querySelector('#empi-bulk-dz');
-    const input = modal.querySelector('#empi-bulk-input');
-    dz.addEventListener('click', () => input.click());
-    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('is-drag'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('is-drag'));
-    dz.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dz.classList.remove('is-drag');
-      const f = e.dataTransfer.files[0];
-      if (f) handleBulkFile(f);
-    });
-    input.addEventListener('change', (e) => {
-      const f = e.target.files[0];
-      if (f) handleBulkFile(f);
-    });
-
-    modal.querySelector('[data-empi-bulk-submit]').addEventListener('click', () => {
-      if (!BULK.rows.length) return;
-      STATE.rows = BULK.rows.concat(STATE.rows);
-      applyFilter();
-      renderTable();
-      closeAllModals();
-      window.toast && window.toast(`${BULK.rows.length}건 일괄 등록 완료${BULK.errors.length ? ` (오류 ${BULK.errors.length}건 제외)` : ''}`, 'success');
-    });
-  }
-  function handleBulkFile(file) {
-    $('#empi-bulk-filename').textContent = file.name;
-    if (!/\.xlsx$/i.test(file.name)) {
-      $('#empi-bulk-result').style.display = 'block';
-      $('#empi-bulk-summary').innerHTML = `<span style="color:var(--color-danger);">.xlsx 외 형식은 업로드할 수 없습니다.</span>`;
-      $('#empi-bulk-errors').innerHTML = '';
-      $('[data-empi-bulk-submit]').disabled = true;
-      return;
-    }
-    if (file.size === 0) {
-      $('#empi-bulk-result').style.display = 'block';
-      $('#empi-bulk-summary').innerHTML = `<span style="color:var(--color-danger);">빈 파일입니다. 양식에 데이터를 입력 후 다시 업로드해주세요.</span>`;
-      $('#empi-bulk-errors').innerHTML = '';
-      $('[data-empi-bulk-submit]').disabled = true;
-      return;
-    }
-    const today = new Date();
-    const yy = String(today.getFullYear()).slice(-2);
-    const mm = String(today.getMonth() + 1).padStart(2,'0');
-    const dd = String(today.getDate()).padStart(2,'0');
-    // mock 샘플
-    const samples = [
-      { fname:'민', gname:'지수', phone:'010-7000-1001', email:'minjisu@company.co.kr', dept:'개발팀', job:'개발', rank:'사원', position:'팀원' },
-      { fname:'정', gname:'한별', phone:'010-7000-1002', email:'hanbyul@company.co.kr', dept:'홍보팀', job:'디자인', rank:'대리', position:'팀원' },
-      { fname:'박', gname:'도현', phone:'010-7000-1003', email:'dohyun@company.co.kr', dept:'인사팀', job:'인사', rank:'대리', position:'팀원' },
-      { fname:'',  gname:'길동', phone:'010-7000-1004', email:'noname@company.co.kr', dept:'재무팀', job:'재무', rank:'사원', position:'팀원' },
-      { fname:'장', gname:'유나', phone:'',              email:'yuna@company.co.kr',   dept:'생산본부', job:'생산관리', rank:'사원', position:'팀원' },
-      { fname:'서', gname:'준석', phone:'010-7000-1006', email:'',                     dept:'개발팀', job:'개발', rank:'사원', position:'팀원' },
-    ];
-    BULK.rows = []; BULK.errors = [];
-    samples.forEach((s, i) => {
-      const rowNum = i + 2;
-      if (!s.fname || !s.gname) { BULK.errors.push({ row: rowNum, reason: '성명(성/이름) 누락' }); return; }
-      if (!s.phone) { BULK.errors.push({ row: rowNum, reason: '휴대전화 누락' }); return; }
-      if (!s.email) { BULK.errors.push({ row: rowNum, reason: '이메일 누락' }); return; }
-      if (STATE.rows.some(r => r.phone === s.phone)) { BULK.errors.push({ row: rowNum, reason: `휴대전화 중복 (${s.phone})` }); return; }
-      const seq = String(BULK.rows.length + 1).padStart(2,'0');
-      BULK.rows.push({
-        id: `SW${yy}${mm}${dd}${seq}`,
-        fname: s.fname, gname: s.gname,
-        name: `${s.fname}${s.gname}`,
-        nameFlip: false, cname: '', ename: '',
-        dept: s.dept, job: s.job, rank: s.rank, position: s.position,
-        joinDate: today.toISOString().slice(0,10),
-        registeredAt: today.toISOString().slice(0,10),
-        registeredBy: '정혜진',
-        phone: s.phone, email: s.email,
-        innerTel: '', birth: '', gender: 'M',
-        status: 'registered', sentDate: '', mailFailCode: '',
-        empType: 'regular', contractSubType: '', contractOut: false, jobCat: 'office', site: '',
-        infoStatus: 'none', contractLabor: false, contractWage: false, docSigned: 0, ssn: '',
-      });
-    });
-
-    $('#empi-bulk-result').style.display = 'block';
-    $('#empi-bulk-summary').innerHTML =
-      `총 <strong>${samples.length}</strong>건 중 정상 <strong style="color:var(--color-success);">${BULK.rows.length}</strong>건 / 오류 <strong style="color:var(--color-danger);">${BULK.errors.length}</strong>건`;
-
-    if (BULK.errors.length === 0) {
-      $('#empi-bulk-errors').innerHTML = `<p style="color:var(--color-text-muted);font-size:var(--fs-sm);">오류 없음</p>`;
-    } else {
-      $('#empi-bulk-errors').innerHTML = `
-        <table class="tbl tbl--bordered tbl--striped tbl--compact">
-          <thead><tr><th style="width:80px;">행번호</th><th>오류 사유</th></tr></thead>
-          <tbody>${BULK.errors.map(e => `<tr><td>${e.row}</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody>
-        </table>
-      `;
-    }
-    $('[data-empi-bulk-submit]').disabled = BULK.rows.length === 0;
-  }
 
   /* ============ 서류 미리보기 모달 — 계약서/입사서류 공용 ============
    *   계약서: App.HRContract.TEMPLATES 재사용
@@ -11145,83 +10810,6 @@
    *   외부 페이지(인사 관리/조직 관리)에서도 호출 가능 — App.HRInfoMgmtCard.open(emp, opts)
    *   opts.onSave: 저장/수정상신 후 호출되는 콜백 (호출 페이지가 자기 화면 재렌더할 때 사용)
    *   opts.external: true 면 입사자 관리의 STATE.rows 와 무관한 emp 로 인식 (인사·조직 관리 호출 케이스) */
-  function openDrawer(emp, opts) {
-    const o = opts || {};
-    STATE.drawerEmp = emp;            // emp 객체 직접 보관 (STATE.rows 와 분리)
-    STATE.drawerEmpId = emp.id;
-    STATE.drawerTab = (o.tab === 'private' || o.tab === 'docs') ? o.tab : 'public';
-    STATE.drawerEditMode = false;
-    STATE.drawerDirty = false;
-    STATE.drawerPatch = {};
-    STATE.drawerExternal = !!o.external;
-    STATE.drawerOnSave = typeof o.onSave === 'function' ? o.onSave : null;
-    renderDrawer();
-    openOC('oc-empi-card');
-  }
-  function renderDrawer() {
-    /* emp 우선순위: 외부에서 직접 전달 → 입사자 관리 STATE.rows 조회 */
-    const emp = STATE.drawerEmp || STATE.rows.find(r => r.id === STATE.drawerEmpId);
-    if (!emp) return;
-
-    // 헤더 — 사진 + 제목/부제 (status pill 없음 — drawer 는 인사관리·조직관리에서만 호출되며
-    //   isComplete 통과한 직원만 노출되므로 항상 「완료」가 되어 중복 정보)
-    renderCardPhoto(emp);
-    $('#oc-empi-card-title').textContent = `${displayName(emp)} 인사정보카드`;
-    $('#oc-empi-card-subtitle').textContent = `사번 ${emp.id} · ${emp.dept || '-'} / ${emp.rank || '-'} / ${empTypeLabel(emp).replace(/<[^>]+>/g,'')}`;
-    $('#oc-empi-card-status').innerHTML = '';
-
-    // 본문: 탭 4개 (공개정보 / 비공개정보 / 계약 / 입사서류)
-    $('#oc-empi-card-body').innerHTML = `
-      <div class="tabs tabs--underline" data-empi-tabs>
-        <div class="tabs__nav" role="tablist">
-          <button class="tabs__tab${STATE.drawerTab === 'public' ? ' is-active' : ''}" type="button" data-tab="public">공개정보</button>
-          <button class="tabs__tab${STATE.drawerTab === 'private' ? ' is-active' : ''}" type="button" data-tab="private">비공개정보</button>
-          <button class="tabs__tab${STATE.drawerTab === 'contracts' ? ' is-active' : ''}" type="button" data-tab="contracts">계약</button>
-          <button class="tabs__tab${STATE.drawerTab === 'docs' ? ' is-active' : ''}" type="button" data-tab="docs">입사서류</button>
-        </div>
-        <div class="tabs__panel${STATE.drawerTab === 'public' ? ' is-active' : ''}" data-panel="public">${renderPublicPanel(emp)}</div>
-        <div class="tabs__panel${STATE.drawerTab === 'private' ? ' is-active' : ''}" data-panel="private">${renderPrivatePanel(emp)}</div>
-        <div class="tabs__panel${STATE.drawerTab === 'contracts' ? ' is-active' : ''}" data-panel="contracts">${renderInfoCardContractsTab(emp)}</div>
-        <div class="tabs__panel${STATE.drawerTab === 'docs' ? ' is-active' : ''}" data-panel="docs">${renderInfoCardDocsTab(emp)}</div>
-      </div>
-    `;
-    bindDrawerTabs();
-    bindDrawerEdits(emp);
-
-    // 푸터 — read / edit 모드 분기
-    const isBeforeInfoDone = !MILESTONES.infoDone(emp);
-    const isManager = STATE.currentRole === 'manager';
-    const canEdit = emp.status !== 'retired';
-    let footerHTML = '';
-
-    /* 정책 (안내 문구는 표시하지 않음):
-     *   - cancelled/retired                            → 닫기만 노출
-     *   - 공개정보 탭 외 (비공개정보 / 계약·서류)        → 닫기만 노출 (수정 불가)
-     *   - read 모드                                    → [닫기] [수정]
-     *   - edit 모드 + (정보입력완료 이전 || 인사팀장)   → [취소] [저장] (즉시 저장)
-     *   - edit 모드 + 인사팀원 + 정보입력완료 이후      → [취소] [수정 상신] (결재 필요) */
-    const onPublicTab = STATE.drawerTab === 'public';
-    if (!canEdit || !onPublicTab) {
-      footerHTML = `<button class="btn" type="button" data-oc-close>닫기</button>`;
-    } else if (!STATE.drawerEditMode) {
-      footerHTML = `
-        <button class="btn" type="button" data-oc-close>닫기</button>
-        <button class="btn btn--primary" type="button" data-empi-drawer-edit>수정</button>
-      `;
-    } else if (isBeforeInfoDone || isManager) {
-      footerHTML = `
-        <button class="btn" type="button" data-empi-drawer-cancel>취소</button>
-        <button class="btn btn--primary" type="button" data-empi-drawer-save disabled>저장</button>
-      `;
-    } else {
-      footerHTML = `
-        <button class="btn" type="button" data-empi-drawer-cancel>취소</button>
-        <button class="btn btn--primary" type="button" data-empi-drawer-submit disabled>수정 상신</button>
-      `;
-    }
-    $('#oc-empi-card-footer').innerHTML = footerHTML;
-    bindDrawerFooter(emp);
-  }
 
   /* 입사자 작성 항목 mock 데이터 — infoDone 이상에서 사용 (데모용 결정론 생성)
    *   같은 입사자는 같은 값으로 일관되게 표시되도록 emp.id 의 끝 두 자리 seed 사용 */
@@ -12084,27 +11672,6 @@
     return renderContractDocsPanel(emp, { section: 'docs' });
   }
 
-  function bindDrawerTabs() {
-    const root = $('[data-empi-tabs]');
-    if (!root) return;
-    root.querySelectorAll('[data-tab]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const nextTab = btn.dataset.tab;
-        /* 공개정보 탭을 떠나면 수정 모드 자동 종료 + 변경사항 폐기
-         * (다른 탭에서는 footer 가 '닫기' 만 보이므로 수정 흐름 진입 불가) */
-        const leavingPublic = STATE.drawerTab === 'public' && nextTab !== 'public';
-        if (leavingPublic && STATE.drawerEditMode) {
-          STATE.drawerEditMode = false;
-          STATE.drawerDirty = false;
-          STATE.drawerPatch = {};
-        }
-        STATE.drawerTab = nextTab;
-        /* 본문 + footer 다시 그려서 read view + '닫기 only' footer 반영 */
-        renderDrawer();
-      });
-    });
-  }
-
   /* host 인자: 입사자 관리 2 의 detail pane body (없으면 Drawer offcanvas body 사용)
    *   → 같은 패널 마크업을 페이지 전환 / Drawer 양쪽에서 동일 핸들러로 처리 */
   function bindDrawerEdits(emp, host) {
@@ -12557,7 +12124,7 @@
   }
   function bindModalClose() {
     /* modal-empi-create 는 모달이 아닌 인페이지 상세 화면 → 여기서 제외 (자체 닫기 핸들러 사용) */
-    ['modal-empi-bulk','modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit','modal-empi-shift-pick'].forEach(id => {
+    ['modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit','modal-empi-shift-pick'].forEach(id => {
       const m = document.getElementById(id);
       if (!m) return;
       m.addEventListener('click', (e) => {
@@ -12579,37 +12146,8 @@
     document.querySelectorAll('.offcanvas.is-open, .oc-backdrop.is-open').forEach(el => el.classList.remove('is-open'));
     document.body.style.overflow = '';
   }
-  function bindOC() {
-    document.addEventListener('click', (e) => {
-      /* 인사정보카드 drawer */
-      if (document.querySelector('.offcanvas.is-open#oc-empi-card')) {
-        if (e.target.closest('#oc-empi-card [data-oc-close]')) closeAllOC();
-        if (e.target.matches('.oc-backdrop[data-oc-host="oc-empi-card"]')) closeAllOC();
-      }
-      /* 입사 현황 offcanvas (list 직원 클릭) — backdrop 클릭 시 닫기 */
-      if (document.querySelector('.offcanvas.is-open#empi-detail-pane')) {
-        if (e.target.matches('.oc-backdrop[data-oc-host="empi-detail-pane"]')) {
-          if (STATE.drawerDirty) {
-            if (!confirm('수정 중인 내용이 있습니다. 저장하지 않고 닫을까요?')) return;
-          }
-          goToList();
-        }
-      }
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('.offcanvas.is-open#oc-empi-card')) {
-        closeAllOC();
-        return;
-      }
-      if (document.querySelector('.offcanvas.is-open#empi-detail-pane')) {
-        if (STATE.drawerDirty) {
-          if (!confirm('수정 중인 내용이 있습니다. 저장하지 않고 닫을까요?')) return;
-        }
-        goToList();
-      }
-    });
-  }
+  /* 인사정보카드 Drawer(oc-empi-card) / 입사자 상세 패널(empi-detail-pane) 제거됨 — OC 리스너 불요. */
+  function bindOC() {}
 
   /* ============ 공유 mock 데이터 — script load 시점에 즉시 생성 ============
    *   다른 페이지(계약/발령/인사/조직)가 IIFE 단계에서 App.HRInfoMgmt.list() 를 호출하므로
@@ -12874,7 +12412,6 @@
       if (!built) {
         buildPage(pageEl);
         bindCreateModal();
-        bindBulkModal();
         bindMailModal();
         bindContractModal();
         bindDocPreviewModal();
@@ -12915,8 +12452,7 @@
    *   · App.HRInfoMgmtCard.open(emp, opts) — 인사정보카드 Drawer 열기 (외부 emp 객체 허용)
    *   · App.HRInfoMgmtCard.close()         — Drawer 닫기
    *   · App.HRInfoMgmtCard.docsPanel       — 계약·서류 패널 렌더 함수 (다른 페이지의 인사카드에서도 동일 사용)
-   *   · App.HRInfoMgmtCard.bindDocsClicks  — 위 패널의 click 핸들러 위임 바인더
-   *   · App.HRInfoMgmtCard.renderDrawer    — Drawer 재렌더 (저장 후 새로고침 등) */
+   *   · App.HRInfoMgmtCard.bindDocsClicks  — 위 패널의 click 핸들러 위임 바인더 */
   App.HRInfoMgmt = {
     list: () => STATE.rows,
     /* 정책 기준 「완료」 판정 — 입사자 관리 / 인사 관리 공용
@@ -12948,13 +12484,6 @@
         deptChildren(pid).forEach(d => { out.push({ id: d.id, name: d.name, parentId: d.parentId, type: d.type, level: level }); walk(d.id, level + 1); });
       })('C0', 0);
       return out;
-    },
-    /* 외부 호출용 — 특정 emp 의 detail 화면으로 진입.
-     *   계약 작성 후 「입사자 상세로」 등 호출 화면 복귀 라우팅에 사용. */
-    gotoDetail(empId) {
-      const emp = STATE.rows.find(r => r.id === empId);
-      if (!emp) return;
-      goToDetail(emp);
     },
     /* 계약 관리 개별 작성 — 인사정보카드의 '근로/임금 계약 정보' 박스를 그대로 재사용.
        which: 'labor'(근로) | 'wage'(임금). 편집 버튼(data-empi-card-section-act) 마크업 포함. */
@@ -13071,8 +12600,7 @@
     /* 내 정보 페이지 — 인사정보카드 내용을 풀페이지로 렌더 (GNB 프로필 > 내 정보) */
     mountMyInfo,
     currentUser: currentUserEmp,
-    /* 호환 — 옛 호출자(openDrawer/renderDrawer/docsPanel)는 그대로 노출 */
-    renderDrawer,
+    /* 호환 — 옛 호출자(docsPanel/bindDocsClicks) 노출 */
     docsPanel: renderContractDocsPanel,
     bindDocsClicks,
   };
