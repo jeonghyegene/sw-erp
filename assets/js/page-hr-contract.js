@@ -102,7 +102,7 @@
     if (jhw) {
       jhw.empType = 'regular'; jhw.contractOut = false; jhw.contractSubType = '';
       jhw.dept = '인사팀'; jhw.job = '인사'; jhw.rank = '대리'; jhw.position = '팀원';
-      jhw.jobCat = 'office'; jhw.site = jhw.site || '본사';
+      jhw.jobCat = 'office'; jhw.site = jhw.site || '성수동';
     }
     return list;
   })();
@@ -200,7 +200,7 @@
 <h3 class="doc-paper__art">제1조 (근로계약기간)</h3>
 <p class="doc-paper__cl">${period}</p>
 ${v.무기 ? '' : `<p class="doc-paper__note">※ 계약직의 경우 별도의 계약 갱신이 이루어지지 않는 한 상기 근로계약기간의 만료로 근로관계가 자동 종료된다.</p>`}
-<p class="doc-paper__cl">② '을'의 임금계약기간은 ${start} ~ ${end} 로 한다.</p>
+<p class="doc-paper__cl">② '을'의 임금계약기간은 ${start} ~ ${v.무기 ? '<strong>기간의 정함 없음</strong>' : end} 로 한다.</p>
 <p class="doc-paper__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
 
 <h3 class="doc-paper__art">제2조 (근무장소 및 직종)</h3>
@@ -300,7 +300,7 @@ ${confirm}
 </table>
 
 <h3 class="doc-paper__art">제2조 (임금계약기간)</h3>
-<p class="doc-paper__cl">'을'의 임금계약기간은 ${start} ~ ${end} 로 한다.</p>
+<p class="doc-paper__cl">'을'의 임금계약기간은 ${start} ~ ${v.무기 ? '<strong>기간의 정함 없음</strong>' : end} 로 한다.</p>
 <p class="doc-paper__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
 
 <h3 class="doc-paper__art">제3조 (급여)</h3>
@@ -458,57 +458,33 @@ ${wageClauses(v)}
     // 각 계약서는 독립된 법적 문서. "갱신" 이라는 개념은 시스템에 두지 않고,
     // 한 직원에 대해 시기별로 별도 계약서를 누적 보존. 동일 직원의 다른 계약은
     // 상세 화면에서 시간순으로 조회만 한다.
+    /* ============ 계약 시드 — 공용 직원 마스터(App.HRMembers) 5명과 정합 ============
+     *   EMPLOYEES = App.HRMembers.list().slice(0,12) → 실제 5명(정규직/정수습/정일용/김도급/하계약).
+     *     emp:0 정규직(regular·무기)  emp:1 정수습(regular+수습·무기)
+     *     emp:2 정일용(daily·기간제)   emp:3 김도급(도급 → contractOut 이라 아래 filter 제외)
+     *     emp:4 하계약(contract·기간제)
+     *   정책(정합성):
+     *     · 최초 임직원 등록 시점(입사일)에 '근로계약서 1건 + 임금계약서 1건' 이 반드시 존재한다.
+     *     · 임금계약서는 최초 근로계약서에 linkedLaborId 로 연결된다(연결 근로계약 컬럼 표기).
+     *     · 계약 기간은 고용형태에 맞춘다 — 정규직/수습=무기, 일용/계약=기간제(직원 마스터와 동일). */
     const cases = [
-      // 김지훈 (emp:0) — 정규직 무기 계약 (현재 active) + 이전 계약 expired
-      { id:'CTR-2024-1001', kind:'근로계약서', emp:0, status:'expired', start:'2024-05-10', end:'2026-05-09', created:'2024-05-05' },
-      { id:'CTR-2026-1002', kind:'근로계약서', emp:0, status:'active',  start:'2026-05-10', end:'',           indefinite:true, created:'2026-05-08', baseRaise:'3,500,000' },
+      // 정규직 (emp:0) — 입사 2023-03-02. 최초 근로계약(무기) + 최초 임금계약(무기, 근로에 연결)
+      // 무기 임금계약은 시작일을 다르게 갱신 가능 → 이후(2025-03-02) 임금 인상 계약을 동일 근로계약에 연결해 누적.
+      { id:'CTR-2023-1001', kind:'근로계약서', emp:0, status:'active', start:'2023-03-02', end:'', indefinite:true, created:'2023-02-27' },
+      { id:'CTR-2023-1002', kind:'임금계약서', emp:0, status:'active', start:'2023-03-02', end:'', indefinite:true, created:'2023-02-27', baseRaise:'5,420,000', linkedLaborId:'CTR-2023-1001' },
+      { id:'CTR-2025-1009', kind:'임금계약서', emp:0, status:'active', start:'2025-03-02', end:'', indefinite:true, created:'2025-02-25', baseRaise:'5,700,000', linkedLaborId:'CTR-2023-1001' },
 
-      // 이서연 (emp:1) — D-18 만기 임박 (근로 + 임금 동시 운영) — 종료 30일 이내 → '만료 임박' 표기
-      { id:'CTR-2024-1003', kind:'근로계약서', emp:1, status:'active', start:'2024-06-19', end:'2026-06-19', created:'2024-06-17' },
-      { id:'CTR-2025-1004', kind:'임금계약서', emp:1, status:'active', start:'2025-06-19', end:'2026-06-19', created:'2025-06-17', baseRaise:'2,900,000' },
+      // 정수습 (emp:1) — 입사 2026-05-04. 최초 근로계약(정규직·무기) + 최초 임금계약(무기, 근로에 연결)
+      { id:'CTR-2026-1003', kind:'근로계약서', emp:1, status:'active', start:'2026-05-04', end:'', indefinite:true, created:'2026-04-30' },
+      { id:'CTR-2026-1004', kind:'임금계약서', emp:1, status:'active', start:'2026-05-04', end:'', indefinite:true, created:'2026-04-30', baseRaise:'3,170,000', linkedLaborId:'CTR-2026-1003' },
 
-      // 박민준 (emp:2) — 임금 인상 이력 (연도별 임금계약서 누적)
-      { id:'CTR-2024-1005', kind:'임금계약서', emp:2, status:'expired', start:'2024-04-01', end:'2025-03-31', created:'2024-03-25', baseRaise:'3,000,000' },
-      { id:'CTR-2025-1006', kind:'임금계약서', emp:2, status:'expired', start:'2025-04-01', end:'2026-03-31', created:'2025-03-24', baseRaise:'3,400,000' },
-      { id:'CTR-2026-1007', kind:'임금계약서', emp:2, status:'active',  start:'2026-04-01', end:'2027-03-31', created:'2026-03-26', baseRaise:'3,700,000' },
+      // 정일용 (emp:2) — 입사 2026-06-01. 최초 근로계약(일용직·기간제) + 최초 임금계약(시급제, 근로에 연결)
+      { id:'CTR-2026-1005', kind:'근로계약서', emp:2, status:'active', start:'2026-06-01', end:'2026-12-31', created:'2026-05-29' },
+      { id:'CTR-2026-1006', kind:'임금계약서', emp:2, status:'active', start:'2026-06-01', end:'2026-12-31', created:'2026-05-29', linkedLaborId:'CTR-2026-1005' },
 
-      { id:'CTR-2025-1008', kind:'근로계약서', emp:3, status:'active', start:'2024-11-12', end:'2026-11-12', created:'2024-11-08' },
-
-      // 정현우 (emp:4) — 데모 쇼케이스: 근로 + 임금 서명완료 (인사정보카드 이력 표시)
-      { id:'CTR-2026-1009', kind:'근로계약서', emp:4, status:'active', start:'2024-03-01', end:'2027-02-28', created:'2024-02-26' },
-      { id:'CTR-2026-1010', kind:'임금계약서', emp:4, status:'active', start:'2024-03-01', end:'2027-02-28', created:'2024-02-26', baseRaise:'4,500,000' },
-
-      // 한지수 (emp:5) — 직원 서명 완료 (서명 완료 = active) — 정규직 무기 계약
-      { id:'CTR-2026-1011', kind:'근로계약서', emp:5, status:'active', start:'2026-05-12', end:'', indefinite:true, created:'2026-05-04' },
-
-      // 오민서 (emp:6) — 반려
-      { id:'CTR-2026-1012', kind:'근로계약서', emp:6, status:'rejected', start:'2026-05-12', end:'2028-05-11', created:'2026-04-22' },
-
-      // 윤도현 (emp:7) — 만료 후 미체결
-      { id:'CTR-2024-1013', kind:'근로계약서', emp:7, status:'expired', start:'2024-02-12', end:'2026-02-11', created:'2024-02-08' },
-
-      // 강나래 (emp:8) — 무효
-      { id:'CTR-2025-1014', kind:'근로계약서', emp:8, status:'voided', start:'2025-10-24', end:'2027-10-23', created:'2025-10-20' },
-
-      // 조하늘 (emp:9) — 임금계약 활성
-      { id:'CTR-2025-1015', kind:'임금계약서', emp:9, status:'active', start:'2026-03-13', end:'2027-03-12', created:'2026-03-08', baseRaise:'5,200,000' },
-
-      // 서지원 (emp:10) — 만기 임박 (D-25)
-      { id:'CTR-2024-1016', kind:'근로계약서', emp:10, status:'active', start:'2024-12-15', end:'2026-06-06', created:'2024-12-10' },
-
-      // 문성호 (emp:11) — 발송 완료 (묶음 발송) — 정규직 무기 계약
-      { id:'CTR-2026-1017', kind:'근로계약서', emp:11, status:'signing', start:'2026-05-12', end:'', indefinite:true, created:'2026-05-11' },
-      { id:'CTR-2026-1018', kind:'임금계약서', emp:11, status:'signing', start:'2026-05-12', end:'2027-05-11', created:'2026-05-11' },
-
-      // === 만료(expired) 상태 직원 추가 — 재계약(갱신) 대상 데모 (종료일 모두 오늘 이전) ===
-      // 최예린 (emp:3) — 종전 임금계약 만료, 갱신 미체결
-      { id:'CTR-2023-1019', kind:'임금계약서', emp:3, status:'expired', start:'2023-01-01', end:'2024-12-31', created:'2022-12-22', baseRaise:'3,100,000' },
-      // 한지수 (emp:5) — 종전 임금계약 만료
-      { id:'CTR-2024-1020', kind:'임금계약서', emp:5, status:'expired', start:'2024-03-01', end:'2026-02-28', created:'2024-02-26', baseRaise:'3,300,000' },
-      // 조하늘 (emp:9) — 종전 근로계약 만료 (계약직 만기 후 미체결)
-      { id:'CTR-2024-1021', kind:'근로계약서', emp:9, status:'expired', start:'2024-03-13', end:'2026-03-12', created:'2024-03-08' },
-      // 서지원 (emp:10) — 종전 임금계약 만료
-      { id:'CTR-2023-1022', kind:'임금계약서', emp:10, status:'expired', start:'2023-06-07', end:'2025-06-06', created:'2023-06-02', baseRaise:'3,000,000' },
+      // 하계약 (emp:4) — 입사 2025-01-06. 최초 근로계약(계약직·기간제) + 최초 임금계약(근로에 연결)
+      { id:'CTR-2025-1007', kind:'근로계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02' },
+      { id:'CTR-2025-1008', kind:'임금계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02', baseRaise:'4,500,000', linkedLaborId:'CTR-2025-1007' },
     ];
 
     const hrUsers = ['정혜진', '윤민지', '정혜진', '정혜진', '윤민지'];
@@ -528,7 +504,7 @@ ${wageClauses(v)}
         직군:    jobCatDisplay(emp),
         시작일: c.start, 종료일: c.end,
         무기: !!c.indefinite,
-        근무지: '본사', 근무시간: '09:00 ~ 18:00',
+        근무지: '성수동', 근무시간: '09:00 ~ 18:00',
         기본급: c.baseRaise || '3,200,000', 직무수당: '300,000', 식대: '200,000',
         지급일: '매월 25일',
         작성일: c.created || c.start,
@@ -566,6 +542,8 @@ ${wageClauses(v)}
         sentBy, sentAt,                                // 발송 담당자 / 발송일시 (서명 요청 발송 단계 이후만)
         gapSignedAt, eulSignedAt,
         eulSignName: eulSignedAt ? emp.name : '',
+        /* 임금계약서 → 최초 근로계약서 연결 (임금 계약 이력의 '연결 근로계약' 컬럼 표기용) */
+        linkedLaborId: c.linkedLaborId || '',
         salary: { base: c.baseRaise || '3,200,000', allowance: '300,000', meal: '200,000', payday: '매월 25일' },
       };
     });
@@ -630,7 +608,7 @@ ${wageClauses(v)}
   ];
   const MASTER_JOB_CATS = [['office','사무직'], ['production','생산직'], ['research','연구직']];
   const MASTER_JOBS  = ['인사','재무','총무','생산관리','품질관리','개발','디자인'];
-  const MASTER_SITES = ['본사','성수동','하남','인현동','충무로','안성공장','음성공장','평택지점'];
+  const MASTER_SITES = ['성수동','하남','인현동','충무로'];
   /* 임금계약 마스터 — info-mgmt 와 동일. 임금유형 2종(연봉제/시급제), 임금계약유형 2종(고정OT/포괄임금).
      · 정규직·계약직 → 연봉제만  · 일용직 → 시급제만 (renderKindFields 에서 empType 로 제약) */
   const MASTER_WAGE_TYPES = [['annual','연봉제'], ['hourly','시급제']];
@@ -972,7 +950,7 @@ ${wageClauses(v)}
         const member = EMPLOYEES.find(em => em.id === row.empId) || null;
         const empObj = src || Object.assign({
           id: row.empId, name: row.empName, dept: row.empDept,
-          empType: 'regular', jobCat: 'office', site: '본사', infoStatus: 'done',
+          empType: 'regular', jobCat: 'office', site: '성수동', infoStatus: 'done',
         }, member || {});
         if (window.App && App.HRInfoMgmtCard && App.HRInfoMgmtCard.open) {
           App.HRInfoMgmtCard.open(empObj);
@@ -1022,7 +1000,12 @@ ${wageClauses(v)}
           const avatarHTML = photo
             ? `<img src="${esc(photo)}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />`
             : `<span style="width:24px;height:24px;border-radius:50%;background:var(--color-active);color:var(--color-brand-primary);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;">${esc((r.empName || '?').charAt(0))}</span>`;
-          const empPos = (member && member.position) || '';
+          const empPos  = (member && member.position) || '';
+          const empRank = (member && member.rank) || '';
+          /* 대상자 부제 — 팀·직위·직책 (값 있는 항목만, muted, 구두점 사이 여백 없이) */
+          const empMeta = [r.empDept, empRank, empPos].filter(Boolean)
+            .map(v => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(v)}</span>`)
+            .join(`<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>`);
           return `
             <tr data-ctr-row="${esc(r.id)}" class="${cls} ${sel ? 'is-selected' : ''}">
               <td style="text-align:center;"><input type="checkbox" ${sel ? 'checked' : ''} /></td>
@@ -1032,9 +1015,7 @@ ${wageClauses(v)}
                 <div style="display:flex;align-items:center;gap:6px;min-width:0;">
                   ${avatarHTML}
                   <a href="#" data-ctr-emp-card style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.empName)}</a>
-                  ${empPos ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);margin-left:2px;">${esc(empPos)}</span>` : ''}
-                  <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>
-                  <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">${esc(r.empDept || '-')}</span>
+                  <span style="display:inline-flex;align-items:center;min-width:0;">${empMeta}</span>
                 </div>
               </td>
               <td>${esc(periodText(r))}</td>
@@ -1193,8 +1174,8 @@ ${wageClauses(v)}
     EDIT.startDate = seedRow ? seedRow.startDate : '';
     EDIT.endDate   = seedRow ? seedRow.endDate   : '';
     EDIT.indefinite = seedRow ? !!seedRow.indefinite : false;
-    /* 근무지 — 직원 마스터의 site 가 있으면 자동 prefill, 없으면 기본 본사 */
-    EDIT.근무지     = (EDIT.emp && EDIT.emp.site) || '본사';
+    /* 근무지 — 직원 마스터의 site 가 있으면 자동 prefill, 없으면 기본 성수동 */
+    EDIT.근무지     = (EDIT.emp && EDIT.emp.site) || '성수동';
     EDIT.근무시간   = '09:00 ~ 18:00';
     EDIT.기본급     = '3,200,000';
     EDIT.직무수당   = '300,000';
@@ -1261,9 +1242,10 @@ ${wageClauses(v)}
       소속형태: EDIT.contractOut || (e && e.contractOut) ? '도급' : '-',
       직군:    jobCatStr,
       시작일: ftStart, 종료일: ftEnd,
-      무기: ftIndef,
+      /* 무기(기간의 정함 없음) — 근로계약서는 정규직 무수습만, 임금계약서는 EDIT.indefinite(wageIndefinite) 반영 */
+      무기: EDIT.kind === '근로계약서' ? ftIndef : !!EDIT.indefinite,
       근로계약서종류: EDIT.kind === '근로계약서' ? ftDocTitle : '',
-      근무지: EDIT.site || (e ? e.site : '') || '본사',
+      근무지: EDIT.site || (e ? e.site : '') || '성수동',
       근무형태: EDIT.workSchedule === 'shift' ? '교대' : '고정',
       근무일: '월 ~ 금',
       휴일:   '토, 일',
@@ -2122,7 +2104,7 @@ ${wageClauses(v)}
             baseSalary: EDIT.baseSalary,
             fixedOTAmount: EDIT.fixedOTAmount, inclusiveOTAmount: EDIT.inclusiveOTAmount,
             deductionPolicy: EDIT.deductionPolicy,
-          }, EDIT.kind === '근로계약서' && EDIT.indefinite);
+          }, !!EDIT.indefinite);
         }
         window.toast && window.toast(`서명 요청 이메일 발송 완료 — ${row.id}`, 'success');
         EDIT.reopenSection = '';   /* 발송 완료 — 설정 모달로 복귀하지 않음 */
@@ -2144,10 +2126,28 @@ ${wageClauses(v)}
     return `CTR-${ymd.slice(0, 4)}-${max + 1}`;
   }
 
+  /* 특정 직원의 '현재 적용 중(최신)' 계약 — kind 별. 초안/반려/무효/취소 제외, 시작일(→작성일) 최신순 첫 건.
+     · '근로계약서' : 임금계약의 연결 근로계약(linkedLaborId) 기준
+     · '임금계약서' : 신규 임금계약 작성 시 시작일 기본값(현재 적용 중 최신 임금계약 시작일) 기준 */
+  function latestContractOf(empId, kind) {
+    /* 다른 조회 API 와 동일하게 lazy 시드 — 계약 관리 미방문 상태에서 호출돼도 이력이 비지 않도록 */
+    if (!STATE.rows || !STATE.rows.length) STATE.rows = makeMock();
+    return STATE.rows
+      .filter(r => r.empId === empId && r.kind === kind
+                && ['draft','rejected','voided','canceled'].indexOf(r.status) < 0)
+      .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || '')
+                   || (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+  }
+
   function upsertEditDraft(status) {
-    const isIndef = EDIT.kind === '근로계약서' && EDIT.indefinite;
+    /* 무기(기간의 정함 없음) — 근로/임금 공통. 임금계약도 무기 체크 시 그대로 반영한다. */
+    const isIndef = !!EDIT.indefinite;
     let row = STATE.rows.find(r => r.id === EDIT.savedDraftId);
     const today = todayStr();
+    /* 임금계약서 → 현재 적용 중(최신) 근로계약에 연결. 근로계약서는 연결 없음(''). */
+    const computedLinkedId = (EDIT.kind === '임금계약서')
+      ? ((latestContractOf(EDIT.emp.id, '근로계약서') || {}).id || '')
+      : '';
     const salaryBlock = {
       base: EDIT.baseSalary || '',
       contractAmount: EDIT.contractAmount || '',
@@ -2170,6 +2170,7 @@ ${wageClauses(v)}
         createdAt: today,
         registeredBy: HR_NAME,   // 작성 담당자 (초안)
         sentBy: '', sentAt: '',  // 발송 단계 도달 시 셋팅 (onSendForSign / 일괄 발송)
+        linkedLaborId: computedLinkedId,
         salary: salaryBlock,
       };
       STATE.rows.unshift(row);
@@ -2180,6 +2181,8 @@ ${wageClauses(v)}
       row.startDate = EDIT.startDate; row.endDate = isIndef ? '' : EDIT.endDate;
       row.indefinite = isIndef;
       row.body = EDIT.body; row.status = status;
+      /* 기존 연결이 있으면 유지, 없으면 최신 근로계약으로 채움 (임금계약서만) */
+      if (EDIT.kind === '임금계약서') row.linkedLaborId = row.linkedLaborId || computedLinkedId;
       row.salary = salaryBlock;
     }
     return row;
@@ -2202,7 +2205,7 @@ ${wageClauses(v)}
             rank: picked.rank || '', position: picked.pos || picked.position || '',
             photoUrl: picked.photo || picked.photoUrl || '',
             empType: picked.empType || 'regular', jobCat: picked.jobCat || 'office',
-            site: picked.site || '본사',
+            site: picked.site || '성수동',
           };
           if (EDIT.emp && EDIT.emp.site) EDIT.근무지 = EDIT.emp.site;
           prefillFromInfoMgmt();
@@ -2360,6 +2363,10 @@ ${wageClauses(v)}
         return;
       }
       EDIT.startDate  = src.wageContractStartDate || src.contractStartDate || src.joinDate || '';
+      /* 시작일 연동 — 신규 임금계약은 현재 적용 중(최신) 임금계약의 시작일을 기본값으로 채운다.
+         (예: 최신 임금계약이 25/03/02 면 새 계약서 작성 시 시작일이 25/03/02 로 세팅됨. 사용자가 수정 가능) */
+      const latestWage = latestContractOf(EDIT.emp.id, '임금계약서');
+      if (latestWage && latestWage.startDate) EDIT.startDate = latestWage.startDate;
       /* 임금계약 무기(기간의 정함 없음) — 종료일 비움. 아니면 종료일 사용. */
       EDIT.indefinite = !!src.wageIndefinite;
       EDIT.endDate    = EDIT.indefinite ? '' : (src.wageContractEndDate || src.contractEndDate || '');
@@ -2662,7 +2669,7 @@ ${wageClauses(v)}
       종료일: indef ? '' : (src.contractEndDate || (reg && src.probation ? (src.probationEnd || '') : '')),
       무기: indef,
       근로계약서종류: indef ? '정규직 근로계약서' : '기간제 근로계약서',
-      근무지: src.site || '본사',
+      근무지: src.site || '성수동',
       근무형태: src.workSchedule === 'shift' ? '교대' : '고정',
       근무일: '월 ~ 금', 휴일: '토, 일',
       근무시간: (src.workTimeStart && src.workTimeEnd) ? `${src.workTimeStart} ~ ${src.workTimeEnd}` : '',
@@ -3320,7 +3327,7 @@ ${wageClauses(v)}
         직군:    ({ office:'사무직', production:'생산직', research:'연구직' })[d.jobCat || empRow.jobCat] || '',
         시작일: d.startDate, 종료일: isIndef ? '' : d.endDate,
         무기: isIndef,
-        근무지: d.site || empRow.site || '본사',
+        근무지: d.site || empRow.site || '성수동',
         근무형태: d.workSchedule === 'shift' ? '교대' : '고정',
         근무일: '월 ~ 금', 휴일: '토, 일',
         근무시간: workTimeDisp, 휴게시간: b1 + b2,
@@ -3428,7 +3435,9 @@ ${wageClauses(v)}
     } else {
       /* 임금계약서 — info-mgmt 임금계약 정보 편집 모달과 동일 항목 동기화 */
       src.wageContractStartDate = d.startDate || src.wageContractStartDate || '';
-      src.wageContractEndDate   = d.endDate   || src.wageContractEndDate   || '';
+      /* 무기(기간의 정함 없음) 임금계약 — 종료일 비우고 무기 플래그 기록 (임금계약도 무기 지원) */
+      src.wageIndefinite        = !!isIndef;
+      src.wageContractEndDate   = isIndef ? '' : (d.endDate || src.wageContractEndDate || '');
       if (d.wageType) src.wageType = d.wageType;
       const amt = parseMoney(d.contractAmount);
       if (amt !== '') src.contractAmount = amt;
@@ -3810,7 +3819,9 @@ ${wageClauses(v)}
     let built = false;
     pageEl.__onShow = () => {
       if (!built) {
-        STATE.rows = makeMock();
+        /* 외부 화면(임직원 등록 등)에서 이미 addRowFromExternal 로 추가된 계약이 있으면 보존.
+           비어있을 때만 데모 mock 시드 (계약 관리 첫 진입 시 등록 계약이 지워지는 사고 방지) */
+        if (!STATE.rows || !STATE.rows.length) STATE.rows = makeMock();
         bindVoidModal();
         bindEmpPickerModal();
         bindCommonModalClose();
@@ -3894,8 +3905,11 @@ ${wageClauses(v)}
             statusLabel: meta.label, statusPill: meta.pill || '',
             registeredBy: r.registeredBy || '',
             createdAt: r.createdAt || '',
-            /* 서명 대기(signing)만 취소 가능 — 서명 완료(active/signed)·만료 등은 취소 불가 */
-            canCancel: r.status === 'signing',
+            /* 서명 대기(signing)만 취소 가능. 단 '임직원 등록 발송'(근로+임금 한 세트)은 개별 취소 불가 → 버튼 숨김 */
+            canCancel: r.status === 'signing' && r.source !== '임직원 등록 발송',
+            source: r.source || '',
+            /* 임금계약서 — 연결된 근로계약 id (임금계약 이력의 '연결 근로계약' 컬럼 표기용) */
+            linkedLaborId: r.linkedLaborId || '',
             previewHTML: renderContractHTML(r),
           };
         });
@@ -3967,11 +3981,21 @@ ${wageClauses(v)}
         소속형태: e.contractOut ? '도급' : '-',
         직군:    ({ office:'사무직', production:'생산직', research:'연구직' })[e.jobCat] || '',
         시작일: spec.startDate || '', 종료일: indefinite ? '' : (spec.endDate || ''),
-        무기: indefinite, 근무지: e.site || '본사', 근무시간: '09:00 ~ 18:00',
+        무기: indefinite, 근무지: e.site || '성수동', 근무시간: '09:00 ~ 18:00',
         기본급: (spec.salary && spec.salary.base) || '',
         직무수당: (spec.salary && spec.salary.allowance) || '',
         식대:    (spec.salary && spec.salary.meal) || '',
         지급일:  (spec.salary && spec.salary.payday) || '',
+        /* 임금계약서 급여(제3조) 표기용 — 임금 유형/계약금액/월 구성 (wageClauses 가 읽는 키) */
+        wageTypeKey:         (spec.salary && spec.salary.wageType) || '',
+        wageContractKindKey: (spec.salary && spec.salary.wageKind) || '',
+        계약금액:            (spec.salary && spec.salary.contractAmount) || '',
+        월기본급:            (spec.salary && spec.salary.base) || '',
+        월시간외수당:        (spec.salary && spec.salary.fixedOT) || '',
+        월고정연장근무수당:  (spec.salary && spec.salary.inclusiveOT) || '',
+        시급:                (spec.salary && spec.salary.hourly) || '',
+        주휴수당:            (spec.salary && spec.salary.holiday) || '',
+        fixedOTHours:        (spec.salary && spec.salary.fixedOTHours) || '',
         작성일: today,
       };
       const body = (TEMPLATES[spec.kind] || tplWork)(v);
@@ -3993,6 +4017,11 @@ ${wageClauses(v)}
         sentAt: status === 'signing' ? stamp : '',
         gapSignedAt: status === 'signing' ? stamp : '',
         salary: spec.salary || { base: '', allowance: '', meal: '', payday: '' },
+        /* 발송 출처 — '임직원 등록 발송' 은 근로+임금 한 세트로 발송되므로 개별 취소 불가(취소 버튼 숨김). */
+        source: spec.source || '',
+        /* 임금계약서 → 연결된 근로계약 id. 임금계약은 근로계약에 의존하므로 어떤 근로계약 기준인지 보존.
+           ※ 하나의 근로계약에 대해 임금계약을 여러 번 갱신 작성할 수 있다(동일 linkedLaborId 로 누적). */
+        linkedLaborId: spec.linkedLaborId || '',
       };
       STATE.rows.unshift(row);
       /* 계약 관리 화면이 현재 활성 list view 면 즉시 재렌더 */

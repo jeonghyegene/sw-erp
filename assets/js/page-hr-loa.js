@@ -267,10 +267,15 @@
       const avatarHTML = photo
         ? `<img src="${esc(photo)}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />`
         : `<span style="width:24px;height:24px;border-radius:50%;background:var(--color-active);color:var(--color-brand-primary);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;">${esc((r.empName || '?').charAt(0))}</span>`;
-      const dept = r.empDept ? esc(r.empDept) : '';
-      const pos  = r.empPosition ? esc(r.empPosition) : '';
-      const dot  = (dept && pos) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 2px;" aria-hidden="true">·</span>` : '';
-      const meta = (v) => v ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>` : '';
+      /* 성명 옆 회색 메타 — 팀·직위·직책 (구두점 앞뒤 여백 없이) */
+      const metaParts = [
+        r.empDept || (member && member.dept) || '',
+        (member && member.rank) || '',
+        r.empPosition || (member && member.position) || '',
+      ].filter(Boolean).map(esc);
+      const dot  = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);" aria-hidden="true">·</span>`;
+      const meta = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
+      const metaHTML = metaParts.map(meta).join(dot);
       return `
         <tr class="is-clickable" data-loa-row="${esc(r.id)}">
           <td style="white-space:nowrap;"><span class="link-code">${esc(r.id)}</span></td>
@@ -280,7 +285,7 @@
             <div style="display:flex;align-items:center;gap:8px;min-width:0;">
               ${avatarHTML}
               <a href="#" data-loa-emp-card="${esc(r.empId)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.empName)}</a>
-              <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${meta(dept)}${dot}${meta(pos)}</span>
+              <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${metaHTML}</span>
             </div>
           </td>
           <td>${esc(tm.label)}</td>

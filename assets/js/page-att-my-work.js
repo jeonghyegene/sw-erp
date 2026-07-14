@@ -307,8 +307,9 @@
             ? `<span class="pill pill--warning">초과근무</span>`
             : `<span class="pill pill--info">근태</span>`;
           const typeMain = isOt ? (a.otKind === 'holiday' ? '휴일근무' : '연장근무') : (a.codeLabel || codeLabel(a.code));
-          const typeSub  = isOt ? (a.reasonCode || '') : (a.reason || '');
-          const typeCol  = `${esc(typeMain)}${typeSub ? `<span class="t-muted">/${esc(typeSub)}</span>` : ''}`;
+          /* 종류는 명칭만 — 사유(초과근무=reasonCode / 근태=reason)는 사유 컬럼에만 노출(종류 중복 표기 금지) */
+          const typeCol  = esc(typeMain);
+          const reasonText = isOt ? (a.reasonCode || a.reason || '') : (a.reason || '');
           const dateCol = isOt
             ? `${esc(fmtD(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
             : (a.dateFrom === a.dateTo ? esc(fmtD(a.dateFrom)) : `${esc(fmtD(a.dateFrom))} ~ ${esc(fmtD(a.dateTo))}`);
@@ -316,22 +317,23 @@
             <tr class="is-clickable" data-mw-app-row="${esc(a.id)}">
               <td style="text-align:right;">${n - gi}</td>
               <td>${esc(a.no)}</td>
+              <td style="text-align:center;"><a class="link-code" href="javascript:;" data-att-doc-open="${esc(a.id)}" title="결재문서 보기">${esc(a.docNo || a.no)}</a></td>
               <td style="text-align:center;">${kindPill}</td>
               <td style="white-space:nowrap;">${typeCol}</td>
               <td>${dateCol}</td>
-              <td>${esc(a.reason)}</td>
+              <td>${esc(reasonText)}</td>
               <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
               <td>${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
               <td>${esc(fmtDT(a.submittedAt))}</td>
               <td style="text-align:center;white-space:nowrap;">
-                <button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button>
                 ${A.canWithdraw && A.canWithdraw(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-mw-withdraw="${esc(a.id)}" title="승인 전 신청 회수">회수</button>` : ''}
                 ${A.canCancel && A.canCancel(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-mw-cancel="${esc(a.id)}" title="승인 후 취소 신청(전자결재)">취소</button>` : ''}
+                ${(!(A.canWithdraw && A.canWithdraw(a)) && !(A.canCancel && A.canCancel(a))) ? '<span class="t-muted">-</span>' : ''}
               </td>
             </tr>
           `;
         }).join('')
-      : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
+      : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
 
     return `
       <div class="toolbar">
@@ -355,6 +357,7 @@
                 <tr>
                   <th style="width:56px;text-align:right;">No</th>
                   <th style="width:140px;">신청번호</th>
+                  <th style="width:120px;text-align:center;">결재문서</th>
                   <th style="width:90px;text-align:center;">구분</th>
                   <th style="width:170px;">종류</th>
                   <th style="width:210px;">신청 일자/시간</th>
@@ -362,7 +365,7 @@
                   <th style="width:90px;text-align:center;">상태</th>
                   <th style="min-width:180px;">상태 사유</th>
                   <th style="width:140px;">상신 일시</th>
-                  <th style="width:64px;text-align:center;"></th>
+                  <th style="width:80px;text-align:center;"></th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>

@@ -266,16 +266,7 @@
 
   /* ============ Header ============ */
   function renderHead() {
-    /* 전사 관리자: 선택 범위(전체/부서) 타이틀 / 부서장: 본인 부서 고정 표기 */
-    let scopeChip;
-    if (STATE.isManager) {
-      const name = selectedScopeName();
-      const cnt = selectedEmps().length;
-      scopeChip = `<div class="att-target-chip" style="cursor:default;"><span class="att-target-chip__name">${esc(name)}</span><span class="att-target-chip__meta">${cnt}명</span></div>`;
-    } else {
-      const cnt = getEmps().filter(e => e.dept === STATE.myDept).length;
-      scopeChip = `<div class="att-target-chip" style="cursor:default;"><span class="att-target-chip__name">${esc(STATE.myDept)}</span><span class="att-target-chip__meta">부서장 · ${cnt}명</span></div>`;
-    }
+    /* 스코프 칩(부서명·N명) 은 좌측 조직도 선택으로 대체 — 헤더에서 제거 */
     const isWeek = true;   /* 주간 전용 */
     let titleHTML;
     {
@@ -302,7 +293,6 @@
             <button type="button" data-ss-today>오늘</button>
             <button type="button" data-ss-ym-next aria-label="${isWeek ? '다음 주' : '다음 달'}">›</button>
           </div>
-          ${scopeChip}
         </div>
         <div style="flex:1;"></div>
       </div>
@@ -369,10 +359,10 @@
       </div>`;
   }
 
-  /* ============ 성명 셀 (임직원 관리와 동일 — 아바타 + 이름 + 부서·직책 sub) ============ */
+  /* ============ 성명 셀 (임직원 관리와 동일 — 아바타 + 이름 + 팀·직위·직책 sub) ============ */
   function empNameCell(emp, extraHTML) {
-    /* 부(部) 제거 — 이름 아래는 직위·직책만 표기 */
-    const sub = [emp.rank, emp.position].filter(Boolean).map(esc).join(' · ');
+    /* 이름 아래 회색 메타 — 팀·직위·직책 순, 구두점(·)만으로 구분(앞뒤 여백 없이) */
+    const sub = [emp.dept, emp.rank, emp.position].filter(Boolean).map(esc).join('·');
     /* 아바타 — 임직원 관리와 동일하게 프로필 사진 우선, 없으면 이니셜 */
     const photoUrl = emp.photoUrl || '';
     const avatar = photoUrl

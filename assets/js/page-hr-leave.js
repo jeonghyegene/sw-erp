@@ -291,18 +291,17 @@
     `;
   }
 
-  /* 성명 셀 — 임직원 관리(page-hr-info-mgmt nameCellHTML) 와 동일 패턴: 사진 + 이름 + 부서·직책(muted inline). */
+  /* 성명 셀 — 임직원 관리(page-hr-info-mgmt nameCellHTML) 와 동일 패턴: 사진 + 이름 + 팀·직위·직책(muted inline).
+   *   팀·직위·직책을 구두점(·)으로만 구분(앞뒤 여백 없이) 표기. */
   function nameCell(r) {
-    const dept = r.dept ? esc(r.dept) : '';
-    const pos  = r.position ? esc(r.position) : '';
-    const dot  = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 2px;" aria-hidden="true">·</span>`;
-    const meta = (v) => v ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>` : '';
-    const sep  = (dept && pos) ? dot : '';
+    const parts = [r.dept, r.rank, r.position].filter(Boolean).map(esc);   // 팀·직위·직책
+    const dot   = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);" aria-hidden="true">·</span>`;
+    const span  = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
     return `
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">
         ${avatarHTML(r)}
         <a href="#" data-lv-card="${esc(r.empId)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.name)}</a>
-        <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${meta(dept)}${sep}${meta(pos)}</span>
+        <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${parts.map(span).join(dot)}</span>
       </div>`;
   }
 
@@ -577,7 +576,7 @@
           App.HRInfoCard.open(Object.assign({
             empType: member.empType || 'regular',
             jobCat: member.jobCat || 'office',
-            site: member.site || '본사',
+            site: member.site || '성수동',
             infoStatus: 'done',
             status: 'retired',
           }, member));
@@ -602,7 +601,7 @@
           retiredAt: rec.retiredAt || '',
           empType: 'regular',
           jobCat: 'office',
-          site: '본사',
+          site: '성수동',
           infoStatus: 'done',
           status: 'retired',
         });

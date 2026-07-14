@@ -1227,13 +1227,19 @@ textarea.input {
 /* 부서별 근태현황 — 좌측 조직도 head(.split__head, 48px 고정)와 우측 툴바 head 높이 통일.
    좌·우 header 의 하단 divider 라인이 같은 Y 에 정렬되도록 우측도 48px 로 고정하고
    내부 툴바(.att-tb)의 상하 패딩을 제거해 콘텐츠를 세로 중앙 정렬한다. */
-#page-att-status .att-page__head {
+#page-att-status .att-page__head,
+#page-att-leave .att-page__head,
+#page-att-leave-plan .att-page__head,
+#page-att-shift-status .att-page__head {
   height: 48px;
   min-height: 48px;
   box-sizing: border-box;
   justify-content: center;
 }
-#page-att-status .att-tb {
+#page-att-status .att-tb,
+#page-att-leave .att-tb,
+#page-att-leave-plan .att-tb,
+#page-att-shift-status .att-tb {
   padding-top: 0;
   padding-bottom: 0;
   flex-wrap: nowrap;

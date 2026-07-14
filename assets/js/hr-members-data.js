@@ -21,7 +21,7 @@
     ranks:     ['', '대표이사', '부대표이사', '전무이사', '상무이사', '부장', '차장', '과장', '대리', '주임', '사원'],
     /* 직책 — 임원·본부장·소장·팀장·파트장·팀원·파트원 */
     positions: ['', '임원', '본부장', '소장', '팀장', '파트장', '팀원', '파트원'],
-    sites:     ['', '본사', '안성공장', '음성공장', '평택지점'],
+    sites:     ['', '성수동', '하남', '인현동', '충무로'],
     /* 도급 소속회사 — 실제는 거래처 마스터(자산·업체)에서 가져와야 함. 데모용 하드코딩. */
     contractCompanies: ['(주)성원파트너스', '(주)성원로지스', '(주)성원테크', '(주)성원에듀', 'HR솔루션㈜', '바른인력㈜'],
   };
@@ -155,6 +155,103 @@
   ];
 
   function makeMock() {
+    /* ============ 데모 시드 — 공용 직원 마스터 (고용형태 대표 5명) ============
+     *   임직원 관리(App.HRInfoMgmt) 5명 시드와 동일 인물. 전원 계정 등록완료 +
+     *   근로/임금 계약 서명완료 상태 (도급직은 계약 해당없음).
+     *   status='registered' 는 임시값 — 하단 normalizeStatus 가 'completed' 로 보정. */
+    const HR = '정혜진';
+    function base(o) {
+      return Object.assign({
+        nameFlip: false, cname: '', ename: '', innerTel: '',
+        registeredBy: HR, infoStatus: 'done', contractSentBy: HR,
+        docsSent: 5, docSigned: 5, docsSentBy: HR, emailSentBy: HR,
+        mailFailCode: '', contractSubType: '',
+        contractOut: false, contractCompany: '',
+        probation: false, probationStart: '', probationEnd: '',
+        ssn: '900101-1******', onLeave: false,
+        contractLabor: true, contractWage: true,
+        incomeType: 'earned', wageType: 'annual', wageContractKind: 'fixedOT', payDay: 10,
+        workSchedule: 'fixed', workTimeStart: '09:00', workTimeEnd: '18:00',
+        breakStart: '12:00', breakEnd: '13:00',
+        hoursPerDay: 8, hoursPerWeek: 40, hoursPerMonth: 209,
+        status: 'registered',
+      }, o);
+    }
+    const rows = [
+      base({
+        id: 'SW23030201', name: '정규직', fname: '정', gname: '규직', gender: 'M',
+        dept: '개발팀', job: '개발', rank: '과장', position: '팀원', jobCat: 'research', site: '성수동',
+        empType: 'regular',
+        joinDate: '2023-03-02', registeredAt: '2023-02-25',
+        phone: '010-2431-8842', email: 'jung.jg@company.co.kr', birth: '1988-04-12',
+        photoUrl: 'assets/img/employees/m01.png', userId: 'jung.jg',
+        emailSentDate: '2023-02-20',
+        contractStartDate: '2023-03-02', contractEndDate: '',
+        contractSentDate: '2023-02-27', docsSentDate: '2023-03-01',
+        contractAmount: 65000000, baseSalary: 5420000,
+        wageContractStartDate: '2023-03-02', wageContractEndDate: '',
+      }),
+      base({
+        id: 'SW26050401', name: '정수습', fname: '정', gname: '수습', gender: 'F',
+        dept: '홍보팀', job: '디자인', rank: '사원', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'regular',
+        joinDate: '2026-05-04', registeredAt: '2026-04-28',
+        phone: '010-5567-1290', email: 'jung.ss@company.co.kr', birth: '1998-09-23',
+        photoUrl: 'assets/img/employees/f01.png', userId: 'jung.ss', ssn: '980923-2******',
+        emailSentDate: '2026-04-24',
+        contractStartDate: '2026-05-04', contractEndDate: '',
+        contractSentDate: '2026-04-30', docsSentDate: '2026-05-03',
+        contractAmount: 38000000, baseSalary: 3170000,
+        wageContractStartDate: '2026-05-04', wageContractEndDate: '',
+        probation: true, probationStart: '2026-05-04', probationEnd: '2026-08-04',
+      }),
+      base({
+        id: 'SW26060101', name: '정일용', fname: '정', gname: '일용', gender: 'M',
+        dept: '생산본부', job: '생산관리', rank: '사원', position: '팀원', jobCat: 'production', site: '하남',
+        empType: 'daily',
+        joinDate: '2026-06-01', registeredAt: '2026-05-28',
+        phone: '010-3382-7741', email: 'jung.iy@company.co.kr', birth: '1995-02-08',
+        photoUrl: 'assets/img/employees/m02.png', userId: 'jung.iy',
+        emailSentDate: '2026-05-24',
+        contractStartDate: '2026-06-01', contractEndDate: '2026-12-31',
+        contractSentDate: '2026-05-29', docsSentDate: '2026-05-31',
+        /* 임금 필드는 하단 일용직 시급제 시드 패스가 채움 */
+      }),
+      base({
+        id: 'SW26041501', name: '김도급', fname: '김', gname: '도급', gender: 'M',
+        dept: '생산본부', job: '품질관리', rank: '주임', position: '파트원', jobCat: 'production', site: '인현동',
+        empType: 'regular',
+        joinDate: '2026-04-15', registeredAt: '2026-04-10',
+        phone: '010-9921-4408', email: 'kim.dg@company.co.kr', birth: '1992-11-30',
+        photoUrl: 'assets/img/employees/m03.png', userId: 'kim.dg',
+        emailSentDate: '2026-04-06',
+        /* 도급직 — 외부 인력. 근로/임금 계약 해당없음. contractOut 플래그로 판정 */
+        contractOut: true, contractCompany: '(주)성원파트너스',
+        contractLabor: false, contractWage: false,
+        incomeType: '', wageType: '', wageContractKind: '',
+        contractStartDate: '2026-04-15', contractEndDate: '2027-04-14',
+        contractSentDate: '', docsSentDate: '2026-04-14',
+      }),
+      base({
+        id: 'SW25010601', name: '하계약', fname: '하', gname: '계약', gender: 'F',
+        dept: '재무팀', job: '재무', rank: '대리', position: '팀원', jobCat: 'office', site: '성수동',
+        empType: 'contract',
+        joinDate: '2025-01-06', registeredAt: '2024-12-30',
+        phone: '010-7714-3025', email: 'ha.ga@company.co.kr', birth: '1991-07-17',
+        photoUrl: 'assets/img/employees/f02.png', userId: 'ha.ga', ssn: '910717-2******',
+        emailSentDate: '2024-12-26',
+        contractStartDate: '2025-01-06', contractEndDate: '2027-01-05',
+        contractSentDate: '2025-01-02', docsSentDate: '2025-01-05',
+        contractAmount: 54000000, baseSalary: 4500000,
+        wageContractStartDate: '2025-01-06', wageContractEndDate: '2027-01-05',
+      }),
+    ];
+    rows.forEach(r => { r.sentDate = r.emailSentDate; });
+    return rows;
+  }
+
+  /* [미사용] 기존 30명 데모 시드 — 5명 고정 시드로 대체됨. 참조/복원용 보존. */
+  function makeMockLegacy() {
     const names = ['김지훈','이서연','박민준','최예린','정현우','한지수','오민서','윤도현','강나래','조하늘',
                    '서지원','문성호','임유나','신예원','권상우','류재훈','홍수아','배준석','노은서','전민재',
                    '백지윤','구도윤','남윤서','심하준','진보영','피현재','왕서준','반지호','채영호','목은비'];
@@ -310,7 +407,8 @@
   /* ============ 공유 mock 데이터 — script load 시점에 즉시 생성 ============
    *   다른 페이지(계약/발령/인사/조직)가 IIFE 단계에서 App.HRMembers.list() 를 호출하므로
    *   모듈 로드 시점에 한 번만 rows 를 채워둔다. */
-  const rows = applyContractExpiredDemo(makeMock());
+  /* 5명 고정 시드 — makeMock() 이 완료 상태로 반환하므로 만료 데모 래퍼는 적용하지 않는다. */
+  const rows = makeMock();
   /* 일용직 시급제 임금계약 시드 — 임금유형 hourly + 시급(contractAmount, 11,000~14,000 결정적) 부여.
    *   급여 정산 등에서 임금계약 시급을 조인해 사용할 수 있도록 한다 (시급제는 종료일 없이 무기한). */
   rows.forEach((r, i) => {

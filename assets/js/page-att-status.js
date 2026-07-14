@@ -244,6 +244,11 @@
     const c = findCode(code);
     return c ? c.itemLabel : code;
   }
+  /* 대분류 라벨 — 신청 내역 '구분' 컬럼에서 사용(예: 연차/반차/경조/공가/보건 …) */
+  function codeGroupLabel(code) {
+    const c = findCode(code);
+    return c ? c.groupLabel : '';
+  }
   function isHalfDay(code) { return code === 'HOLC01' || code === 'HOLC02'; }
   function isLeaveCode(code) { return /^HOL/.test(code || ''); }
 
@@ -382,6 +387,13 @@
   function _nextAppNo(prefix) {
     const y = String(new Date(TODAY).getFullYear()).slice(-2);
     return `${prefix}-${y}-${String(700 + _appsSeq++).padStart(4, '0')}`;
+  }
+  /* 전자결재 문서번호 — 신청 1건이 결재 문서 1건으로 상신될 때 부여되는 번호(예: DOC-2026-03).
+     신청번호(no)와 별개의 결재문서 식별자. 신청 내역의 '결재문서' 컬럼에 표기하며 클릭 시 기안 상세를 연다. */
+  let _docSeq = 0;
+  function _nextDocNo() {
+    const y = String(new Date(TODAY).getFullYear());
+    return `DOC-${y}-${String(++_docSeq).padStart(2, '0')}`;
   }
 
   function _initApps() {
@@ -536,6 +548,8 @@
         { stage: 1, name: '이팀장', status: '결재', at: '2026-05-26 09:40' },
       ],
     });
+    /* 각 신청에 결재문서 번호(docNo) 부여 — 상신 순서대로 DOC-YYYY-01, 02 … */
+    seed.forEach(a => { if (!a.docNo) a.docNo = _nextDocNo(); });
     return seed;
   }
 
@@ -546,18 +560,45 @@
     const tail = Number(String(emp.id).replace(/\D/g, '').slice(-2)) || 1;
     const base = emp.id;
     const pad = (n) => String(n).padStart(2, '0');
-    /* 사용일자 도래 전(미래) 건을 포함해야 인사팀 승인/반려 수정 데모가 가능 — TODAY=2026-05-28 기준 6~7월 */
+    /* 사용일자 도래 전(미래) 건을 포함해야 인사팀 상태 변경 데모가 가능 — TODAY=2026-05-28 기준 6~7월.
+       상태 변경은 이미 결재된(승인·반려) 건만 대상이므로 미래 승인/반려 건을 둔다(승인↔반려 재변경 데모).
+       미래 승인대기 건(APP-1)은 버튼이 노출되지 않아 '전자결재 흐름으로 처리' 정책을 함께 확인할 수 있다. */
     const futM = 6 + (tail % 2);            /* 6 또는 7월 */
-    const futD = (tail % 25) + 1;
+    const futD1 = (tail % 18) + 1;
+    const futD2 = futD1 + 3;
+    const futD3 = futD1 + 6;
     const out = [
       {
         id: `APP-${base}-1`, no: _nextAppNo('LEAVE'),
         empId: emp.id, empName: emp.name, empDept: emp.dept,
         kind: 'leave', code: 'HOLB01', codeLabel: codeLabel('HOLB01'),
-        dateFrom: `2026-${pad(futM)}-${pad(futD)}`, dateTo: `2026-${pad(futM)}-${pad(futD)}`,
+        dateFrom: `2026-${pad(futM)}-${pad(futD1)}`, dateTo: `2026-${pad(futM)}-${pad(futD1)}`,
         reason: '여름 휴가', status: 'pending',
         submittedAt: `2026-05-2${tail % 9} 09:1${tail % 9}`, decidedAt: '',
         approvers: [{ stage: 1, name: '이팀장', status: '대기', at: '' }],
+      },
+      /* 미래 승인 건 — 상태 수정 시 [반려]만 노출되는 케이스 */
+      {
+        id: `APP-${base}-6`, no: _nextAppNo('LEAVE'),
+        empId: emp.id, empName: emp.name, empDept: emp.dept,
+        kind: 'leave', code: 'HOLB01', codeLabel: codeLabel('HOLB01'),
+        dateFrom: `2026-${pad(futM)}-${pad(futD2)}`, dateTo: `2026-${pad(futM)}-${pad(futD2)}`,
+        reason: '연차 사용', status: 'approved',
+        submittedAt: '2026-05-22 10:20', decidedAt: '2026-05-23 09:40',
+        approvers: [{ stage: 1, name: '이팀장', status: '결재', at: '2026-05-23 09:40' }],
+        statusHistory: [{ by: '이팀장 팀장', at: '2026-05-23 09:40', status: 'approved', reason: '연차 승인 처리.' }],
+      },
+      /* 미래 반려 건 — 상태 수정 시 [승인]만 노출되는 케이스 */
+      {
+        id: `APP-${base}-7`, no: _nextAppNo('LEAVE'),
+        empId: emp.id, empName: emp.name, empDept: emp.dept,
+        kind: 'leave', code: 'HOLB01', codeLabel: codeLabel('HOLB01'),
+        dateFrom: `2026-${pad(futM)}-${pad(futD3)}`, dateTo: `2026-${pad(futM)}-${pad(futD3)}`,
+        reason: '개인 사정', status: 'rejected',
+        statusReason: '해당 주 팀 일정과 겹쳐 반려. 일정 조정 후 재신청 바랍니다.',
+        submittedAt: '2026-05-22 14:10', decidedAt: '2026-05-24 11:00',
+        approvers: [{ stage: 1, name: '이팀장', status: '반려', at: '2026-05-24 11:00' }],
+        statusHistory: [{ by: '이팀장 팀장', at: '2026-05-24 11:00', status: 'rejected', reason: '해당 주 팀 일정과 겹쳐 반려. 일정 조정 후 재신청 바랍니다.' }],
       },
       {
         id: `APP-${base}-2`, no: _nextAppNo('LEAVE'),
@@ -596,6 +637,7 @@
         approvers: [{ stage: 1, name: '이팀장', status: '대기', at: '' }],
       },
     ];
+    out.forEach(a => { if (!a.docNo) a.docNo = _nextDocNo(); });
     return out;
   }
   /* 직원 신청내역 보장 — 미적재 시 생성하여 스토어에 합친다(본인 제외) */
@@ -611,13 +653,22 @@
     _ensureEmpApps(empId);
     return getApps().filter(a => a.empId === empId);
   }
-  /* 신청 상태 수정 — 인사팀 승인/반려. reason 은 상태 사유(반려 시 노출, 승인 시 감사용). */
+  /* 신청 상태 수정 — 인사팀 승인/반려. reason 은 상태 사유(반려 시 노출, 승인 시 감사용).
+     처리 이력(statusHistory) 에 처리자·처리일시·처리결과·처리사유를 최신순으로 누적한다. */
   function setAppStatus(appId, status, reason) {
     const app = getApps().find(a => a.id === appId);
     if (!app) return null;
+    const at = nowYMDHM();
     app.status = status;                          /* 'approved' | 'rejected' | 'pending' */
     app.statusReason = (reason || '').trim();
-    app.decidedAt = nowYMDHM();
+    app.decidedAt = at;
+    if (!app.statusHistory) app.statusHistory = [];
+    app.statusHistory.unshift({                   /* 최신 처리가 맨 위 */
+      by: `${ME_NAME} ${ME_POS}`.trim(),          /* 처리자 — 인사팀 담당자 */
+      at,                                          /* 처리일시 */
+      status,                                      /* 처리결과 */
+      reason: app.statusReason,                    /* 처리사유 */
+    });
     return app;
   }
   /* ===== 신청 회수(승인 전) / 취소(승인 후, 전자결재) — 본인 신청만 ===== */
@@ -701,6 +752,8 @@
     statOpen: true,
     /* 부서별 뷰 표시 모드 — 'month'(월간 집계, 기본) | 'week'(주간 일자별) */
     deptMode: 'month',
+    /* 전사(C0) 뷰 표시 모드 — 'week'(주간) | 'month'(월간, 기본) | 'year'(연간) */
+    companyMode: 'month',
     /* 주간 모드 — 현재 주의 월요일(YYYY-MM-DD). null 이면 조회 월/오늘 기준 자동 결정 */
     weekMonday: null,
     /* 직원별 근태 현황 모달 — 나의 근태현황 미러(근태 현황/신청 내역 탭 + 캘린더/대시보드 토글) */
@@ -912,9 +965,7 @@
 
   /* ============ 페이지 헤더 ============ */
   function renderHead() {
-    /* 선택 범위 타이틀 — 조직도 선택 부서(자손 포함) */
-    const scopeName = selectedScopeName();
-    const cnt = selectedEmps().length;
+    /* 스코프 칩(부서명·N명) 은 좌측 조직도 선택으로 대체 — 헤더에서 제거 */
 
     /* 마지막 갱신 시각 + 새로고침 */
     const refreshHTML = `
@@ -928,41 +979,48 @@
       </div>
     `;
 
-    /* 부서 선택 시에만 월간/주간 토글 노출. 주간 모드면 좌측 콘트롤러는 주 단위로 동작. */
+    /* 뷰 모드 — 부서 선택 시 월간/주간, 전사(C0) 선택 시 주간/월간/연간 토글. 주간 모드면 좌측 콘트롤러는 주 단위로 동작. */
     const isDept = STATE.selectedDeptId && STATE.selectedDeptId !== 'C0';
-    const isWeek = isDept && STATE.deptMode === 'week';
+    const isCompany = !isDept;
+    const companyYear = isCompany && STATE.companyMode === 'year';
+    const isWeek = (isDept && STATE.deptMode === 'week') || (isCompany && STATE.companyMode === 'week');
     let weekLabel = '';
     if (isWeek) {
-      const ds = weekDates(currentWeekMonday());
+      const mon = currentWeekMonday();
+      const ds = weekDates(mon);
       if (ds.length) {
-        const a = parseYMD(ds[0]), b = parseYMD(ds[ds.length - 1]);
-        weekLabel = `<div class="att-tb__weekrange">${pad2(a.getMonth() + 1)}.${pad2(a.getDate())}(${DOW_KO[a.getDay()]}) ~ ${pad2(b.getMonth() + 1)}.${pad2(b.getDate())}(${DOW_KO[b.getDay()]})</div>`;
+        const wk = weekOfMonthInfo(mon);
+        weekLabel = `<div class="att-tb__weekrange">${esc(fmtYM(wk.ym))} ${wk.week}주차 · ${esc(fmtDisp(ds[0]))} ~ ${esc(fmtDisp(ds[ds.length - 1]))}</div>`;
       }
     }
-    const modeToggle = isDept ? `
+    const segTab = (grp, key, label, active) => `<button type="button" class="tabs__tab ${active ? 'is-active' : ''}" data-att-${grp}-mode="${key}">${label}</button>`;
+    const modeToggle = `
       <div style="flex:1;display:flex;justify-content:center;">
         <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
           <div class="tabs__nav">
-            <button type="button" class="tabs__tab ${STATE.deptMode === 'month' ? 'is-active' : ''}" data-att-dept-mode="month">월간</button>
-            <button type="button" class="tabs__tab ${STATE.deptMode === 'week' ? 'is-active' : ''}" data-att-dept-mode="week">주간</button>
+            ${isDept
+              ? segTab('dept', 'month', '월간', STATE.deptMode === 'month') + segTab('dept', 'week', '주간', STATE.deptMode === 'week')
+              : segTab('comp', 'week', '주간', STATE.companyMode === 'week') + segTab('comp', 'month', '월간', STATE.companyMode === 'month') + segTab('comp', 'year', '연간', STATE.companyMode === 'year')}
           </div>
         </div>
-      </div>` : '';
+      </div>`;
+
+    /* 기간 선택 — 연간이면 연도만, 그 외는 연/월 피커. 화살표는 모드에 따라 주/월/연 단위로 이동(핸들러 분기). */
+    const periodCtrl = companyYear
+      ? `<span class="att-tb__title" style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">${parseYM(STATE.ym).y}년</span>`
+      : App.YmPicker.html({ name: 'ym', ym: STATE.ym, todayYm: TODAY.slice(0, 7) });
+    const navAria = companyYear ? ['이전 해', '다음 해'] : isWeek ? ['이전 주', '다음 주'] : ['이전 달', '다음 달'];
 
     return `
       <div class="att-tb">
         <div class="att-tb__left">
-          ${App.YmPicker.html({ name: 'ym', ym: STATE.ym, todayYm: TODAY.slice(0, 7) })}
+          ${periodCtrl}
           <div class="att-tb__nav">
-            <button type="button" data-att-ym-prev aria-label="${isWeek ? '이전 주' : '이전 달'}">‹</button>
+            <button type="button" data-att-ym-prev aria-label="${navAria[0]}">‹</button>
             <button type="button" data-att-today>오늘</button>
-            <button type="button" data-att-ym-next aria-label="${isWeek ? '다음 주' : '다음 달'}">›</button>
+            <button type="button" data-att-ym-next aria-label="${navAria[1]}">›</button>
           </div>
           ${weekLabel}
-          <div class="att-target-chip" style="cursor:default;">
-            <span class="att-target-chip__name">${esc(scopeName)}</span>
-            <span class="att-target-chip__meta">${cnt}명</span>
-          </div>
         </div>
         ${modeToggle}
         <div class="att-tb__right">
@@ -980,12 +1038,8 @@
 
   /* ----- 전체 (전직원) — 회사 전체 KPI + 부서별 요약 ----- */
   function renderAllView() {
-    /* 전직원 한 달치 통계 집계 — getRecords 캐시를 사용 (renderAllView 가 lazy 로 채움) */
-    const all = EMP_LIST.map(e => {
-      const recs = getRecords(e.id, STATE.ym);
-      const st = monthStats(recs);
-      return { emp: e, st, recs };
-    });
+    /* 전직원 통계 집계 — 전사 모드(주간/월간/연간) 기준. getRecords 캐시 사용. */
+    const all = EMP_LIST.map(e => ({ emp: e, st: statsForCompanyScope(e.id) }));
     /* 회사 합산 */
     const total = all.reduce((acc, r) => {
       acc.workDays     += r.st.workDays;
@@ -1020,15 +1074,24 @@
       return { dept: d, count: rows.length, st: dst };
     }).filter(d => d.count > 0);
 
+    const dlIcon = (window.Icons && window.Icons.download) || '↓';
+    const sumLabel = STATE.companyMode === 'week' ? '주 근태 집계 다운로드'
+      : STATE.companyMode === 'year' ? '연 근태 집계 다운로드' : '월 근태 집계 다운로드';
+    /* 연간은 근태 집계만, 주간/월간은 집계 + 직원별 상세내역 (부서별 시트 분할 엑셀) */
+    const dlBtns = `
+      <button class="btn btn--sm" type="button" data-att-comp-sum-dl title="부서별 시트로 ${esc(sumLabel)}">${dlIcon} ${sumLabel}</button>
+      ${STATE.companyMode === 'year' ? '' : `<button class="btn btn--sm" type="button" data-att-comp-detail-dl title="부서별 시트로 직원별 근태 상세내역 다운로드">${dlIcon} 직원별 근태 상세내역 다운로드</button>`}`;
+
     return `
       ${renderStatPanel(total)}
       <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
       <div class="toolbar">
         <div class="toolbar__left"><span class="toolbar__count">총 <strong>${byDept.length}</strong>개 부서</span></div>
+        <div class="toolbar__right" style="display:flex;gap:6px;">${dlBtns}</div>
       </div>
       <div class="grid-wrap">
         <div class="grid-scroll">
-          <table class="tbl tbl--hover">
+          <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
             <thead>
               <tr>
                 <th style="width:160px;">부서</th>
@@ -1098,6 +1161,8 @@
     STATE.weekMonday = ymd(nx);
     STATE.ym = `${nx.getFullYear()}-${pad2(nx.getMonth() + 1)}`;
   }
+  /* 연 이동 — 전사 연간 뷰 (월은 유지) */
+  function shiftYear(delta) { const { y, m } = parseYM(STATE.ym); STATE.ym = `${y + delta}-${pad2(m)}`; }
   /* 주의 7일(월~일) 전체 날짜 문자열 배열 — 월 경계 클리핑 없음 */
   function weekDates(monday) {
     const base = parseYMD(monday);
@@ -1107,6 +1172,20 @@
       out.push(ymd(d));
     }
     return out;
+  }
+  /* 주차 정보 — 그 주가 속한 달(목요일 기준, ISO)과 그 달에서 몇 주차인지(1~5) 반환.
+     예: { ym:'2026-06', week:3 } → "26/06 3주차" */
+  function weekOfMonthInfo(monday) {
+    const base = parseYMD(monday);
+    const thu = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 3);   /* 그 주의 목요일 */
+    return { ym: `${thu.getFullYear()}-${pad2(thu.getMonth() + 1)}`, week: Math.floor((thu.getDate() - 1) / 7) + 1 };
+  }
+  /* 특정 직원의 '이번 주(월~일)' 일자별 기록만 모은 배열 — 월 경계를 넘으면 두 달치에서 취합 후 필터 */
+  function weekRecordsOf(empId, dates) {
+    const months = Array.from(new Set(dates.map(d => d.slice(0, 7))));
+    const map = {};
+    months.forEach(mm => getRecords(empId, mm).forEach(r => { map[r.date] = r; }));
+    return dates.map(ds => map[ds]).filter(Boolean);
   }
   /* 비고 — 4종(연차/휴일/근무조 변경/결근)만 텍스트로 표기. 그 외는 빈 값. */
   function weekBigo(r) {
@@ -1146,22 +1225,31 @@
    * ========================================================= */
   /* 일자별 근태 기록 헤더/행 — 직원 1명·부서 상세 다운로드 공용 */
   const DAILY_HEAD = ['날짜', '구분', '출근', '퇴근', '지각(분)', '조퇴(분)', '연장(h)', '야간(h)', '야간연장(h)', '휴일(h)', '비고'];
+  /* 근태 기록 1건 → 상세내역 행. (월/주 상세 다운로드 공용) */
+  function recToDailyRow(r) {
+    let gubun = '', ci = '', co = '', late = '', early = '', ext = '', night = '', hol = '', bigo = '';
+    if (r.kind === 'work') {
+      gubun = '출근'; ci = r.checkIn || ''; co = r.checkOut || '';
+      late = r.lateMin || 0; early = r.earlyMin || 0;
+      ext = ((r.ot && r.ot.extra) || 0); night = ((r.ot && r.ot.night) || 0); hol = ((r.ot && r.ot.holiday) || 0);
+    } else if (r.kind === 'att') {
+      const code = r.code || ''; const isAbsent = code === 'HOLG02' || code === 'HOLG03';
+      gubun = isAbsent ? '결근' : '휴가'; ci = r.checkIn || ''; co = r.checkOut || '';
+      bigo = (codeLabel && codeLabel(code)) || r.label || '';
+    } else if (r.kind === 'holiday') {
+      gubun = '휴일'; hol = r.holWork || 0; bigo = r.label || '';
+    } else if (r.kind === 'future') { gubun = '예정'; }
+    return [r.date, gubun, ci, co, late, early, ext, night, '', hol, bigo];
+  }
   function empDailyBody(empId, ym) {
-    return getRecords(empId, ym).map(r => {
-      let gubun = '', ci = '', co = '', late = '', early = '', ext = '', night = '', hol = '', bigo = '';
-      if (r.kind === 'work') {
-        gubun = '출근'; ci = r.checkIn || ''; co = r.checkOut || '';
-        late = r.lateMin || 0; early = r.earlyMin || 0;
-        ext = ((r.ot && r.ot.extra) || 0); night = ((r.ot && r.ot.night) || 0); hol = ((r.ot && r.ot.holiday) || 0);
-      } else if (r.kind === 'att') {
-        const code = r.code || ''; const isAbsent = code === 'HOLG02' || code === 'HOLG03';
-        gubun = isAbsent ? '결근' : '휴가'; ci = r.checkIn || ''; co = r.checkOut || '';
-        bigo = (codeLabel && codeLabel(code)) || r.label || '';
-      } else if (r.kind === 'holiday') {
-        gubun = '휴일'; hol = r.holWork || 0; bigo = r.label || '';
-      } else if (r.kind === 'future') { gubun = '예정'; }
-      return [r.date, gubun, ci, co, late, early, ext, night, '', hol, bigo];
-    });
+    return getRecords(empId, ym).map(recToDailyRow);
+  }
+  /* 임의 일자 목록(주간 등)의 상세내역 행 — 월 경계를 넘는 주도 지원 */
+  function empDailyBodyDates(empId, dates) {
+    const months = Array.from(new Set(dates.map(d => d.slice(0, 7))));
+    const map = {};
+    months.forEach(mm => getRecords(empId, mm).forEach(r => { map[r.date] = r; }));
+    return dates.map(ds => recToDailyRow(map[ds] || { date: ds, kind: 'future' }));
   }
   /* 직원 1명의 일자별 근태 기록(대시보드 탭과 동일 구성) 1개 파일 */
   function dlEmpDaily(empId, ym) {
@@ -1270,6 +1358,95 @@
     App.csvDownload(fn, [head].concat(body), { context: '근태 주간 집계' });
   }
 
+  /* =========================================================
+   *  전사(C0) 근태 집계/상세 다운로드 — 주간/월간/연간 · 부서별 시트 분할 (엑셀)
+   * ========================================================= */
+  /* 날짜 → 'YY년/MM월/DD일' */
+  function fmtKDate(d) { return `${pad2(d.getFullYear() % 100)}년/${pad2(d.getMonth() + 1)}월/${pad2(d.getDate())}일`; }
+  /* 전사 뷰 현재 기간 라벨(제목 접두) — 주간: 기간범위 / 월간: YY년/MM월 / 연간: YYYY년 */
+  function companyPeriodLabel() {
+    if (STATE.companyMode === 'week') {
+      const ds = weekDates(currentWeekMonday());
+      return `${fmtKDate(parseYMD(ds[0]))} ~ ${fmtKDate(parseYMD(ds[ds.length - 1]))}`;
+    }
+    if (STATE.companyMode === 'year') return `${parseYM(STATE.ym).y}년`;
+    const { y, m } = parseYM(STATE.ym);
+    return `${pad2(y % 100)}년/${pad2(m)}월`;
+  }
+  /* 파일명 태그 — 주간: 월요일 YYYYMMDD / 월간: YYYYMM / 연간: YYYY */
+  function companyPeriodTag() {
+    if (STATE.companyMode === 'week') return currentWeekMonday().replace(/-/g, '');
+    if (STATE.companyMode === 'year') return String(parseYM(STATE.ym).y);
+    return STATE.ym.replace('-', '');
+  }
+  /* 전사 기간 기준 직원 통계(주간/월간/연간) */
+  function recordsForWeek(empId) {
+    const dates = new Set(weekDates(currentWeekMonday()));
+    const months = Array.from(new Set(Array.from(dates).map(d => d.slice(0, 7))));
+    const out = [];
+    months.forEach(mm => getRecords(empId, mm).forEach(r => { if (dates.has(r.date)) out.push(r); }));
+    return out;
+  }
+  function recordsForYear(empId) {
+    const y = parseYM(STATE.ym).y;
+    const out = [];
+    for (let m = 1; m <= 12; m++) getRecords(empId, `${y}-${pad2(m)}`).forEach(r => out.push(r));
+    return out;
+  }
+  function statsForCompanyScope(empId) {
+    if (STATE.companyMode === 'week') return monthStats(recordsForWeek(empId));
+    if (STATE.companyMode === 'year') return monthStats(recordsForYear(empId));
+    return monthStats(getRecords(empId, STATE.ym));
+  }
+  /* 부서별 그룹핑(등장 순서) — 전사 다운로드 시트 분할 기준 */
+  function empsGroupedByDept() {
+    return DEPTS.map(d => ({ dept: d, emps: EMP_LIST.filter(e => e.dept === d) })).filter(g => g.emps.length);
+  }
+  /* [근태 집계 다운로드] — 부서별 시트, 각 시트 상단 제목 + 직원별 집계 표 */
+  function dlCompanySummary() {
+    const groups = empsGroupedByDept();
+    if (!groups.length) { window.toast && window.toast('집계할 인원이 없습니다.', 'warning'); return; }
+    const title = `${companyPeriodLabel()} 근태 집계`;
+    const HEAD = ['사번', '성명', '근무조', '근무일', '지각(회)', '지각(분)', '조퇴(회)', '조퇴(분)', '결근(일)', '연장(h)', '야간(h)', '야간연장(h)', '휴일(h)'];
+    const sheets = groups.map(g => {
+      const rows = [
+        { style: 'title', cells: [title] },
+        { style: 'hdr', cells: HEAD },
+      ];
+      g.emps.forEach(e => {
+        const st = statsForCompanyScope(e.id);
+        const shift = App.AttShifts && App.AttShifts.get(e.shift);
+        rows.push([e.id, e.name, shift ? (shift.label || shift.code) : '', st.workDays,
+          st.lateCnt, st.lateMin, st.earlyCnt, st.earlyMin, st.absCnt,
+          Number(st.otExtra.toFixed(1)), Number(st.otNight.toFixed(1)),
+          Number((st.otNightExtra || 0).toFixed(1)), Number(st.otHoliday.toFixed(1))]);
+      });
+      return { name: g.dept, rows };
+    });
+    const kind = STATE.companyMode === 'week' ? '주' : STATE.companyMode === 'year' ? '연' : '월';
+    App.xlsxDownload(`근태집계_전사_${companyPeriodTag()}.xls`, sheets, { context: `${kind} 근태 집계` });
+  }
+  /* [직원별 근태 상세내역 다운로드] — 부서별 시트, 각 시트에 소속 직원 전원의 일자별 상세(직원별 제목 블록) */
+  function dlCompanyDetail() {
+    const groups = empsGroupedByDept();
+    if (!groups.length) { window.toast && window.toast('대상 인원이 없습니다.', 'warning'); return; }
+    const base = companyPeriodLabel();
+    const dates = STATE.companyMode === 'week' ? weekDates(currentWeekMonday()) : null;
+    const sheets = groups.map(g => {
+      const rows = [];
+      g.emps.forEach((e, idx) => {
+        if (idx > 0) rows.push([]);   /* 직원 간 빈 줄 */
+        rows.push({ style: 'title', cells: [`${base} ${e.name} 근태 상세내역`] });
+        rows.push({ style: 'hdr', cells: DAILY_HEAD });
+        const body = dates ? empDailyBodyDates(e.id, dates) : empDailyBody(e.id, STATE.ym);
+        body.forEach(r => rows.push(r));
+      });
+      return { name: g.dept, rows };
+    });
+    const kind = STATE.companyMode === 'week' ? '주간' : '월간';
+    App.xlsxDownload(`직원별근태상세내역_전사_${companyPeriodTag()}.xls`, sheets, { context: `직원별 근태 상세내역(${kind})` });
+  }
+
   function renderDeptView() {
     const dept = selectedScopeName();
     const emps = selectedEmps();
@@ -1307,20 +1484,25 @@
       ${renderDeptList(rows)}
     `;
   }
-  function renderDeptList(rows) {
+  function renderDeptList(rows, opts) {
     const dlIcon = (window.Icons && window.Icons.download) || '↓';
+    const isWeek = opts && opts.scope === 'week';
+    const countLabel = isWeek ? `총 <strong>${rows.length}</strong>명 · 주간` : `총 <strong>${rows.length}</strong>명`;
+    const toolbarBtns = isWeek
+      ? `<button class="btn btn--sm" type="button" data-att-dept-week-dl title="현재 주의 부서원 일자별 근태 기록을 1개 파일로 다운로드">${dlIcon} 주간 집계 다운로드</button>`
+      : `<button class="btn btn--sm" type="button" data-att-dept-month-dl title="부서 소속 직원들의 ${esc(fmtYM(STATE.ym))} 근태 요약을 1개 파일로 다운로드">${dlIcon} 월 근태 집계 다운로드</button>
+         <button class="btn btn--sm" type="button" data-att-dept-detail-dl title="부서 소속 직원별 ${esc(fmtYM(STATE.ym))} 근태 상세내역을 직원별 섹션으로 1개 파일에 다운로드">${dlIcon} 직원별 근태 상세내역 다운로드</button>`;
     return `
       <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
         <div class="toolbar">
-          <div class="toolbar__left"><span class="toolbar__count">총 <strong>${rows.length}</strong>명</span></div>
+          <div class="toolbar__left"><span class="toolbar__count">${countLabel}</span></div>
           <div class="toolbar__right" style="display:flex;gap:6px;">
-            <button class="btn btn--sm" type="button" data-att-dept-month-dl title="부서 소속 직원들의 ${esc(fmtYM(STATE.ym))} 근태 요약을 1개 파일로 다운로드">${dlIcon} 월 근태 집계 다운로드</button>
-            <button class="btn btn--sm" type="button" data-att-dept-detail-dl title="부서 소속 직원별 ${esc(fmtYM(STATE.ym))} 근태 상세내역을 직원별 섹션으로 1개 파일에 다운로드">${dlIcon} 직원별 근태 상세내역 다운로드</button>
+            ${toolbarBtns}
           </div>
         </div>
         <div class="grid-wrap">
           <div class="grid-scroll">
-            <table class="tbl tbl--hover">
+            <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
               <thead>
                 <tr>
                   <th style="width:100px;">사번</th>
@@ -1341,7 +1523,7 @@
                 ${rows.map(r => `
                   <tr>
                     <td>${esc(r.emp.id)}</td>
-                    <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(r.emp.dept || r.emp.position || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && (r.emp.position || r.emp.rank)) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${(r.emp.position || r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.position || r.emp.rank)}</span>` : ''}</span>` : ''}</div></td>
+                    <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(() => { const p = [r.emp.dept, r.emp.rank, r.emp.position].filter(Boolean); return p.length ? `<span style="display:inline-flex;align-items:center;">${p.map(v => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(v)}</span>`).join(`<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>`)}</span>` : ''; })()}</div></td>
                     <td>${r.shift ? `<span class="pill pill--info">${esc(r.shift.label || r.shift.code)}</span>` : '-'}</td>
                     <td style="text-align:right;">${r.st.workDays}</td>
                     <td style="text-align:right;white-space:nowrap;">${r.st.lateCnt > 0 ? `<a href="#" data-att-le="late" data-att-le-emp="${esc(r.emp.id)}" title="지각 기록 보기" style="color:var(--color-warning);font-weight:var(--fw-medium);">${r.st.lateCnt}회 (${r.st.lateMin}분)</a>` : '<span style="color:var(--color-text-muted);">0회</span>'}</td>
@@ -1365,117 +1547,45 @@
     `;
   }
 
-  /* ----- 주간(부서별) — 직원별 월~일 일자별 행 + 직원별 총합 ----- */
+  /* ----- 주간(부서별) — 월간뷰와 동일한 레이아웃(근태 통계 + 직원별 요약)을 '이번 주(월~일)' 범위로 집계 ----- */
   function renderDeptWeek(emps) {
     const monday = currentWeekMonday();
     const dates = weekDates(monday);
-    const dv = '<span class="t-muted">-</span>';
-    const hCell = (v) => (v && v > 0) ? `${v.toFixed(1)}h` : dv;
-    const mCell = (v) => (v && v > 0) ? `${v}분` : dv;
-    const span = dates.length + 1;   /* 일자 행 + 총합 행 */
+    const wk = weekOfMonthInfo(monday);   /* { ym, week } — 그 주가 속한 달·주차 */
+    const rangeTxt = `${fmtDisp(dates[0])} ~ ${fmtDisp(dates[dates.length - 1])}`;   /* YY/MM/DD ~ YY/MM/DD */
 
-    const months = Array.from(new Set(dates.map(d => d.slice(0, 7))));   /* 주가 월 경계를 넘으면 두 달치 조회 */
-    const dvColor = { '결근': 'var(--color-danger)', '근무조 변경': 'var(--color-warning)', '연차': 'var(--color-info)', '휴일': 'var(--color-text-muted)' };
+    /* 직원별 주간 스코프 통계 — 월간뷰와 동일한 monthStats() 를 이번 주 기록에만 적용 */
+    const rows = emps.map(e => {
+      const recs = weekRecordsOf(e.id, dates);
+      const st = monthStats(recs);
+      const shift = App.AttShifts && App.AttShifts.get(e.shift);
+      return { emp: e, shift, st };
+    });
+    const deptSt = rows.reduce((acc, r) => {
+      acc.workDays     += r.st.workDays;
+      acc.lateCnt      += r.st.lateCnt;
+      acc.earlyCnt     += r.st.earlyCnt;
+      acc.otExtra      += r.st.otExtra;
+      acc.otNight      += r.st.otNight;
+      acc.otNightExtra += r.st.otNightExtra;
+      acc.otHoliday    += r.st.otHoliday;
+      acc.holidayCnt   += r.st.holidayCnt;
+      acc.absCnt       += r.st.absCnt;
+      return acc;
+    }, { workDays: 0, lateCnt: 0, earlyCnt: 0, otExtra: 0, otNight: 0, otNightExtra: 0, otHoliday: 0, holidayCnt: 0, absCnt: 0 });
 
-    const blocks = emps.map(e => {
-      const recMap = {};
-      months.forEach(mm => getRecords(e.id, mm).forEach(r => { recMap[r.date] = r; }));
-      const tot = { lateCnt: 0, lateMin: 0, earlyCnt: 0, earlyMin: 0, abs: 0, otExtra: 0, otNight: 0, otNightExtra: 0, otHoliday: 0 };
+    /* 주차·기간 배너 — 통계/테이블이 이번 주(N주차, YY/MM/DD~YY/MM/DD) 집계임을 명시 */
+    const banner = `
+      <div class="att-dept-head" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <span class="pill pill--info">${esc(fmtYM(wk.ym))} ${wk.week}주차</span>
+        <strong style="font-size:var(--fs-md);">${esc(rangeTxt)}</strong>
+        <span class="t-muted" style="font-size:var(--fs-xs);">이번 주 근태 집계</span>
+      </div>`;
 
-      const dayRows = dates.map((ds, di) => {
-        const r = recMap[ds] || { date: ds, kind: 'future' };
-        const m = dayMetricsW(r);
-        tot.lateCnt += m.late; tot.lateMin += m.lateMin;
-        tot.earlyCnt += m.early; tot.earlyMin += m.earlyMin;
-        tot.abs += m.abs; tot.otExtra += m.otExtra; tot.otNight += m.otNight;
-        tot.otNightExtra += m.otNightExtra; tot.otHoliday += m.otHoliday;
-
-        const dateTxt = fmtDateDow(ds);
-        /* 비고 — 4종(연차/휴일/근무조 변경/결근)만 텍스트로 표기 */
-        const bigoTxt = weekBigo(r);
-        const bigo = bigoTxt
-          ? `<span style="color:${dvColor[bigoTxt] || 'var(--color-text)'};font-weight:var(--fw-medium);">${esc(bigoTxt)}</span>`
-          : dv;
-        const isDuty = r.kind === 'work' || r.kind === 'att';
-        const shiftCell = r.shift ? esc((App.AttShifts && App.AttShifts.labelOf) ? App.AttShifts.labelOf(r.shift) : r.shift) : dv;
-        const ci = isDuty && r.checkIn ? esc(r.checkIn) : dv;
-        const co = isDuty && r.checkOut ? esc(r.checkOut) : dv;
-        const nameCell = di === 0
-          ? `<td rowspan="${span}" style="vertical-align:top;white-space:nowrap;border-right:1px solid var(--color-divider);">
-               <span class="t-muted" style="font-size:var(--fs-xs);">${esc(e.dept)}</span><br>
-               <strong>${esc(e.name)}</strong>
-             </td>`
-          : '';
-        return `<tr>
-          ${nameCell}
-          <td style="white-space:nowrap;">${dateTxt}</td>
-          <td style="text-align:center;">${shiftCell}</td>
-          <td style="text-align:center;">${ci}</td>
-          <td style="text-align:center;">${co}</td>
-          <td style="text-align:right;">${mCell(m.lateMin)}</td>
-          <td style="text-align:right;">${mCell(m.earlyMin)}</td>
-          <td style="text-align:right;">${m.abs > 0 ? '1' : dv}</td>
-          <td style="text-align:right;">${hCell(m.otExtra)}</td>
-          <td style="text-align:right;">${hCell(m.otNight)}</td>
-          <td style="text-align:right;">${hCell(m.otNightExtra)}</td>
-          <td style="text-align:right;">${hCell(m.otHoliday)}</td>
-          <td style="white-space:nowrap;">${bigo}</td>
-        </tr>`;
-      }).join('');
-
-      const totRow = `<tr style="background:var(--color-surface-alt);font-weight:var(--fw-semibold);border-bottom:2px solid var(--color-border);">
-        <td>총합</td>
-        <td style="text-align:center;">${dv}</td>
-        <td style="text-align:center;">${dv}</td>
-        <td style="text-align:center;">${dv}</td>
-        <td style="text-align:right;">${tot.lateCnt > 0 ? `${tot.lateCnt}회 (${tot.lateMin}분)` : dv}</td>
-        <td style="text-align:right;">${tot.earlyCnt > 0 ? `${tot.earlyCnt}회 (${tot.earlyMin}분)` : dv}</td>
-        <td style="text-align:right;color:${tot.abs > 0 ? 'var(--color-danger)' : 'inherit'};">${tot.abs > 0 ? `${tot.abs}일` : dv}</td>
-        <td style="text-align:right;">${hCell(tot.otExtra)}</td>
-        <td style="text-align:right;">${hCell(tot.otNight)}</td>
-        <td style="text-align:right;">${hCell(tot.otNightExtra)}</td>
-        <td style="text-align:right;">${hCell(tot.otHoliday)}</td>
-        <td>${dv}</td>
-      </tr>`;
-      return dayRows + totRow;
-    }).join('');
-
-    const dlIcon = (window.Icons && window.Icons.download) || '↓';
     return `
-      <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
-        <div class="toolbar">
-          <div class="toolbar__left"><span class="toolbar__count">총 <strong>${emps.length}</strong>명 · 주간</span></div>
-          <div class="toolbar__right">
-            <button class="btn btn--sm" type="button" data-att-dept-week-dl title="현재 주의 부서원 일자별 근태 기록을 1개 파일로 다운로드">${dlIcon} 주간 집계 다운로드</button>
-          </div>
-        </div>
-        <div class="grid-wrap">
-          <div class="grid-scroll">
-            <table class="tbl tbl--hover">
-              <thead>
-                <tr>
-                  <th style="width:120px;">직원</th>
-                  <th style="width:150px;">일자</th>
-                  <th style="text-align:center;width:64px;">근무조</th>
-                  <th style="text-align:center;width:66px;">출근</th>
-                  <th style="text-align:center;width:66px;">퇴근</th>
-                  <th style="text-align:right;width:90px;">지각</th>
-                  <th style="text-align:right;width:90px;">조퇴</th>
-                  <th style="text-align:right;width:56px;">결근</th>
-                  <th style="text-align:right;width:70px;">연장</th>
-                  <th style="text-align:right;width:70px;">야간</th>
-                  <th style="text-align:right;width:80px;">야간 연장</th>
-                  <th style="text-align:right;width:70px;">휴일</th>
-                  <th style="width:120px;">비고</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${blocks}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      ${banner}
+      ${renderStatPanel(deptSt)}
+      ${renderDeptList(rows, { scope: 'week' })}
     `;
   }
 
@@ -1685,7 +1795,7 @@
           <span class="t-muted" style="font-size:var(--fs-xs);">${count}${esc(countUnit || '건')}</span>
         </div>
         <div class="table-card__body">
-          <table class="tbl tbl--hover">
+          <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
             <thead>${thead}</thead>
             <tbody>${tbody}</tbody>
           </table>
@@ -1773,10 +1883,13 @@
     });
 
     pageEl.addEventListener('click', e => {
-      /* 월 이동 + 오늘 — 부서 주간 모드면 같은 콘트롤러가 '주' 단위로 동작(해당 월 안에서) */
-      const isWeekNav = STATE.selectedDeptId && STATE.selectedDeptId !== 'C0' && STATE.deptMode === 'week';
-      if (e.target.closest('[data-att-ym-prev]')) { if (isWeekNav) shiftWeek(-1); else STATE.ym = shiftMonth(STATE.ym, -1); renderAll(pageEl); return; }
-      if (e.target.closest('[data-att-ym-next]')) { if (isWeekNav) shiftWeek(+1); else STATE.ym = shiftMonth(STATE.ym, +1); renderAll(pageEl); return; }
+      /* 기간 이동 + 오늘 — 전사 연간=연 단위 / 주간(부서·전사)=주 단위 / 그 외=월 단위 */
+      const isC0 = STATE.selectedDeptId === 'C0';
+      const isYearNav = isC0 && STATE.companyMode === 'year';
+      const isWeekNav = (STATE.selectedDeptId && STATE.selectedDeptId !== 'C0' && STATE.deptMode === 'week')
+                     || (isC0 && STATE.companyMode === 'week');
+      if (e.target.closest('[data-att-ym-prev]')) { if (isYearNav) shiftYear(-1); else if (isWeekNav) shiftWeek(-1); else STATE.ym = shiftMonth(STATE.ym, -1); renderAll(pageEl); return; }
+      if (e.target.closest('[data-att-ym-next]')) { if (isYearNav) shiftYear(+1); else if (isWeekNav) shiftWeek(+1); else STATE.ym = shiftMonth(STATE.ym, +1); renderAll(pageEl); return; }
       if (e.target.closest('[data-att-today]'))   { STATE.ym = TODAY.slice(0,7); STATE.weekMonday = null; STATE.selectedDate = TODAY; renderAll(pageEl); return; }
 
       /* 부서별 월간/주간 모드 토글 */
@@ -1784,6 +1897,14 @@
       if (modeBtn) {
         STATE.deptMode = modeBtn.dataset.attDeptMode;
         if (STATE.deptMode === 'week') STATE.weekMonday = null;   /* 조회월 기준 주로 초기화 */
+        renderAll(pageEl);
+        return;
+      }
+      /* 전사(C0) 주간/월간/연간 모드 토글 */
+      const compModeBtn = e.target.closest('[data-att-comp-mode]');
+      if (compModeBtn) {
+        STATE.companyMode = compModeBtn.dataset.attCompMode;
+        if (STATE.companyMode === 'week') STATE.weekMonday = null;
         renderAll(pageEl);
         return;
       }
@@ -1866,6 +1987,10 @@
       if (e.target.closest('[data-att-dept-detail-dl]')) { e.preventDefault(); dlDeptDetail(); return; }
       /* 다운로드 — 부서 주간 집계(현재 주 일자별 + 직원별 총합) */
       if (e.target.closest('[data-att-dept-week-dl]')) { e.preventDefault(); dlDeptWeek(); return; }
+      /* 다운로드 — 전사 근태 집계(부서별 시트, 주/월/연) */
+      if (e.target.closest('[data-att-comp-sum-dl]')) { e.preventDefault(); dlCompanySummary(); return; }
+      /* 다운로드 — 전사 직원별 근태 상세내역(부서별 시트, 주/월) */
+      if (e.target.closest('[data-att-comp-detail-dl]')) { e.preventDefault(); dlCompanyDetail(); return; }
       /* 다운로드 — 직원 일자별 근태 기록(현재 조회 월) */
       const dailyDl = e.target.closest('[data-att-emp-daily-dl]');
       if (dailyDl) { e.preventDefault(); dlEmpDaily(dailyDl.dataset.attEmpDailyDl, STATE.ym); return; }
@@ -2277,6 +2402,7 @@
     const rec = {
       id: 'APP-' + Date.now(),
       no: _nextAppNo(noPrefix),
+      docNo: _nextDocNo(),
       empId: ME_ID, empName: ME_NAME, empDept: ME_DEPT,
       kind,
       code: d.code, codeLabel: label,
@@ -2385,7 +2511,7 @@
       startTime: '18:00',
       endTime:   '21:00',
       reasonCode: OT_REASONS.night[0],
-      reason: '',
+      reason: OT_REASONS.night[0],   /* 사유 dropdown 선택값이 곧 신청 사유 */
       mealChecked: false,   /* 식대 체크 — 2시간 초과 시 휴게 차감 + 식권 지급 대상 */
     };
     renderOtModal();
@@ -2398,16 +2524,35 @@
     if (!body) return;
     const d = STATE.otDraft;
     const titleEl = document.getElementById('att-ot-title');
-    if (titleEl) titleEl.textContent = '초과근무 신청';
+    if (titleEl) titleEl.textContent = '기안 · 초과근무 신청서';
 
     const reasons = OT_REASONS[d.otKind] || OT_REASONS.night;
-    if (!reasons.includes(d.reasonCode)) d.reasonCode = reasons[0];
+    if (!reasons.includes(d.reasonCode)) { d.reasonCode = reasons[0]; d.reason = reasons[0]; }
 
+    /* 기안·근태신청서와 동일한 전자결재 기안 양식(fm-tbl) — 문서 헤더 + 신청 필드 */
+    const req = '<em style="color:var(--color-danger);font-style:normal;">*</em>';
+    const gridCol1 = 'style="grid-template-columns:110px 1fr;"';
+    const gridCol2 = 'style="grid-template-columns:110px 1fr 110px 1fr;"';
+    const docNo = `DOC-${TODAY.slice(0, 4)}-AUTO`;
+    const docName = d.otKind === 'holiday' ? '휴일근무 신청서' : '연장근무 신청서';
+    const overThreshold = otRecognized(d.startTime, d.endTime).overThreshold;
     body.innerHTML = `
-      <div class="att-apply__form">
-        <div class="att-apply__row att-apply__row--mid">
-          <div class="att-apply__lbl">구분 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val">
+      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
+        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+          <div class="fm-tbl__label">문서번호</div>
+          <div class="fm-tbl__value"><a class="link-code">${esc(docNo)}</a> <small class="t-muted">(상신 시 자동 채번)</small></div>
+          <div class="fm-tbl__label">문서명</div>
+          <div class="fm-tbl__value">${esc(docName)}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+          <div class="fm-tbl__label">기안자</div>
+          <div class="fm-tbl__value">${esc(ME_NAME)} <span class="t-muted" style="margin-left:4px;">${esc(ME_ID)}</span></div>
+          <div class="fm-tbl__label">부서</div>
+          <div class="fm-tbl__value">${esc(ME_DEPT)}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">구분 ${req}</div>
+          <div class="fm-tbl__value">
             <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
               <div class="tabs__nav">
                 <button type="button" class="tabs__tab ${d.otKind === 'night' ? 'is-active' : ''}" data-att-ot-tab="night">연장근무</button>
@@ -2416,43 +2561,37 @@
             </div>
           </div>
         </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">일자 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val att-apply__val--inline">
-            <input type="date" class="input" id="att-ot-date" value="${esc(d.date)}" />
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">일자 ${req}</div>
+          <div class="fm-tbl__value"><input type="date" class="input" id="att-ot-date" style="width:170px;" value="${esc(d.date)}" /></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">시간 ${req}</div>
+          <div class="fm-tbl__value">
+            <div style="display:flex;align-items:center;">
+              <select class="select" id="att-ot-start" style="max-width:120px;">${_otTimeOptions(d.startTime)}</select>
+              <span class="t-muted" style="margin:0 6px;">~</span>
+              <select class="select" id="att-ot-end" style="max-width:120px;">${_otTimeOptions(d.endTime)}</select>
+            </div>
           </div>
         </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">시간 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val att-apply__val--inline">
-            <select class="select" id="att-ot-start" style="max-width:120px;">${_otTimeOptions(d.startTime)}</select>
-            <span class="t-muted" style="margin:0 6px;">~</span>
-            <select class="select" id="att-ot-end" style="max-width:120px;">${_otTimeOptions(d.endTime)}</select>
-          </div>
-        </div>
-        <div class="att-apply__row" id="att-ot-meal-row" style="${otRecognized(d.startTime, d.endTime).overThreshold ? '' : 'display:none;'}">
-          <div class="att-apply__lbl">식대</div>
-          <div class="att-apply__val">
+        <div class="fm-tbl__row fm-tbl__row--1" id="att-ot-meal-row" style="grid-template-columns:110px 1fr;${overThreshold ? '' : 'display:none;'}">
+          <div class="fm-tbl__label">식대</div>
+          <div class="fm-tbl__value">
             <label class="chk"><input type="checkbox" id="att-ot-meal" ${d.mealChecked ? 'checked' : ''}><span>식대 체크 (식사 후 근무)</span></label>
-            <div class="att-apply__note" style="margin-top:4px;">휴게 30분이 차감되며, 승인 시 식권 ${OT_MEAL_VOUCHER_WON.toLocaleString()}원이 지급됩니다.</div>
+            <div class="form-help" style="margin-top:4px;">휴게 30분이 차감되며, 승인 시 식권 ${OT_MEAL_VOUCHER_WON.toLocaleString()}원이 지급됩니다.</div>
           </div>
         </div>
-        <div class="att-apply__row att-apply__row--mid">
-          <div class="att-apply__lbl">인정 시간</div>
-          <div class="att-apply__val" id="att-ot-summary">${renderOtSummary(d.startTime, d.endTime, d.mealChecked)}</div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">인정 시간</div>
+          <div class="fm-tbl__value" id="att-ot-summary">${renderOtSummary(d.startTime, d.endTime, d.mealChecked)}</div>
         </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">사유 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val">
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
+          <div class="fm-tbl__label">사유 ${req}</div>
+          <div class="fm-tbl__value">
             <select class="select" id="att-ot-reason-sel" style="width:100%;">
               ${reasons.map(r => `<option value="${esc(r)}" ${d.reasonCode === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
             </select>
-          </div>
-        </div>
-        <div class="att-apply__row">
-          <div class="att-apply__lbl">상세 내용 <span style="color:var(--color-danger);">*</span></div>
-          <div class="att-apply__val">
-            <textarea class="input" id="att-ot-detail" rows="3" style="width:100%;" placeholder="구체적인 업무 내용을 입력해 주세요">${esc(d.reason)}</textarea>
           </div>
         </div>
       </div>
@@ -2465,11 +2604,11 @@
       renderOtModal();
     }));
     const rSel = modal.querySelector('#att-ot-reason-sel');
-    if (rSel) rSel.addEventListener('change', () => { STATE.otDraft.reasonCode = rSel.value; });
+    /* 사유는 dropdown 선택값이 곧 신청 사유(reason) — 별도 상세 내용 입력 없음 */
+    if (rSel) rSel.addEventListener('change', () => { STATE.otDraft.reasonCode = rSel.value; STATE.otDraft.reason = rSel.value; });
     const dEl = modal.querySelector('#att-ot-date');
     const sEl = modal.querySelector('#att-ot-start');
     const eEl = modal.querySelector('#att-ot-end');
-    const tEl = modal.querySelector('#att-ot-detail');
     const mEl = modal.querySelector('#att-ot-meal');
     const mealRow = modal.querySelector('#att-ot-meal-row');
     const refreshOtSummary = () => {
@@ -2484,7 +2623,6 @@
     if (dEl) dEl.addEventListener('input', () => { STATE.otDraft.date = dEl.value; });
     if (sEl) sEl.addEventListener('change', () => { STATE.otDraft.startTime = sEl.value; refreshOtSummary(); });
     if (eEl) eEl.addEventListener('change', () => { STATE.otDraft.endTime = eEl.value; refreshOtSummary(); });
-    if (tEl) tEl.addEventListener('input', () => { STATE.otDraft.reason = tEl.value; });
     if (mEl) mEl.addEventListener('change', () => { STATE.otDraft.mealChecked = mEl.checked; refreshOtSummary(); });
 
     if (!modal.dataset.attOtBound) {
@@ -2504,7 +2642,8 @@
     if (!d.startTime || !d.endTime) { window.toast && window.toast('시작/종료 시간을 입력해 주세요.', 'warning'); return; }
     if (d.startTime >= d.endTime) { window.toast && window.toast('종료 시간이 시작 시간 이후여야 합니다.', 'warning'); return; }
     if (!d.reasonCode) { window.toast && window.toast('사유를 선택해 주세요.', 'warning'); return; }
-    if (!d.reason || !d.reason.trim()) { window.toast && window.toast('상세 내용을 입력해 주세요.', 'warning'); return; }
+    /* 사유 dropdown 값이 곧 신청 사유 */
+    d.reason = d.reasonCode;
 
     /* 같은 날 반차 신청이 있는지 검사 */
     const blocking = myApps().find(a => a.kind === 'leave' && a.dateFrom <= d.date && d.date <= a.dateTo && isHalfDay(a.code) && a.status !== 'rejected');
@@ -2520,6 +2659,7 @@
     const rec = {
       id: 'APP-' + Date.now(),
       no: _nextAppNo(d.otKind === 'night' ? 'OT-N' : 'OT-H'),
+      docNo: _nextDocNo(),
       empId: ME_ID, empName: ME_NAME, empDept: ME_DEPT,
       kind: 'ot', otKind: d.otKind,
       date: d.date, startTime: d.startTime, endTime: d.endTime,
@@ -2805,7 +2945,7 @@
    * ========================================================= */
   /* 전자결재 기안 양식의 문서명 — 근태신청서 / 연차·휴가 신청서 / 초과근무(연장·휴일) 신청서 */
   function docNameOf(a) {
-    if (a.kind === 'ot') return a.otKind === 'holiday' ? '휴일근무 신청서' : '연장근무 신청서';
+    if (a.kind === 'ot') return '초과근무 신청서';
     return a.kind === 'leave' ? '연차·휴가 신청서' : '근태신청서';
   }
   function openDocModal(appId) {
@@ -2813,8 +2953,8 @@
     if (!app) return;
     const titleEl = document.getElementById('att-doc-title');
     if (titleEl) {
-      /* 전자결재 기안 상세와 동일 포맷 — 기안 상세 · {문서명} · {문서번호} */
-      titleEl.textContent = `기안 상세 · ${docNameOf(app)} · ${app.no}`;
+      /* 전자결재 기안 상세와 동일 포맷 — 기안 상세 · {문서명} · {결재문서번호} */
+      titleEl.textContent = `기안 상세 · ${docNameOf(app)} · ${app.docNo || app.no}`;
     }
     const body = document.getElementById('att-doc-body');
     if (body) body.innerHTML = renderDocBody(app);
@@ -2823,22 +2963,20 @@
   }
   function renderDocBody(a) {
     const stat = APP_STATUSES[a.status] || { label: a.status, tone: 'muted' };
+    /* 초과근무 신청서 — 일자 / 시간 / 근태체크 여부 / 구분 / 사유 만 표기 (인정시간·휴게차감 등 상세 제외) */
     const periodRow = a.kind === 'ot'
       ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
-           <div class="fm-tbl__label">일자/시간</div>
-           <div class="fm-tbl__value">${esc(fmtDisp(a.date))} ${esc(a.startTime)} ~ ${esc(a.endTime)}</div>
+           <div class="fm-tbl__label">일자</div>
+           <div class="fm-tbl__value">${esc(fmtDisp(a.date))}</div>
          </div>
-         ${typeof a.recognizedMin === 'number' ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
-           <div class="fm-tbl__label">인정 시간</div>
-           <div class="fm-tbl__value">
-             <strong style="color:var(--color-brand-primary);">${_fmtMin(a.recognizedMin)}</strong>
-             ${a.breakDeductMin ? `<small class="t-muted" style="margin-left:6px;">(휴게 ${_fmtMin(a.breakDeductMin)} 차감)</small>` : ''}
-           </div>
-         </div>` : ''}
-         ${a.mealChecked ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
-           <div class="fm-tbl__label">식대</div>
-           <div class="fm-tbl__value"><span class="pill pill--success">식대 체크</span> <small class="t-muted" style="margin-left:4px;">승인 시 식권 ${OT_MEAL_VOUCHER_WON.toLocaleString()}원 지급</small></div>
-         </div>` : ''}`
+         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
+           <div class="fm-tbl__label">시간</div>
+           <div class="fm-tbl__value">${esc(a.startTime)} ~ ${esc(a.endTime)}</div>
+         </div>
+         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
+           <div class="fm-tbl__label">근태체크 여부</div>
+           <div class="fm-tbl__value">${a.mealChecked ? '<span class="pill pill--success">예</span>' : '<span class="pill pill--muted">아니오</span>'}</div>
+         </div>`
       : `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">신청 기간</div>
            <div class="fm-tbl__value">${a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : esc(fmtDisp(a.dateFrom)) + ' ~ ' + esc(fmtDisp(a.dateTo))}</div>
@@ -2846,10 +2984,7 @@
     const codeRow = a.kind === 'ot'
       ? `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">구분</div>
-           <div class="fm-tbl__value">
-             <span class="pill ${a.otKind === 'holiday' ? 'pill--warning' : 'pill--info'}">${a.otKind === 'holiday' ? '휴일근무' : '연장근무'}</span>
-             <span style="margin-left:6px;">${esc(a.reasonCode)}</span>
-           </div>
+           <div class="fm-tbl__value"><span class="pill ${a.otKind === 'holiday' ? 'pill--warning' : 'pill--info'}">${a.otKind === 'holiday' ? '휴일근무' : '연장근무'}</span></div>
          </div>`
       : `<div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
            <div class="fm-tbl__label">구분</div>
@@ -2903,10 +3038,16 @@
     return `
       <div class="fm-tbl" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);margin-bottom:18px;">
         <div class="fm-tbl__row fm-tbl__row--2">
-          <div class="fm-tbl__label">문서번호</div>
-          <div class="fm-tbl__value"><a class="link-code">${esc(a.no)}</a></div>
+          <div class="fm-tbl__label">결재문서번호</div>
+          <div class="fm-tbl__value"><a class="link-code">${esc(a.docNo || a.no)}</a></div>
+          <div class="fm-tbl__label">신청번호</div>
+          <div class="fm-tbl__value">${esc(a.no)}</div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--2">
           <div class="fm-tbl__label">문서명</div>
           <div class="fm-tbl__value">${esc(docNameOf(a))}</div>
+          <div class="fm-tbl__label">상태</div>
+          <div class="fm-tbl__value"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--2">
           <div class="fm-tbl__label">기안자</div>
@@ -2914,9 +3055,7 @@
           <div class="fm-tbl__label">부서</div>
           <div class="fm-tbl__value">${esc(a.empDept)}</div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--2">
-          <div class="fm-tbl__label">상태</div>
-          <div class="fm-tbl__value"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
           <div class="fm-tbl__label">기안일시</div>
           <div class="fm-tbl__value">${esc(fmtDisp(a.submittedAt) || '-')}</div>
         </div>
@@ -2924,8 +3063,7 @@
 
       <div style="margin:18px 0 8px;"><strong>${esc(docNameOf(a))} 상세</strong></div>
       <div class="fm-tbl" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);margin-bottom:18px;">
-        ${codeRow}
-        ${periodRow}
+        ${a.kind === 'ot' ? periodRow + codeRow : codeRow + periodRow}
         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
           <div class="fm-tbl__label">사유</div>
           <div class="fm-tbl__value">${esc(a.reason)}</div>
@@ -3280,8 +3418,9 @@
       const stat = APP_STATUSES[a.status] || { label: a.status, tone: 'muted' };
       const kindPill = isOt ? `<span class="pill pill--warning">초과근무</span>` : `<span class="pill pill--info">근태</span>`;
       const typeMain = isOt ? (a.otKind === 'holiday' ? '휴일근무' : '연장근무') : (a.codeLabel || codeLabel(a.code));
-      const typeSub  = isOt ? (a.reasonCode || '') : (a.reason || '');
-      const typeCol  = `${esc(typeMain)}${typeSub ? `<span class="t-muted">/${esc(typeSub)}</span>` : ''}`;
+      /* 종류는 명칭만 — 사유(초과근무=reasonCode / 근태=reason)는 사유 컬럼에만 노출(종류 중복 표기 금지) */
+      const typeCol  = esc(typeMain);
+      const reasonText = isOt ? (a.reasonCode || a.reason || '') : (a.reason || '');
       const dateCol = isOt
         ? `${esc(fmtDisp(a.date))} <span class="t-muted">${esc(a.startTime)}~${esc(a.endTime)}</span>`
         : (a.dateFrom === a.dateTo ? esc(fmtDisp(a.dateFrom)) : `${esc(fmtDisp(a.dateFrom))} ~ ${esc(fmtDisp(a.dateTo))}`);
@@ -3289,14 +3428,14 @@
         <tr class="is-clickable" data-att-emp-app-row="${esc(a.id)}">
           <td style="text-align:right;">${n - i}</td>
           <td>${esc(a.no)}</td>
+          <td style="text-align:center;"><a class="link-code" href="javascript:;" data-att-doc-open="${esc(a.id)}" title="결재문서 보기">${esc(a.docNo || a.no)}</a></td>
           <td style="text-align:center;">${kindPill}</td>
           <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${typeCol}</td>
           <td style="white-space:nowrap;">${dateCol}</td>
-          <td style="word-break:keep-all;overflow-wrap:anywhere;">${esc(a.reason)}</td>
+          <td style="word-break:keep-all;overflow-wrap:anywhere;">${esc(reasonText)}</td>
           <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
           <td style="word-break:keep-all;overflow-wrap:anywhere;">${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
           <td style="white-space:nowrap;">${esc(fmtDisp(a.submittedAt))}</td>
-          <td style="text-align:center;"><button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button></td>
         </tr>`;
     }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
     return `
@@ -3317,6 +3456,7 @@
             <tr>
               <th style="width:48px;text-align:right;">No</th>
               <th style="width:130px;">신청번호</th>
+              <th style="width:120px;text-align:center;">결재문서</th>
               <th style="width:80px;text-align:center;">구분</th>
               <th style="width:220px;">종류</th>
               <th style="width:190px;white-space:nowrap;">신청 일자/시간</th>
@@ -3324,7 +3464,6 @@
               <th style="width:80px;text-align:center;">상태</th>
               <th style="width:200px;">상태 사유</th>
               <th style="width:140px;white-space:nowrap;">상신 일시</th>
-              <th style="width:60px;text-align:center;"></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -3363,8 +3502,14 @@
     const meta = META[cat] || META.late;
     const scopeEmps = selectedEmps();
     const scopeName = selectedScopeName();
+    /* 부서 주간뷰에서 클릭한 통계는 이번 주(월~일) 범위로 대상자를 집계 — 카드 값과 일치 */
+    const isWeekScope = STATE.selectedDeptId && STATE.selectedDeptId !== 'C0' && STATE.deptMode === 'week';
+    const wkDates = isWeekScope ? weekDates(currentWeekMonday()) : null;
+    const periodLabel = isWeekScope
+      ? (() => { const wk = weekOfMonthInfo(currentWeekMonday()); return `${fmtYM(wk.ym)} ${wk.week}주차`; })()
+      : fmtYM(STATE.ym);
     const rows = scopeEmps.map(e => {
-      const mt = empMetric(getRecords(e.id, STATE.ym), cat);
+      const mt = empMetric(isWeekScope ? weekRecordsOf(e.id, wkDates) : getRecords(e.id, STATE.ym), cat);
       return { emp: e, ...mt };
     }).filter(r => r.count > 0).sort((a, b) => b.amount - a.amount);
 
@@ -3378,7 +3523,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${i + 1}</td>
           <td>${esc(r.emp.id)}</td>
-          <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(r.emp.dept || r.emp.position || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && (r.emp.position || r.emp.rank)) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${(r.emp.position || r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.position || r.emp.rank)}</span>` : ''}</span>` : ''}</div></td>
+          <td><div style="display:flex;align-items:center;gap:8px;min-width:0;"><span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span><a href="#" data-att-emp-open="${esc(r.emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.emp.name)}</a>${(() => { const p = [r.emp.rank, r.emp.position].filter(Boolean); return p.length ? `<span style="display:inline-flex;align-items:center;">${p.map(v => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(v)}</span>`).join(`<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>`)}</span>` : ''; })()}</div></td>
           <td>${esc(r.emp.dept)}</td>
           <td style="text-align:right;">${valCell(r)}</td>
         </tr>`).join('')
@@ -3387,7 +3532,7 @@
     const body = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span class="pill pill--info">${esc(meta.label)}</span>
-        <span class="t-muted" style="font-size:var(--fs-sm);">${esc(scopeName)} · ${fmtYM(STATE.ym)} · 대상 ${rows.length}명</span>
+        <span class="t-muted" style="font-size:var(--fs-sm);">${esc(scopeName)} · ${esc(periodLabel)} · 대상 ${rows.length}명</span>
       </div>
       <div class="table-card">
         <div class="table-card__body">
@@ -3419,7 +3564,9 @@
     ATT_GROUPS, HOL_GROUPS,
     APP_STATUSES,
     VIEW_MODES,
-    codeLabel, codeShortLabel, isHalfDay,
+    codeLabel, codeShortLabel, codeGroupLabel, isHalfDay,
+    /* 신청 내역 '결재문서' 컬럼 — 문서명 표기용(근태신청서/연차·휴가 신청서/연장·휴일근무 신청서) */
+    docNameOf,
     /* 캘린더 셀 블록 공용 헬퍼 — 나의/부서별 근태현황, 부서별 연차현황 통일 */
     calShiftColorCls, calShiftChip, calBlock, calLeaveLabel, calShiftMismatch,
     getRecords, monthStats,

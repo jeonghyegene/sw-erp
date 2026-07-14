@@ -36,13 +36,15 @@
   }
   function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
   function hm(t) { return /^\d{2}:\d{2}$/.test(t) ? t : '-'; }
-  function diffHours(start, end) {
+  /* 두 'HH:MM' 사이 경과 분(정수). 야간조(퇴근 ≤ 출근)는 익일로 보고 +24h.
+     ※ 0.1시간(6분) 단위로 스냅하면 분 단위 복원 시 ±2분 오차가 생기므로 분을 그대로 반환한다. */
+  function diffMin(start, end) {
     if (!hm(start) || !hm(end)) return 0;
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
     let mins = (eh * 60 + em) - (sh * 60 + sm);
     if (mins <= 0) mins += 24 * 60;   /* 야간조 — 익일 종료 */
-    return Math.round(mins / 6) / 10; /* 0.1 단위 */
+    return mins;
   }
   function toMin(t) { if (!hm(t)) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
   /* 야간(심야) 근무 판정 — 근무 시간 구간이 22:00~06:00 심야시간대와 일부라도 겹치면 야간.
@@ -88,12 +90,12 @@
      · isNight   : 심야시간 포함 시 야간 근무조로 분류 */
   const DAILY_STD_MIN = 8 * 60;
   function recompute(f) {
-    const total = diffHours(f.start, f.end);
+    const totalMin = diffMin(f.start, f.end);
     let bmin = 0;
-    if (f.breakStart && f.breakEnd)   bmin += Math.round(diffHours(f.breakStart, f.breakEnd) * 60);
-    if (f.breakStart2 && f.breakEnd2) bmin += Math.round(diffHours(f.breakStart2, f.breakEnd2) * 60);
+    if (f.breakStart && f.breakEnd)   bmin += diffMin(f.breakStart, f.breakEnd);
+    if (f.breakStart2 && f.breakEnd2) bmin += diffMin(f.breakStart2, f.breakEnd2);
     f.breakMin = bmin;
-    const workMin = Math.max(0, Math.round(total * 60) - bmin);
+    const workMin = Math.max(0, totalMin - bmin);
     f.workHours = fmtMin(workMin);
     f.otMin = Math.max(0, workMin - DAILY_STD_MIN);   /* 연장 = 8시간 초과분 */
     f.nightMin = nightMinutes(f.start, f.end);        /* 심야 = 22~06 겹침 */

@@ -300,7 +300,7 @@
         const dept = ['경영지원','인사팀','재무팀','영업1팀','영업2팀','개발팀','품질팀','생산팀'];
         const pos  = ['사원','주임','대리','과장','차장','부장'];
         const wt   = ['정규직','계약직','파견','인턴'];
-        const off  = ['본사','공장','지사','재택'];
+        const off  = ['성수동','하남','인현동','충무로'];
         const st   = [['재직','success'],['휴직','warning'],['퇴직','danger']];
         const rows = [];
         for (let i = 1; i <= n; i++) {
@@ -334,7 +334,7 @@
         ],
         checkGroups: [
           { key: 'worktype', label: '근무 유형', items: ['정규직','계약직','파견','인턴'] },
-          { key: 'office',   label: '근무지',    items: ['본사','공장','지사','재택'] },
+          { key: 'office',   label: '근무지',    items: ['성수동','하남','인현동','충무로'] },
         ],
       },
       filter(rows, p) {

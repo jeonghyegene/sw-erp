@@ -702,7 +702,7 @@
       nameFlip: e.nameFlip || false,
       dept: e.deptName || e.dept || '',
       photoUrl: e.photoUrl || e.photo || '',
-      site: e.site || '본사',
+      site: e.site || '성수동',
       empType: e.empType || 'regular',
       jobCat: e.jobCat || 'office',
       /* 인사 관리에 노출된 사원은 이미 isComplete 통과 — 누락 필드만 안전 기본값 */
@@ -791,7 +791,7 @@
       fmRow([{ label:'생년월일', value: dispYmd(emp.birth) }, { label:'입사일', value: dispYmd(emp.joinDate) }]) +
       fmRow([{ label:'소속', value: emp.deptName }, { label:'직무', value: emp.job }]) +
       fmRow([{ label:'직위', value: emp.rank }, { label:'직책', value: emp.position || '-' }]) +
-      fmRow([{ label:'근무형태', value: '정규직' }, { label:'사업장', value: '본사' }]) +
+      fmRow([{ label:'근무형태', value: '정규직' }, { label:'사업장', value: '성수동' }]) +
       fmRow([{ label:'연락처', value: emp.phone }, { label:'E-Mail', value: emp.email }]) +
       fmRow([{ label:'주소', value: emp.address }])
     );

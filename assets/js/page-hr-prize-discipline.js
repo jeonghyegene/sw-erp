@@ -301,16 +301,17 @@
     }
     return rows.map(r => {
       const meta = KINDS[r.kind];
-      /* 성명 셀 — 임직원 관리 성명 컬럼과 동일: 사진 + 이름 + 부서·직책(muted inline) */
+      /* 성명 셀 — 임직원 관리 성명 컬럼과 동일: 사진 + 이름 + 팀·직위·직책(muted inline) */
       const member = memberById(r.empId);
       const photo = (member && member.photoUrl) || '';
       const avatarHTML = photo
         ? `<img src="${esc(photo)}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;" />`
         : `<span style="width:24px;height:24px;border-radius:50%;background:var(--color-active);color:var(--color-brand-primary);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;">${esc((r.empName || '?').charAt(0))}</span>`;
-      const pdDept = r.empDept ? esc(r.empDept) : '';
-      const pdPos  = r.empPosition ? esc(r.empPosition) : '';
-      const pdDot  = (pdDept && pdPos) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 2px;" aria-hidden="true">·</span>` : '';
-      const pdMeta = (v) => v ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>` : '';
+      /* 부제 — 팀·직위·직책 (값 있는 항목만, muted, 구두점 사이 여백 없이) */
+      const pdMeta = [r.empDept, (member && member.rank) || '', r.empPosition || (member && member.position) || '']
+        .filter(Boolean)
+        .map(v => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(v)}</span>`)
+        .join(`<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>`);
       return `
         <tr data-pd-row="${esc(r.id)}">
           <td style="white-space:nowrap;">${esc(r.id)}</td>
@@ -320,7 +321,7 @@
             <div style="display:flex;align-items:center;gap:8px;min-width:0;">
               ${avatarHTML}
               <a href="#" data-pd-emp-card="${esc(r.empId)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(r.empName)}</a>
-              <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${pdMeta(pdDept)}${pdDot}${pdMeta(pdPos)}</span>
+              <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">${pdMeta}</span>
             </div>
           </td>
           <td style="white-space:nowrap;">${esc(fmtD(r.noticeDate))}</td>

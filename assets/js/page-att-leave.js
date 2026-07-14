@@ -37,6 +37,12 @@
     leave: null,               /* lazy: { byEmp: [...], byDept: [...] } */
     lastRefreshAt: null,
     year: 2026,
+    /* 전사(C0) 통계 집계 기간 — 'week'(주간) | 'month'(월간, 기본) | 'year'(연간). 부서별 근태현황과 동일 UX. */
+    companyMode: 'month',
+    /* 월간/주간 기준 월 앵커(YYYY-MM). 연간은 STATE.year 사용 */
+    compYm: '2026-05',
+    /* 주간 기준 월요일(YYYY-MM-DD). null 이면 조회 월/오늘 기준 자동 결정 */
+    compWeekMonday: null,
     /* 통계(KPI) 패널 접힘 상태 — 「근태 현황」 과 동일한 접기/펼치기 UX */
     statOpen: true,
     /* 부서 선택 시 뷰 — 'cal'(캘린더형) | 'dash'(대시보드형). 대시보드형은 구성원별 발생/사용/잔여. */
@@ -60,6 +66,47 @@
     while (nm <= 0) { nm += 12; ny -= 1; }
     while (nm > 12) { nm -= 12; ny += 1; }
     return `${ny}-${pad2(nm)}`;
+  }
+  function todayISO() { return (App.AttStatus && App.AttStatus.TODAY) || '2026-05-28'; }
+
+  /* ============ 전사(C0) 통계 집계 기간 헬퍼 (주간/월간/연간) ============ */
+  function isoOf(dt) { return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`; }
+  function addDaysISO(dateStr, n) { const [y, m, d] = dateStr.split('-').map(Number); return isoOf(new Date(y, m - 1, d + n)); }
+  /* 해당 일자가 속한 주의 월요일(월~일 주 기준) */
+  function mondayOf(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const wd = dt.getDay();                     /* 0=일 ~ 6=토 */
+    dt.setDate(dt.getDate() + (wd === 0 ? -6 : 1 - wd));
+    return isoOf(dt);
+  }
+  /* 현재 주의 월요일 — STATE.compWeekMonday 있으면 그대로, 없으면 조회월(오늘이면 오늘) 기준 기본 주 */
+  function compWeekMonday() {
+    if (STATE.compWeekMonday) return STATE.compWeekMonday;
+    const today = todayISO();
+    const anchor = STATE.compYm === today.slice(0, 7) ? today : `${STATE.compYm}-01`;
+    return mondayOf(anchor);
+  }
+  /* 현재 집계 기간의 [from, to] ISO 범위 */
+  function compRange() {
+    if (STATE.companyMode === 'year') return { from: `${STATE.year}-01-01`, to: `${STATE.year}-12-31` };
+    if (STATE.companyMode === 'week') { const mon = compWeekMonday(); return { from: mon, to: addDaysISO(mon, 6) }; }
+    return { from: `${STATE.compYm}-01`, to: `${STATE.compYm}-${pad2(daysInMonth(STATE.compYm))}` };
+  }
+  /* 집계 기간 라벨 (통계 패널 제목·컬럼 헤더용) */
+  function compPeriodLabel() {
+    if (STATE.companyMode === 'year') return `${STATE.year}년`;
+    if (STATE.companyMode === 'week') { const mon = compWeekMonday(); return `${fmtYMD(mon)} ~ ${fmtYMD(addDaysISO(mon, 6))}`; }
+    const [y, m] = STATE.compYm.split('-'); return `${y}년 ${Number(m)}월`;
+  }
+  function setCompMonth(ym) { STATE.compYm = ym; STATE.compWeekMonday = null; }
+  /* 표시 전용 — 'YYYY-MM' → 'YY/MM' (부서별 근태현황 주간 라벨과 동일 포맷) */
+  function fmtYM2(ym) { return String(ym || '').slice(2).replace('-', '/'); }
+  /* 주차 정보 — 그 주가 속한 달(목요일 기준)과 몇 주차인지. 부서별 근태현황 weekOfMonthInfo 와 동일 규칙. */
+  function weekOfMonthInfo(mondayStr) {
+    const [y, m, d] = mondayStr.split('-').map(Number);
+    const thu = new Date(y, m - 1, d + 3);
+    return { ym: `${thu.getFullYear()}-${pad2(thu.getMonth() + 1)}`, week: Math.floor((thu.getDate() - 1) / 7) + 1 };
   }
 
   function ensureDeps() { return App.AttStatus && App.AttStatus.EMP_LIST; }
@@ -115,8 +162,9 @@
     return STATE.leave;
   }
 
-  /* 결정적 이력 mock — 임직원 1인당 5건 */
-  function buildHistory(emp) {
+  /* 결정적 이력 mock — 임직원 1인당 5건. yr 미지정 시 STATE.year 사용(기존 호출 호환). */
+  function buildHistory(emp, yr) {
+    const year = yr || STATE.year;
     const tail = Number(String(emp.id).slice(-2)) || 1;
     const types = ['연차', '연차', '반차(오전)', '반차(오후)', '연차'];
     const reasons = ['휴식', '가족 행사', '병원 진료', '개인 사정', '여행'];
@@ -126,13 +174,25 @@
       const d = ((tail * (i + 2)) % 27) + 1;
       out.push({
         type: types[i],
-        date: `${STATE.year}-${pad2(m)}-${pad2(d)}`,
+        date: `${year}-${pad2(m)}-${pad2(d)}`,
         days: types[i].startsWith('반차') ? 0.5 : 1,
         reason: reasons[i],
         status: '승인',
       });
     }
     return out;
+  }
+  /* 선택 기간 [from, to] 에 사용한 연차 집계 — { days, halfCnt, cnt } */
+  function leaveUsedInRange(emp, from, to) {
+    const yr = Number(from.slice(0, 4));
+    let days = 0, halfCnt = 0, cnt = 0;
+    buildHistory(emp, yr).forEach(h => {
+      if (h.date >= from && h.date <= to) {
+        days += h.days; cnt += 1;
+        if (h.type && h.type.indexOf('반차') === 0) halfCnt += 1;
+      }
+    });
+    return { days: Number(days.toFixed(1)), halfCnt, cnt };
   }
 
   /* 결정적 외근/출장/교육 mock — 캘린더형에서 연차와 함께 노출. 임직원 1인당 3건 */
@@ -182,17 +242,12 @@
 
   /* ============ Header ============ */
   function renderHead() {
-    const scopeName = selectedScopeName();
-    const cnt = selectedRows().length;
-    /* 팀원 — 「연차 계획」 상단 타이틀과 동일하게: 연월 + 월 이동 + 스코프 칩.
+    /* 팀원 — 「연차 계획」 상단 타이틀과 동일하게: 연월 + 월 이동.
        (팀원은 항상 캘린더형이므로 월 이동을 타이틀에 둔다) */
     const isDept = STATE.selectedDeptId && STATE.selectedDeptId !== 'C0';
     const mode = STATE.viewMode;
-    const chipHTML = `
-          <div class="att-target-chip" style="cursor:default;">
-            <span class="att-target-chip__name">${esc(scopeName)}</span>
-            <span class="att-target-chip__meta">${cnt}명</span>
-          </div>`;
+    /* 스코프 칩(부서명·N명) 은 좌측 조직도 선택으로 대체 — 헤더에서 제거 */
+    const chipHTML = '';
     /* 월 이동 ‹오늘› — 캘린더로 과거 연차현황을 조회. 부서 선택(또는 팀원) 시 노출 */
     const monthNav = `
           ${App.YmPicker.html({ name: 'cal', ym: STATE.calYm, todayYm: App.AttStatus.TODAY.slice(0, 7) })}
@@ -207,19 +262,64 @@
             <button type="button" data-lv-view="cal"  class="${mode === 'cal'  ? 'is-active' : ''}">캘린더</button>
             <button type="button" data-lv-view="dash" class="${mode === 'dash' ? 'is-active' : ''}">대시보드</button>
           </div>`;
-    /* 전사(C0) — 연 단위 과거 탐색: 연도 + ‹오늘› 연도 이동 (대시보드 고정, 토글 없음) */
-    const yearNav = `
-          <div class="att-tb__title">${STATE.year}년</div>
-          <div class="att-tb__nav">
-            <button type="button" data-lv-year-prev aria-label="이전 연도">‹</button>
-            <button type="button" data-lv-year-today>오늘</button>
-            <button type="button" data-lv-year-next aria-label="다음 연도">›</button>
-          </div>`;
+    /* 전사(C0) — 주간 | 월간 | 연간 통계 집계. 부서별 근태현황(renderHead)과 동일한 toolbar UI 로 구성:
+       좌(기간 컨트롤 + 스코프 칩) · 중앙(.tabs--segmented 토글) · 우(새로고침). 기본 월간. */
+    if (STATE.isManager && !isDept) {
+      const cm = STATE.companyMode;
+      const companyYear = cm === 'year';
+      const isWeek = cm === 'week';
+      const refreshHTML = `
+        <div class="att-tb__refresh" title="수동 새로고침으로 연차 통계를 갱신합니다">
+          <span class="att-tb__refresh-stamp">
+            ${STATE.lastRefreshAt ? `마지막 갱신 <strong>${esc(STATE.lastRefreshAt)}</strong>` : '갱신 전'}
+          </span>
+          <button class="btn btn--sm" type="button" data-lv-refresh aria-label="새로고침">
+            ${(window.Icons && window.Icons.refresh) || '↻'} 새로고침
+          </button>
+        </div>`;
+      const segTab = (key, label, active) => `<button type="button" class="tabs__tab ${active ? 'is-active' : ''}" data-lv-comp-mode="${key}">${label}</button>`;
+      const modeToggle = `
+        <div style="flex:1;display:flex;justify-content:center;">
+          <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
+            <div class="tabs__nav">
+              ${segTab('week', '주간', cm === 'week') + segTab('month', '월간', cm === 'month') + segTab('year', '연간', cm === 'year')}
+            </div>
+          </div>
+        </div>`;
+      const periodCtrl = companyYear
+        ? `<span class="att-tb__title" style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">${STATE.year}년</span>`
+        : App.YmPicker.html({ name: 'comp', ym: STATE.compYm, todayYm: App.AttStatus.TODAY.slice(0, 7) });
+      const navAria = companyYear ? ['이전 해', '다음 해'] : isWeek ? ['이전 주', '다음 주'] : ['이전 달', '다음 달'];
+      let weekLabel = '';
+      if (isWeek) {
+        const mon = compWeekMonday();
+        const wk = weekOfMonthInfo(mon);
+        weekLabel = `<div class="att-tb__weekrange">${esc(fmtYM2(wk.ym))} ${wk.week}주차 · ${esc(fmtYMD(mon))} ~ ${esc(fmtYMD(addDaysISO(mon, 6)))}</div>`;
+      }
+      return `
+        <div class="att-tb">
+          <div class="att-tb__left">
+            ${periodCtrl}
+            <div class="att-tb__nav">
+              <button type="button" data-lv-comp-prev aria-label="${navAria[0]}">‹</button>
+              <button type="button" data-lv-comp-today>오늘</button>
+              <button type="button" data-lv-comp-next aria-label="${navAria[1]}">›</button>
+            </div>
+            ${weekLabel}
+            ${chipHTML}
+          </div>
+          ${modeToggle}
+          <div class="att-tb__right">
+            ${refreshHTML}
+          </div>
+        </div>
+      `;
+    }
+
+    /* 팀원 / 부서 선택 — 기존 캘린더/대시보드 레이아웃 유지 */
     const leftHTML = !STATE.isManager
       ? `${monthNav}${chipHTML}`
-      : isDept
-        ? `${monthNav}${viewsHTML}${chipHTML}`
-        : `${yearNav}${chipHTML}`;
+      : `${monthNav}${viewsHTML}${chipHTML}`;   /* isDept */
     return `
       <div class="att-tb">
         <div class="att-tb__left">${leftHTML}</div>
@@ -239,22 +339,33 @@
   function _kpiUnit(t) {
     return `<small style="font-size:var(--fs-sm);font-weight:var(--fw-regular);color:var(--color-text-muted);margin-left:4px;">${esc(t)}</small>`;
   }
-  function renderKpi(rows) {
+  /* period 지정 시(전사 주간/월간/연간): 앞쪽에 '기간 사용' 카드를 덧붙이고, 연 발생/사용/잔여는 컨텍스트로 유지.
+     period = { label, days, halfCnt } | 미지정 시 연 기준 통계만(부서 대시보드 재사용). */
+  function renderKpi(rows, period) {
     const c = rows.reduce((a, x) => a + x.carry, 0);
     const g = rows.reduce((a, x) => a + x.granted, 0);
     const t = Number((c + g).toFixed(1));
     const u = Number(rows.reduce((a, x) => a + x.used, 0).toFixed(1));
     const r = Number((t - u).toFixed(1));
     const rate = t > 0 ? Math.round(u / t * 100) : 0;
-    const items = [
+    const periodItems = period ? [
+      { label: '대상 인원',        value: `${rows.length}${_kpiUnit('명')}`,   color: 'var(--color-brand-primary)' },
+      { label: '기간 사용 연차',   value: `${period.days}${_kpiUnit('일')}`,    color: 'var(--color-warning)' },
+      { label: '기간 반차',        value: `${period.halfCnt}${_kpiUnit('건')}`, color: 'var(--color-warning)' },
+    ] : [
       { label: '대상 인원',     value: `${rows.length}${_kpiUnit('명')}`, color: 'var(--color-brand-primary)' },
-      { label: '총 이월 잔여',  value: `${c}${_kpiUnit('일')}`,           color: 'var(--color-info)' },
-      { label: '총 당해 발생',  value: `${g}${_kpiUnit('일')}`,           color: 'var(--color-brand-primary)' },
-      { label: '총 연차',       value: `${t}${_kpiUnit('일')}`,           color: 'var(--color-brand-primary)' },
-      { label: '총 사용 연차',  value: `${u}${_kpiUnit('일')}`,           color: 'var(--color-warning)' },
-      { label: '총 잔여 연차',  value: `${r}${_kpiUnit('일')}`,           color: 'var(--color-success)' },
+    ];
+    /* 연 기준 컨텍스트 — period 유무와 무관하게 함께 노출 */
+    const yearItems = [
+      { label: period ? '연 이월 잔여' : '총 이월 잔여',  value: `${c}${_kpiUnit('일')}`,   color: 'var(--color-info)' },
+      { label: period ? '연 당해 발생' : '총 당해 발생',  value: `${g}${_kpiUnit('일')}`,   color: 'var(--color-brand-primary)' },
+      { label: period ? '연 총 연차'   : '총 연차',       value: `${t}${_kpiUnit('일')}`,   color: 'var(--color-brand-primary)' },
+      { label: period ? '연 사용 연차' : '총 사용 연차',  value: `${u}${_kpiUnit('일')}`,   color: 'var(--color-warning)' },
+      { label: period ? '연 잔여 연차' : '총 잔여 연차',  value: `${r}${_kpiUnit('일')}`,   color: 'var(--color-success)' },
       { label: '평균 사용률',   value: `${rate}${_kpiUnit('%')}`,         color: 'var(--color-text)' },
     ];
+    const items = periodItems.concat(yearItems);
+    const title = period ? `연차 통계 · ${esc(period.label)}` : '연차 통계';
     const open = STATE.statOpen;
     const arrowSvg = open
       ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
@@ -263,7 +374,7 @@
       <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);margin-bottom:14px;overflow:hidden;">
         <button type="button" data-lv-stat-toggle
           style="width:100%;display:flex;align-items:center;gap:8px;padding:10px 16px;border:0;background:transparent;cursor:pointer;text-align:left;border-bottom:${open ? '1px solid var(--color-divider)' : '0'};">
-          <strong style="font-size:var(--fs-sm);color:var(--color-text);">연차 통계</strong>
+          <strong style="font-size:var(--fs-sm);color:var(--color-text);">${title}</strong>
           <span style="flex:1;"></span>
           <span style="display:inline-flex;align-items:center;gap:4px;color:var(--color-text-muted);font-size:var(--fs-xs);">
             ${open ? '접기' : '펼치기'} ${arrowSvg}
@@ -279,9 +390,19 @@
   }
 
   /* ============ Views ============ */
-  /* 전사(C0) — 근태현황과 동일하게 부서별 요약으로 표시(부서명 클릭 시 해당 부서로 드릴다운) */
+  /* 전사(C0) — 주간/월간/연간 집계. '기간 사용' 중심 + 연 발생/잔여 컨텍스트. 부서명 클릭 시 드릴다운. */
   function renderAllView() {
     const { byEmp } = getLeave();
+    const { from, to } = compRange();
+    const label = compPeriodLabel();
+    /* 직원별 기간 사용 집계 (emp.id → { days, halfCnt, cnt }) */
+    const periodByEmp = {};
+    byEmp.forEach(r => { periodByEmp[r.emp.id] = leaveUsedInRange(r.emp, from, to); });
+    const period = {
+      label,
+      days:    Number(byEmp.reduce((a, r) => a + periodByEmp[r.emp.id].days, 0).toFixed(1)),
+      halfCnt: byEmp.reduce((a, r) => a + periodByEmp[r.emp.id].halfCnt, 0),
+    };
     const deptNames = [];
     byEmp.forEach(r => { if (!deptNames.includes(r.emp.dept)) deptNames.push(r.emp.dept); });
     const byDept = deptNames.map(name => {
@@ -291,21 +412,23 @@
       const used    = Number(rs.reduce((a, r) => a + r.used, 0).toFixed(1));
       const total   = Number((carry + granted).toFixed(1));
       const remain  = Number((total - used).toFixed(1));
-      return { name, count: rs.length, carry, granted, total, used, remain };
+      const periodDays = Number(rs.reduce((a, r) => a + periodByEmp[r.emp.id].days, 0).toFixed(1));
+      return { name, count: rs.length, carry, granted, total, used, remain, periodDays };
     });
     return `
-      ${renderKpi(byEmp)}
+      ${renderKpi(byEmp, period)}
       <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
       <div class="toolbar">
-        <div class="toolbar__left"><span class="toolbar__count">총 <strong>${byDept.length}</strong>개 부서</span></div>
+        <div class="toolbar__left"><span class="toolbar__count">총 <strong>${byDept.length}</strong>개 부서 · <strong>${esc(label)}</strong></span></div>
       </div>
       <div class="grid-wrap">
         <div class="grid-scroll">
-        <table class="tbl tbl--hover">
+        <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
           <thead>
             <tr>
               <th style="min-width:160px;">부서</th>
               <th style="width:64px;text-align:right;">인원</th>
+              <th style="width:96px;text-align:right;">기간 사용</th>
               <th style="width:90px;text-align:right;">이월 잔여</th>
               <th style="width:90px;text-align:right;">당해 발생</th>
               <th style="width:80px;text-align:right;">총 연차</th>
@@ -318,6 +441,7 @@
               <tr>
                 <td><a href="#" data-lv-dept-open="${esc(d.name)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(d.name)}</a></td>
                 <td style="text-align:right;">${d.count}</td>
+                <td style="text-align:right;color:var(--color-warning);font-weight:var(--fw-semibold);">${d.periodDays}일</td>
                 <td style="text-align:right;color:var(--color-info);">${d.carry}일</td>
                 <td style="text-align:right;">${d.granted}일</td>
                 <td style="text-align:right;font-weight:var(--fw-semibold);">${d.total}일</td>
@@ -414,7 +538,9 @@
     `;
   }
 
-  /* 신청 내역 탭 — 연차/휴가 신청 목록. 인사팀은 사용일자 도래 전 건을 승인/반려 수정 가능. */
+  /* 신청 내역 탭 — 연차/휴가 신청 목록.
+     인사팀 상태 변경 정책: 사용일 도래 전 + 이미 결재된(승인|반려) 건만 승인↔반려로 변경 가능.
+     (승인대기는 전자결재 흐름으로 처리 — 임의 변경 대상 아님) */
   function renderEmpAppsTab(me) {
     const A = App.AttStatus;
     const codeLabel = A.codeLabel || ((c) => c);
@@ -429,26 +555,36 @@
     const rows = n ? list.map((a, i) => {
       const stat = ST[a.status] || { label: a.status, tone: 'muted' };
       const dateCol = a.dateFrom === a.dateTo ? esc(fmtYMD(a.dateFrom)) : `${esc(fmtYMD(a.dateFrom))} ~ ${esc(fmtYMD(a.dateTo))}`;
-      /* 사용일자 도래 전(신청 시작일 > 오늘) + 인사팀이면 승인/반려 수정 가능 */
+      /* 상태 변경(승인↔반려) 가능 조건:
+         · 인사팀 + 연차 사용일(신청일)이 아직 도래하지 않음(dateFrom > 오늘) — 사용일 당일부터 잠금
+         · 이미 결재된 상태(승인|반려)만 — 승인대기는 전자결재 흐름으로 처리(임의 변경 대상 아님) */
       const beforeUse = (a.dateFrom || '') > TODAY;
-      const editable = canEdit && beforeUse;
-      const editCell = editable
-        ? `<div style="display:inline-flex;gap:4px;">
-             <button class="btn btn--xs btn--soft-success" type="button" data-lv-app-edit="${esc(a.id)}" data-lv-app-to="approved">승인</button>
-             <button class="btn btn--xs btn--soft-danger" type="button" data-lv-app-edit="${esc(a.id)}" data-lv-app-to="rejected">반려</button>
-           </div>`
-        : `<span class="t-muted" style="font-size:var(--fs-xs);">${beforeUse ? '' : '사용일자 경과'}</span>`;
+      const isDecided = a.status === 'approved' || a.status === 'rejected';
+      const editable = canEdit && beforeUse && isDecided;
+      const btnApprove = `<button class="btn btn--xs btn--soft-success" type="button" data-lv-app-edit="${esc(a.id)}" data-lv-app-to="approved">승인</button>`;
+      const btnReject  = `<button class="btn btn--xs btn--soft-danger" type="button" data-lv-app-edit="${esc(a.id)}" data-lv-app-to="rejected">반려</button>`;
+      /* 승인 → [반려]로 변경 / 반려 → [승인]으로 변경 (승인대기는 버튼 없음) */
+      const editBtns = editable ? (a.status === 'approved' ? btnReject : btnApprove) : '';
+      /* 처리 이력 — 처리 사유가 한 번이라도 기록되면 [이력] 버튼 노출(날짜 도래 후에도 조회 가능) */
+      const hasHist = !!(a.statusHistory && a.statusHistory.length);
+      const btnHist = hasHist ? `<button class="btn btn--xs" type="button" data-lv-app-hist="${esc(a.id)}" title="처리 이력 보기">이력</button>` : '';
+      let editCell;
+      if (editBtns || btnHist) {
+        editCell = `<div style="display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center;align-items:center;">${editBtns}${btnHist}</div>`;
+      } else {
+        editCell = `<span class="t-muted" style="font-size:var(--fs-xs);">${beforeUse ? '-' : '사용일자 경과'}</span>`;
+      }
       return `
         <tr class="is-clickable" data-lv-app-row="${esc(a.id)}">
           <td style="text-align:right;">${n - i}</td>
           <td>${esc(a.no)}</td>
+          <td style="text-align:center;"><a class="link-code" href="javascript:;" data-lv-app-doc="${esc(a.id)}" title="결재문서 보기">${esc(a.docNo || a.no)}</a></td>
           <td>${esc(a.codeLabel || codeLabel(a.code))}</td>
           <td style="white-space:nowrap;">${dateCol}</td>
           <td style="word-break:keep-all;overflow-wrap:anywhere;">${esc(a.reason)}</td>
           <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
-          <td style="word-break:keep-all;overflow-wrap:anywhere;">${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
+          <td style="word-break:keep-all;overflow-wrap:anywhere;">${(a.status === 'rejected' || a.status === 'approved') && a.statusReason ? esc(a.statusReason) : '<span class="t-muted">-</span>'}</td>
           <td style="white-space:nowrap;">${esc(a.submittedAt)}</td>
-          <td style="text-align:center;"><button class="btn btn--xs" type="button" data-lv-app-doc="${esc(a.id)}">상세</button></td>
           <td style="text-align:center;">${editCell}</td>
         </tr>`;
     }).join('') : `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
@@ -465,19 +601,19 @@
         <button class="btn btn--sm" type="button" data-lv-modal-apps-dl="${esc(me.emp.id)}" title="신청 내역 다운로드">${(window.Icons && window.Icons.download) || '↓'} 신청내역 다운로드</button>
       </div>
       <div style="overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface);">
-        <table class="tbl tbl--hover" style="min-width:1380px;table-layout:fixed;">
+        <table class="tbl tbl--hover" style="min-width:1420px;table-layout:fixed;">
           <thead>
             <tr>
               <th style="width:48px;text-align:right;">No</th>
               <th style="width:130px;">신청번호</th>
+              <th style="width:120px;text-align:center;">결재문서</th>
               <th style="width:130px;">종류</th>
               <th style="width:200px;white-space:nowrap;">신청 일자</th>
               <th style="width:220px;">사유</th>
               <th style="width:80px;text-align:center;">상태</th>
               <th style="width:220px;">상태 사유</th>
               <th style="width:150px;white-space:nowrap;">상신 일시</th>
-              <th style="width:56px;text-align:center;"></th>
-              <th style="width:116px;text-align:center;">상태 수정</th>
+              <th style="width:150px;text-align:center;">상태 수정</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -521,6 +657,9 @@
       /* 인사팀 — 승인/반려 수정 → 사유 입력 모달 */
       const edit = e.target.closest('[data-lv-app-edit]');
       if (edit) { e.stopPropagation(); openReasonModal(edit.dataset.lvAppEdit, edit.dataset.lvAppTo); return; }
+      /* 처리 이력 보기 */
+      const histBtn = e.target.closest('[data-lv-app-hist]');
+      if (histBtn) { e.stopPropagation(); openHistModal(histBtn.dataset.lvAppHist); return; }
       /* 신청 내역 탭 — 다운로드(표시 전체) */
       const mApps = e.target.closest('[data-lv-modal-apps-dl]');
       if (mApps) { e.preventDefault(); dlLeaveApps(mApps.dataset.lvModalAppsDl, false); return; }
@@ -616,13 +755,81 @@
     modal.querySelector('[data-lvr-title]').textContent = isApprove ? '상태 수정 사유 입력' : '반려 사유 입력';
     modal.querySelector('[data-lvr-hint]').textContent = isApprove ? '승인으로 수정합니다.' : '반려로 수정합니다.';
     const input = modal.querySelector('[data-lvr-input]');
-    /* 기존 사유가 있으면 미리 채워 재수정 편의 제공 */
-    const app = (App.AttStatus.appsForEmp(STATE.modalEmpId) || []).find(a => a.id === appId);
-    input.value = (app && app.statusReason) || '';
+    /* 처리마다 새 사유를 입력받는다(직전 사유는 처리 이력에 보존됨) — 입력값은 비워서 시작 */
+    input.value = '';
     if (App.Forms && App.Forms.clearAll) App.Forms.clearAll(modal);
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
     setTimeout(() => input.focus(), 0);
+  }
+
+  /* ============ 처리 이력 모달 — 처리자 / 처리일시 / 처리결과 / 처리사유 ============
+     상태 수정(승인/반려)이 기록될 때마다 statusHistory 에 최신순으로 쌓인다. */
+  /* 표시 전용 — 'YYYY-MM-DD HH:MM' → 'YY/MM/DD   HH:MM'(공백 3칸, SWADPIA §1 일시) */
+  function fmtDT(s) {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/);
+    if (!m) return s == null ? '' : s;
+    const d = `${m[1].slice(2)}/${m[2]}/${m[3]}`;
+    return m[4] ? `${d}   ${m[4]}` : d;
+  }
+  function renderHistBody(app) {
+    const ST = (App.AttStatus && App.AttStatus.APP_STATUSES) || {};
+    const hist = (app && app.statusHistory) || [];
+    if (!hist.length) return `<div style="text-align:center;padding:36px;color:var(--color-text-muted);">처리 이력이 없습니다.</div>`;
+    const rows = hist.map(h => {
+      const stat = ST[h.status] || { label: h.status, tone: 'muted' };
+      return `
+        <tr>
+          <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
+          <td style="white-space:nowrap;">${esc(h.by || '-')}</td>
+          <td style="white-space:nowrap;">${esc(fmtDT(h.at))}</td>
+          <td style="word-break:keep-all;overflow-wrap:anywhere;">${esc(h.reason || '-')}</td>
+        </tr>`;
+    }).join('');
+    return `
+      <table class="tbl" style="width:100%;table-layout:fixed;">
+        <thead>
+          <tr>
+            <th style="width:84px;text-align:center;">처리 결과</th>
+            <th style="width:110px;">처리자</th>
+            <th style="width:150px;">처리일시</th>
+            <th>처리 사유</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+  function ensureHistModal() {
+    if (document.getElementById('lv-hist-modal')) return;
+    const html = `
+<div class="modal-backdrop" id="lv-hist-modal" data-modal-id="lv-hist-modal" style="z-index:1300;">
+  <div class="modal" style="width:90vw;max-width:600px;display:flex;flex-direction:column;">
+    <div class="modal__header">
+      <div class="modal__title" data-lvh-title>처리 이력</div>
+      <button class="modal__close" type="button" data-lvh-close aria-label="닫기">✕</button>
+    </div>
+    <div class="modal__body" data-lvh-body style="padding:18px;max-height:60vh;overflow:auto;"></div>
+  </div>
+</div>`;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    const modal = document.getElementById('lv-hist-modal');
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.closest('[data-lvh-close]')) {
+        modal.classList.remove('is-open');
+        if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
+      }
+    });
+  }
+  function openHistModal(appId) {
+    ensureHistModal();
+    const app = ((App.AttStatus.appsForEmp && App.AttStatus.appsForEmp(STATE.modalEmpId)) || []).find(a => a.id === appId);
+    const modal = document.getElementById('lv-hist-modal');
+    modal.querySelector('[data-lvh-title]').textContent = `처리 이력${app ? ` (${app.no})` : ''}`;
+    modal.querySelector('[data-lvh-body]').innerHTML = renderHistBody(app);
+    modal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
   }
 
   /* 직원 1명의 연차 신청내역 CSV 다운로드. approvedOnly=true 시 '승인'건만. */
@@ -657,12 +864,11 @@
         </div>
         <div class="grid-wrap">
           <div class="grid-scroll">
-            <table class="tbl tbl--hover">
+            <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
               <thead>
                 <tr>
                   <th style="width:100px;">사번</th>
                   <th style="width:160px;">성명</th>
-                  <th style="width:70px;">직책</th>
                   <th style="width:90px;text-align:right;">이월 잔여</th>
                   <th style="width:90px;text-align:right;">당해 발생</th>
                   <th style="width:80px;text-align:right;">총 연차</th>
@@ -679,10 +885,15 @@
                       <div data-lv-emp-open="${esc(r.emp.id)}" style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;">
                         <span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((r.emp.name || '').slice(0, 1))}</span>
                         <span style="font-weight:var(--fw-medium);white-space:nowrap;color:var(--color-brand-primary);">${esc(r.emp.name)}</span>
-                        ${(r.emp.dept || r.emp.rank) ? `<span style="display:inline-flex;align-items:center;">${r.emp.dept ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.dept)}</span>` : ''}${(r.emp.dept && r.emp.rank) ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 3px;">·</span>` : ''}${r.emp.rank ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(r.emp.rank)}</span>` : ''}</span>` : ''}
+                        ${(() => {   /* 팀·직위·직책 — 구두점 앞뒤 여백 없이 */
+                          const parts = [r.emp.dept, r.emp.rank, r.emp.position].filter(Boolean).map(esc);
+                          if (!parts.length) return '';
+                          const item = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
+                          const dot = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>`;
+                          return `<span style="display:inline-flex;align-items:center;">${parts.map(item).join(dot)}</span>`;
+                        })()}
                       </div>
                     </td>
-                    <td style="white-space:nowrap;">${esc(r.emp.position || '-')}</td>
                     <td style="text-align:right;color:var(--color-info);">${r.carry}일</td>
                     <td style="text-align:right;">${r.granted}일</td>
                     <td style="text-align:right;font-weight:var(--fw-semibold);">${r.total}일</td>
@@ -845,9 +1056,10 @@
     if (pageEl.dataset.lvBound === '1') return;
     pageEl.dataset.lvBound = '1';
 
-    /* 연/월 피커(App.YmPicker) 월 선택 — 부서/팀원 캘린더 뷰 */
+    /* 연/월 피커(App.YmPicker) 월 선택 — 부서/팀원 캘린더 뷰(cal), 전사 주간/월간 집계(comp) */
     pageEl.addEventListener('ympick:change', e => {
-      if (e.detail.name === 'cal') { STATE.calYm = e.detail.ym; renderAll(pageEl); }
+      if (e.detail.name === 'cal')  { STATE.calYm = e.detail.ym; renderAll(pageEl); }
+      if (e.detail.name === 'comp') { setCompMonth(e.detail.ym); renderAll(pageEl); }
     });
 
     pageEl.addEventListener('click', e => {
@@ -880,10 +1092,44 @@
       if (e.target.closest('[data-lv-cal-next]'))  { STATE.calYm = shiftMonth(STATE.calYm, +1); renderAll(pageEl); return; }
       if (e.target.closest('[data-lv-cal-today]')) { STATE.calYm = '2026-05'; renderAll(pageEl); return; }
 
-      /* 전사(C0) 연도 이동 — 과거 연차현황 탐색 */
-      if (e.target.closest('[data-lv-year-prev]'))  { STATE.year -= 1; renderAll(pageEl); return; }
-      if (e.target.closest('[data-lv-year-next]'))  { STATE.year += 1; renderAll(pageEl); return; }
-      if (e.target.closest('[data-lv-year-today]')) { STATE.year = 2026; renderAll(pageEl); return; }
+      /* 수동 새로고침 — 연차 캐시 비우고 통계 재계산 (부서별 근태현황과 동일) */
+      if (e.target.closest('[data-lv-refresh]')) {
+        STATE.leave = null;
+        STATE.lastRefreshAt = nowHMS();
+        renderAll(pageEl);
+        window.toast && window.toast('연차 통계를 갱신했습니다.', 'success');
+        return;
+      }
+
+      /* 전사(C0) 집계 기간 토글 — 주간 | 월간 | 연간 */
+      const compMode = e.target.closest('[data-lv-comp-mode]');
+      if (compMode) {
+        STATE.companyMode = compMode.dataset.lvCompMode;
+        if (STATE.companyMode === 'week') STATE.compWeekMonday = null;   /* 조회월 기준 기본 주로 초기화 */
+        renderAll(pageEl);
+        return;
+      }
+
+      /* 전사(C0) 기간 이동 — 모드에 따라 주/월/연 단위 */
+      const cm = STATE.companyMode;
+      if (e.target.closest('[data-lv-comp-prev]')) {
+        if (cm === 'year')      STATE.year -= 1;
+        else if (cm === 'week') STATE.compWeekMonday = addDaysISO(compWeekMonday(), -7);
+        else                    setCompMonth(shiftMonth(STATE.compYm, -1));
+        renderAll(pageEl); return;
+      }
+      if (e.target.closest('[data-lv-comp-next]')) {
+        if (cm === 'year')      STATE.year += 1;
+        else if (cm === 'week') STATE.compWeekMonday = addDaysISO(compWeekMonday(), +7);
+        else                    setCompMonth(shiftMonth(STATE.compYm, +1));
+        renderAll(pageEl); return;
+      }
+      if (e.target.closest('[data-lv-comp-today]')) {
+        const today = todayISO();
+        STATE.year = Number(today.slice(0, 4));
+        setCompMonth(today.slice(0, 7));
+        renderAll(pageEl); return;
+      }
 
       /* 좌측 조직도 — 임직원 관리와 동일 트리. 노드 클릭 시 data-id 로 선택 부서 전환 */
       const treeNode = e.target.closest('.tree__node[data-id]');

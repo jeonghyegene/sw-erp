@@ -402,7 +402,7 @@
           App.HRInfoCard.open(Object.assign({
             id: row.empId, name: row.empName, dept: row.empDept,
             rank: row.empRank, position: row.empPosition, job: row.empJob,
-            empType: 'regular', jobCat: 'office', site: '본사', infoStatus: 'done',
+            empType: 'regular', jobCat: 'office', site: '성수동', infoStatus: 'done',
           }, member || {}));
         }
         return;
@@ -438,7 +438,7 @@
       ? `<tr><td colspan="9" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">조건에 해당하는 발령이 없습니다.</td></tr>`
       : rows.map(r => {
           const sel = STATE.selectedIds.has(r.id);
-          /* 성명 셀 — 인감 사용 화면 패턴: 24x24 사진 + 이름 + 직책(나란히). photo 는 EMPLOYEES master 에서 조회. */
+          /* 성명 셀 — 24x24 사진 + 이름만 (부제 회색글씨 없음). photo 는 EMPLOYEES master 에서 조회. */
           const member = EMPLOYEES.find(e => e.id === r.empId) || null;
           const photo = (member && member.photoUrl) || '';
           const avatarHTML = photo
@@ -453,7 +453,6 @@
                 <div style="display:flex;align-items:center;gap:6px;">
                   ${avatarHTML}
                   <a href="#" data-apt-emp-card style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(r.empName)}</a>
-                  ${r.empPosition ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);margin-left:2px;">${esc(r.empPosition)}</span>` : ''}
                 </div>
               </td>
               <td>${esc(r.contentText)}</td>

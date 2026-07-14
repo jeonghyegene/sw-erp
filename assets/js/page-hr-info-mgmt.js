@@ -92,6 +92,10 @@
   const JOB_CAT_LABEL  = { office:  '사무직', production: '생산직', research: '연구직' };
   /* 외부 인력 — 도급은 직접 고용이 아니라 계약 N/A 처리 */
   const EXTERNAL_EMP_TYPES = ['outsourced'];
+  /* 계정 등록 안내 재발송 정책 — 하루 2회 + 재발송 간 5분 쿨다운.
+   *   (OTP 가 아니라 온보딩 안내 문자라 짧은 쿨다운. 번호 수정 후 재발송 케이스를 막지 않도록 시간 단위 X) */
+  const RESEND_DAILY_MAX  = 2;
+  const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
   /* 계약직 세부유형 — 빈 문자열('') = 일반 계약직 / chotak = 촉탁 / intern = 인턴 */
   const CONTRACT_SUB_LABEL = { chotak: '촉탁', intern: '인턴' };
 
@@ -206,131 +210,209 @@
   ];
 
   function makeMock() {
-    const names = ['서준호','이서연','박민준','최예린','정현우','한지수','오민서','윤도현','강나래','조하늘',
-                   '서지원','문성호','임유나','신예원','권상우','류재훈','홍수아','배준석','노은서','전민재',
-                   '백지윤','구도윤','남윤서','심하준','진보영','피현재','왕서준','반지호','채영호','목은비'];
-    /* 시드 분포 — progress 정수로 어느 마일스톤까지 도달했는지 표현.
-     *   0=registered, 1=mailSent, 2=idDone, 3=infoDone, 4=contractSent, 5=contractSigned, 6=docsSent, 7=docsSubmitted
-     *   normalizeStatus 가 마지막에 isComplete()/마일스톤 기반으로 메인 status 를 보정. */
-    const fails = ['', '', '', '', 'badEmail', 'rejected', 'systemError'];
-    const today = new Date();
-    const empTypes = ['regular','regular','regular','contract','contract','daily'];
-    const jobCats  = ['office','office','production','production','research'];
-    const hrUsers  = ['정혜진','윤민지','정혜진','정혜진','윤민지'];
-    /* 데모용 부서 배정 — 개발팀 10명(임직원 현황 카드 자동 맞춤: 한 열 6명+ 검증용).
-       i<11 인 11명을 개발팀에 두되, 뒤의 seedJunghyunwoo() 가 '정현우'(i=4)를 인사팀으로
-       빼가므로 실질 개발팀은 10명이 된다. 나머지는 개발팀 제외 부서에 균등 배분. */
-    const otherDepts = MASTER.depts.filter(d => d && d !== '개발팀');
-    return names.map((nm, i) => {
-      const progress = i % 8;  // 0~7 — 마일스톤 진행도
-      /* 외부 인력 분포: i % 4 === 0 → 도급직.
-       *   isOut = 외부 인력 여부 (계약 N/A 처리용 호환 플래그) */
-      const isOutsourced = (i % 4 === 0);
-      const isOut = isOutsourced;
-      /* 마일스톤 도달 여부 */
-      const reached_mailSent       = progress >= 1;
-      const reached_idDone         = progress >= 2;
-      const reached_infoDone       = progress >= 3;
-      const reached_contractSent   = progress >= 4 && !isOut;   // 도급은 계약 단계 스킵
-      const reached_contractSigned = progress >= 5 && !isOut;
-      const reached_docsSent       = progress >= 6;
-      const reached_docsSubmitted  = progress >= 7;
-      /* 이메일 발송 실패 — mailSent 단계에 머무는 행만 (idDone 이상은 정상 전이) */
-      const failCode = (progress === 1) ? fails[i % fails.length] : '';
-      const back = (i * 3) % 90;
-      const join = new Date(today.getTime() - back * 86400000);
-      const regBack = back + (i % 4) + 1;
-      const reg  = new Date(today.getTime() - regBack * 86400000);
-      const ymd = (d) => d.toISOString().slice(0, 10);
-      const emailSentDate = reached_mailSent ? ymd(new Date(join.getTime() - 86400000 * 7)) : '';
-      const contractSentDate = reached_contractSent ? ymd(new Date(join.getTime() - 86400000 * 3)) : '';
-      const docsSentDate = reached_docsSent ? ymd(new Date(join.getTime() - 86400000 * 1)) : '';
-      const sender = hrUsers[i % hrUsers.length];
-      /* 아이디설정완료 이상이면 본인이 설정한 로그인 아이디 보유 */
-      const userId = reached_idDone ? `${nm.replace(/[가-힣]/g,'u')}${i}` : '';
-      /* 프로필 사진 — MOCK_PHOTO_URL[i] 매핑.
-         빈 문자열이면 자동으로 성(姓) 이니셜 + 색상 placeholder 렌더.
-         실 서비스에서는 회사 사진 마스터(인사정보 입력 단계의 사진 업로드) 로 교체. */
-      const gender = i % 2 === 0 ? 'M' : 'F';
-      const photoUrl = MOCK_PHOTO_URL[i] || '';
-      const yy = String(join.getFullYear()).slice(-2);
-      const mm = String(join.getMonth() + 1).padStart(2,'0');
-      const dd = String(join.getDate()).padStart(2,'0');
-      /* 외부 인력은 empType 자체를 outsourced 로 설정 (4분류 모델) */
-      let empType = empTypes[i % empTypes.length];
-      if (isOutsourced) empType = 'outsourced';
-      /* 인사정보 등록 상태: infoDone 이상 = done, idDone = progress, 그 이전 = none */
-      let infoStatus = 'none';
-      if (reached_infoDone) infoStatus = 'done';
-      else if (reached_idDone) infoStatus = 'progress';
-      /* 계약 서명 — 도급직은 계약 없음 (둘 다 false 유지) */
-      let contractLabor = false, contractWage = false;
-      if (reached_contractSigned) {
-        contractLabor = true;
-        /* 임금계약 — 일용직(시급제) 포함 전 사원 대상. 도급직만 위에서 제외. 약 2/3 비율로 서명완료 (다양성) */
-        contractWage = (i % 3 !== 2);
-      }
-      /* 서류 발송 건수 — docsSent 도달 시 1~5건, docsSubmitted 도달 시 5건 전부 */
-      const docsSent = reached_docsSubmitted ? 5
-                     : reached_docsSent ? ((i % 5) + 1)
-                     : 0;
-      const docSigned = reached_docsSubmitted ? docsSent
-                      : reached_docsSent ? Math.max(0, docsSent - ((i % 3)))
-                      : 0;
-
-      return {
-        id: `SW${yy}${mm}${dd}${String(1 + (i % 30)).padStart(2,'0')}`,
-        fname: nm.charAt(0),
-        gname: nm.slice(1),
-        name:  nm,
-        nameFlip: false,
-        cname: '',
-        ename: '',
-        dept:     (i < 11) ? '개발팀' : otherDepts[i % otherDepts.length],
-        job:      MASTER.jobs [1 + (i % (MASTER.jobs.length  - 1))],
-        rank:     MASTER.ranks[1 + (i % (MASTER.ranks.length - 1))],
-        position: MASTER.positions[1 + (i % (MASTER.positions.length - 1))],
-        joinDate: ymd(join),
-        registeredAt: ymd(reg),
-        registeredBy: hrUsers[i % hrUsers.length],
-        phone:    `010-${String(1000 + (i*37 % 8999)).padStart(4,'0')}-${String(1000 + (i*53 % 8999)).padStart(4,'0')}`,
-        email:    `${nm.replace(/[가-힣]/g,'u')}${i}@company.co.kr`,
-        innerTel: '',
-        birth: '1990-' + String((i % 12) + 1).padStart(2,'0') + '-' + String((i % 27) + 1).padStart(2,'0'),
-        gender,
-        photoUrl,
-        status:   'registered',   // 임시값 — makeMock 후 normalizeStatus 가 마일스톤 기반으로 보정
-        sentDate: emailSentDate,  // 이메일 발송일 (기존 호환)
-        emailSentDate, emailSentBy: emailSentDate ? sender : '',
-        contractSentDate, contractSentBy: contractSentDate ? sender : '',
-        docsSentDate,     docsSentBy:     docsSentDate     ? sender : '',
-        mailFailCode: failCode,
-        empType,
-        /* 계약직만 세부유형 보유 — 분포: 일반 5/7, 촉탁 1/7, 인턴 1/7 */
-        contractSubType: empType === 'contract'
-          ? (i % 7 === 0 ? 'chotak' : (i % 7 === 1 ? 'intern' : ''))
-          : '',
-        contractOut: isOut,
-        /* 도급직 소속회사 — 도급직만 값 부여 (근무 정보 카드 표시용). 그 외는 빈 문자열 */
-        contractCompany: isOut ? MASTER.contractCompanies[i % MASTER.contractCompanies.length] : '',
-        jobCat: jobCats[i % jobCats.length],
-        site: MASTER.sites[1 + (i % (MASTER.sites.length - 1))],
-        userId,             // 본인 설정 로그인 아이디 (아이디설정완료 이상)
-        infoStatus,         // 'none' | 'progress' | 'done'
-        contractLabor,      // 근로계약서 서명완료 여부
-        contractWage,       // 임금계약서 서명완료 여부
-        docsSent,           // 입사서류 5종 중 발송된 건수 (0~5)
-        docSigned,          // 발송된 것 중 서명완료 건수
-        contractEndDate: '',      // 계약직 종료일 — 아래 2차 패스에서 채움
-        // 본인 제출 정보 (Drawer 작성 섹션) — 데모용 비어있음
-        ssn: reached_infoDone ? '900101-1******' : '',
-        /* 수습 — 직접 고용 + 정규직 한정. 도급직(isOut)은 수습 개념 자체 없음.
-         *   데모: 직접 고용 정규직 중 약 1/3 이 수습 적용 */
-        probation: empType === 'regular' && !isOut && (i % 3 === 0),
-        probationStart: empType === 'regular' && !isOut && (i % 3 === 0) ? ymd(join) : '',
-        probationEnd:   empType === 'regular' && !isOut && (i % 3 === 0) ? addMonths(ymd(join), 3) : '',
-      };
-    });
+    /* ============ 데모 시드 — 임직원 현황 직원 DB (고용형태 대표 5명) ============
+     *   기존 30명 시드를 제거하고, 고용형태별 대표 5명만 시드한다.
+     *   전원 계정 등록완료 + 근로/임금 계약 서명완료 상태 (도급직은 계약 해당없음).
+     *     · 정규직 — 정규직        (개발팀 · 과장)
+     *     · 정수습 — 정규직(수습)   (홍보팀 · 사원)
+     *     · 정일용 — 일용직        (생산본부 · 시급제)
+     *     · 김도급 — 도급직        (외부 인력 → 근로/임금 계약 해당없음)
+     *     · 하계약 — 계약직        (재무팀 · 대리 · 기간제)
+     *   부서·직위·직책·직무는 마스터에서 임의 배정.
+     *   status='registered' 는 임시값 — 하단 normalizeStatus 가 isComplete() 통과로 'completed' 보정.
+     *   임금 금액(연봉/기본급 등)은 하단 seedWageContract() 가 직위 기준으로 자동 채움. */
+    const HR = '정혜진';
+    /* 공통 완료 필드 — 근로계약(발송·서명) / 임금계약(서명) / 입사서류(5종 제출) 완료 상태 기본값 */
+    function base(o) {
+      return Object.assign({
+        nameFlip: false, cname: '', ename: '', innerTel: '',
+        registeredBy: HR,
+        infoStatus: 'done',
+        contractSentBy: HR,
+        docsSent: 5, docSigned: 5, docsSentBy: HR,
+        emailSentBy: HR,
+        mailFailCode: '',
+        contractSubType: '',
+        contractOut: false, contractCompany: '',
+        probation: false, probationStart: '', probationEnd: '',
+        ssn: '900101-1******',
+        onLeave: false,
+        contractLabor: true, contractWage: true,
+        /* 계정 등록 / 승인 워크플로 (임직원 관리 그리드 컬럼)
+         *   acctReg  : 'waiting'(대기중) | 'done'(등록완료)
+         *   approval : 'none'(-) | 'pending'(승인 대기 → 승인/반려) | 'approved'(승인완료) | 'rejected'(반려)
+         *   resendHistory : [{ at, reason, by }] — 계정 등록 안내 재발송 이력 */
+        acctReg: 'done', approval: 'approved', resendHistory: [],
+        /* 근무 상세 — isContractInfoComplete 통과용 (통상근무 09~18 / 휴게 12~13) */
+        workSchedule: 'fixed',
+        workTimeStart: '09:00', workTimeEnd: '18:00',
+        breakStart: '12:00', breakEnd: '13:00',
+        hoursPerDay: 8, hoursPerWeek: 40, hoursPerMonth: 209,
+        status: 'registered',
+      }, o);
+    }
+    /* 재발송 이력 레코드 — 표시용 at(YY/MM/DD   HH:MM) + 정렬/한도 계산용 ts(epoch) 동시 생성 */
+    function rh(iso, reason, by) {
+      const d = new Date(iso);
+      const p = (n) => String(n).padStart(2, '0');
+      const at = `${String(d.getFullYear()).slice(-2)}/${p(d.getMonth() + 1)}/${p(d.getDate())}   ${p(d.getHours())}:${p(d.getMinutes())}`;
+      return { at, ts: d.getTime(), reason, by };
+    }
+    const rows = [
+      base({
+        id: 'SW23030201', name: '정규직', fname: '정', gname: '규직', gender: 'M',
+        dept: '개발팀', job: '개발', rank: '과장', position: '팀원', jobCat: 'research', site: '성수동',
+        empType: 'regular',
+        joinDate: '2023-03-02', registeredAt: '2023-02-25',
+        phone: '010-2431-8842', email: 'jung.jg@company.co.kr', birth: '1988-04-12',
+        photoUrl: 'assets/img/employees/m01.png', userId: 'jung.jg',
+        emailSentDate: '2023-02-20',
+        contractStartDate: '2023-03-02', contractEndDate: '',   // 정규직 무기계약
+        contractSentDate: '2023-02-27', docsSentDate: '2023-03-01',
+      }),
+      base({
+        id: 'SW26050401', name: '정수습', fname: '정', gname: '수습', gender: 'F',
+        dept: '홍보팀', job: '디자인', rank: '사원', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'regular',
+        joinDate: '2026-05-04', registeredAt: '2026-04-28',
+        phone: '010-5567-1290', email: 'jung.ss@company.co.kr', birth: '1998-09-23',
+        photoUrl: 'assets/img/employees/f01.png', userId: 'jung.ss',
+        ssn: '980923-2******',
+        emailSentDate: '2026-04-24',
+        contractStartDate: '2026-05-04', contractEndDate: '',   // 정규직(수습) 무기계약
+        contractSentDate: '2026-04-30', docsSentDate: '2026-05-03',
+        probation: true, probationStart: '2026-05-04', probationEnd: '2026-08-04',
+      }),
+      base({
+        id: 'SW26060101', name: '정일용', fname: '정', gname: '일용', gender: 'M',
+        dept: '생산본부', job: '생산관리', rank: '사원', position: '팀원', jobCat: 'production', site: '하남',
+        empType: 'daily',
+        joinDate: '2026-06-01', registeredAt: '2026-05-28',
+        phone: '010-3382-7741', email: 'jung.iy@company.co.kr', birth: '1995-02-08',
+        photoUrl: 'assets/img/employees/m02.png', userId: 'jung.iy',
+        emailSentDate: '2026-05-24',
+        contractStartDate: '2026-06-01', contractEndDate: '2026-12-31',   // 일용직 기간제
+        contractSentDate: '2026-05-29', docsSentDate: '2026-05-31',
+      }),
+      base({
+        id: 'SW26041501', name: '김도급', fname: '김', gname: '도급', gender: 'M',
+        dept: '생산본부', job: '품질관리', rank: '주임', position: '파트원', jobCat: 'production', site: '인현동',
+        empType: 'outsourced',
+        joinDate: '2026-04-15', registeredAt: '2026-04-10',
+        phone: '010-9921-4408', email: 'kim.dg@company.co.kr', birth: '1992-11-30',
+        photoUrl: 'assets/img/employees/m03.png', userId: 'kim.dg',
+        emailSentDate: '2026-04-06',
+        /* 도급직 — 외부 인력. 근로/임금 계약 해당없음. 계정등록 + 정보등록으로 「완료」 */
+        contractLabor: false, contractWage: false,
+        contractOut: true, contractCompany: '(주)성원파트너스',
+        contractStartDate: '2026-04-15', contractEndDate: '2027-04-14',
+        contractSentDate: '', docsSentDate: '2026-04-14',
+      }),
+      base({
+        id: 'SW25010601', name: '하계약', fname: '하', gname: '계약', gender: 'F',
+        dept: '재무팀', job: '재무', rank: '대리', position: '팀원', jobCat: 'office', site: '성수동',
+        empType: 'contract',
+        joinDate: '2025-01-06', registeredAt: '2024-12-30',
+        phone: '010-7714-3025', email: 'ha.ga@company.co.kr', birth: '1991-07-17',
+        photoUrl: 'assets/img/employees/f02.png', userId: 'ha.ga',
+        ssn: '910717-2******',
+        emailSentDate: '2024-12-26',
+        contractStartDate: '2025-01-06', contractEndDate: '2027-01-05',   // 계약직 기간제
+        contractSentDate: '2025-01-02', docsSentDate: '2025-01-05',
+      }),
+      /* ============ 온보딩 진행 6명 — 계정 등록 → 승인 워크플로 데모 ============
+       *   계정 미등록/등록완료 · 승인 대기/완료/반려 상태를 그리드에서 확인하기 위한 시드.
+       *   근로/임금 계약 이전 단계라 계약 필드는 비우고 docs 도 미발송(0). */
+      base({
+        id: 'SW26071401', name: '김규직', fname: '김', gname: '규직', gender: 'M',
+        dept: '개발팀', job: '개발', rank: '사원', position: '팀원', jobCat: 'research', site: '성수동',
+        empType: 'regular',
+        joinDate: '2026-07-20', registeredAt: '2026-07-14',
+        phone: '010-4402-1187', email: 'kim.gj@company.co.kr', birth: '1996-03-14',
+        photoUrl: '', userId: '', infoStatus: 'progress',
+        emailSentDate: '2026-07-14',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        acctReg: 'waiting', approval: 'none',
+        resendHistory: [
+          rh('2026-07-14T09:12:00', '입력하신 이메일 주소 오류로 미수신 — 휴대폰으로 재안내', '정혜진'),
+        ],
+      }),
+      base({
+        id: 'SW26071301', name: '김수습', fname: '김', gname: '수습', gender: 'F',
+        dept: '홍보팀', job: '디자인', rank: '사원', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'regular',
+        joinDate: '2026-07-21', registeredAt: '2026-07-13',
+        phone: '010-5518-9930', email: 'kim.ss@company.co.kr', birth: '1999-11-02', ssn: '991102-2******',
+        photoUrl: '', userId: '', infoStatus: 'progress',
+        emailSentDate: '2026-07-13',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        probation: true,
+        acctReg: 'waiting', approval: 'none',
+        resendHistory: [
+          rh('2026-07-14T10:05:00', '가입 기한 임박 재안내', '정혜진'),
+          rh('2026-07-13T14:30:00', '안내 메일 미확인 상태 — 재발송', '윤민지'),
+        ],
+      }),
+      base({
+        id: 'SW26071204', name: '송계약', fname: '송', gname: '계약', gender: 'M',
+        dept: '재무팀', job: '재무', rank: '대리', position: '팀원', jobCat: 'office', site: '성수동',
+        empType: 'contract',
+        joinDate: '2026-07-15', registeredAt: '2026-07-12',
+        phone: '010-6621-4471', email: 'song.gy@company.co.kr', birth: '1993-05-28',
+        photoUrl: '', userId: 'song.gy', infoStatus: 'done',
+        emailSentDate: '2026-07-12',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        acctReg: 'done', approval: 'pending',
+      }),
+      base({
+        id: 'SW26071203', name: '하도급1', fname: '하', gname: '도급1', gender: 'M',
+        dept: '생산본부', job: '품질관리', rank: '주임', position: '파트원', jobCat: 'production', site: '하남',
+        empType: 'outsourced',
+        joinDate: '2026-07-15', registeredAt: '2026-07-12',
+        phone: '010-7712-3320', email: 'ha.dg1@company.co.kr', birth: '1990-08-19',
+        photoUrl: '', userId: 'ha.dg1', infoStatus: 'done',
+        emailSentDate: '2026-07-12',
+        contractOut: true, contractCompany: '(주)성원로지스',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        acctReg: 'done', approval: 'pending',
+      }),
+      base({
+        id: 'SW26071202', name: '하도급2', fname: '하', gname: '도급2', gender: 'F',
+        dept: '생산본부', job: '생산관리', rank: '사원', position: '파트원', jobCat: 'production', site: '인현동',
+        empType: 'outsourced',
+        joinDate: '2026-07-13', registeredAt: '2026-07-10',
+        phone: '010-8830-5567', email: 'ha.dg2@company.co.kr', birth: '1994-01-07', ssn: '940107-2******',
+        photoUrl: '', userId: 'ha.dg2', infoStatus: 'done',
+        emailSentDate: '2026-07-10',
+        contractOut: true, contractCompany: '(주)성원테크',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        acctReg: 'done', approval: 'approved',
+      }),
+      base({
+        id: 'SW26071201', name: '하도급3', fname: '하', gname: '도급3', gender: 'M',
+        dept: '생산본부', job: '품질관리', rank: '사원', position: '파트원', jobCat: 'production', site: '충무로',
+        empType: 'outsourced',
+        joinDate: '2026-07-16', registeredAt: '2026-07-09',
+        phone: '010-9943-2201', email: 'ha.dg3@company.co.kr', birth: '1991-12-25',
+        photoUrl: '', userId: '', infoStatus: 'progress',
+        emailSentDate: '2026-07-09',
+        contractOut: true, contractCompany: '(주)성원파트너스',
+        contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
+        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        acctReg: 'waiting', approval: 'rejected',
+        resendHistory: [
+          rh('2026-07-11T16:45:00', '미가입 상태 재안내 (반려 검토 중)', '정혜진'),
+          rh('2026-07-09T11:20:00', '최초 안내 발송', '정혜진'),
+        ],
+      }),
+    ];
+    rows.forEach(r => { r.sentDate = r.emailSentDate; });   // 이메일 발송일 (기존 호환 필드)
+    return rows;
   }
 
   /* 계약만료 데모 보정 — 계약직 3건을 만료 상태로, 일반/촉탁/인턴 각 1건씩 노출.
@@ -431,7 +513,7 @@
     function ensureLaborFields(r) {
       r.jobCat = r.jobCat || 'office';
       r.job = r.job || '경영지원';
-      r.site = r.site || '본사';
+      r.site = r.site || '성수동';
       r.infoStatus = 'done';
       r.userId = r.userId || `${r.name.replace(/[가-힣]/g, 'u')}u`;
       r.ssn = r.ssn || '900101-1******';
@@ -676,18 +758,23 @@
       if (r.status === 'retired') return false;
       /* 트리 부서 필터 — 선택 부서 + 그 하위 부서의 사원만 통과 */
       if (treeDeptIds && !treeDeptIds.has(DEPT_NAME_TO_ID[r.dept] || '')) return false;
-      /* 계정 상태 — 계정등록(userId) 완료 여부로 판정 */
+      /* 계정 상태 — 등록완료(idDone) / 등록실패(반려) / 등록대기(그 외).
+         등록대기 필터에서는 반려(등록실패) 건을 제외한다. */
       if (accountVal === 'registered'   && !MILESTONES.idDone(r)) return false;
-      if (accountVal === 'unregistered' &&  MILESTONES.idDone(r)) return false;
-      /* 근로 계약 — 서명 상태 코드 매칭. 도급직(na) 은 어느 값에도 매칭 안 됨 → 자동 제외 */
+      if (accountVal === 'unregistered' && (MILESTONES.idDone(r) || r.approval === 'rejected')) return false;
+      if (accountVal === 'failed'       &&  r.approval !== 'rejected') return false;
+      /* 근로 계약 — 서명 상태 코드 매칭. unsigned(미발송)·signing(발송후 미서명) 은
+         사용자 표기상 모두 '서명대기(signing)' 로 정규화하여 함께 매칭. na 는 '해당없음' 값에만 매칭. */
       if (laborInfoVal) {
         const st = contractCellState(r, 'labor');
-        if (st.na || st.ctr.code !== laborInfoVal) return false;
+        const code = st.na ? 'na' : (st.ctr.code === 'unsigned' ? 'signing' : st.ctr.code);
+        if (code !== laborInfoVal) return false;
       }
-      /* 임금 계약 — 서명 상태 코드 매칭. 도급직(na) 자동 제외. 일용직은 시급제 대상 */
+      /* 임금 계약 — 위와 동일 규칙. 일용직은 시급제 대상. */
       if (wageInfoVal) {
         const st = contractCellState(r, 'wage');
-        if (st.na || st.ctr.code !== wageInfoVal) return false;
+        const code = st.na ? 'na' : (st.ctr.code === 'unsigned' ? 'signing' : st.ctr.code);
+        if (code !== wageInfoVal) return false;
       }
       if (empTypeVal && r.empType !== empTypeVal) return false;
       if (probationOnly && !r.probation) return false;
@@ -724,48 +811,49 @@
     return `<span style="color:var(--color-text-muted);">-</span>`;
   }
 
-  /* 근로계약 상태 — 도급직만 해당없음. 일용직은 근로계약 대상(기간제). 계약직 만료는 별도 표시 */
+  /* 근로계약 상태 — 도급직만 해당없음. 일용직은 근로계약 대상(기간제). 계약직 만료는 별도 표시.
+     상태값 표기 통일: 서명대기 / 서명완료 / 만료 / 만료임박 / 해당없음 (미발송은 '-' 플레이스홀더). */
   function laborBadge(r) {
     if (r.contractOut) {
       return `<span class="pill" title="도급직 — 근로계약 해당없음">해당없음</span>`;
     }
     if (r.status === 'contractExpired' && (r.empType === 'contract' || r.empType === 'daily')) {
-      return `<span class="pill pill--warning">계약만료</span>`;
+      return `<span class="pill pill--danger">만료</span>`;
     }
     if (!MILESTONES.contractSent(r)) return `<span style="color:var(--color-text-muted);">-</span>`;
     if (r.contractLabor) {
-      /* 만료 임박 — 종료일 30일 이내(아직 만료 전). 무기계약(종료일 없음)은 제외. */
+      /* 만료임박 — 종료일 30일 이내(아직 만료 전). 무기계약(종료일 없음)은 제외. */
       const end = r.contractEndDate || '';
       if (end) {
         const today = (window.App && App.HRContract && App.HRContract.todayStr)
           ? App.HRContract.todayStr() : new Date().toISOString().slice(0, 10);
         if (end >= today) {
           const days = Math.round((new Date(end) - new Date(today)) / 86400000);
-          if (days <= 30) return `<span class="pill pill--warning">만료 임박</span>`;
+          if (days <= 30) return `<span class="pill pill--warning">만료임박</span>`;
         }
       }
-      return `<span class="pill pill--success">계약완료</span>`;
+      return `<span class="pill pill--success">서명완료</span>`;
     }
-    return `<span class="pill pill--info">작성중</span>`;
+    return `<span class="pill pill--info">서명대기</span>`;
   }
 
   /* 임금계약 상태 — 도급직은 해당없음. 일용직은 시급제 임금계약 대상.
-   *   임금계약만 만료된 경우(메인 status=completed 유지)에도 컬럼에 「계약만료」 표시. */
+   *   상태값 표기 통일: 서명대기 / 서명완료 / 만료 / 만료임박 / 해당없음 (미발송은 '-' 플레이스홀더). */
   function wageBadge(r) {
     if (r.contractOut) {
       return `<span class="pill" title="도급직 — 임금계약 해당없음">해당없음</span>`;
     }
     /* 임금계약 만료 — 메인 status 와 무관하게 컬럼에만 표시 */
     const wage = wageContractStatus(r);
-    if (wage && wage.kind === 'expired') return `<span class="pill pill--warning">계약만료</span>`;
+    if (wage && wage.kind === 'expired') return `<span class="pill pill--danger">만료</span>`;
     if (r.status === 'contractExpired' && r.empType === 'contract') {
-      return `<span class="pill pill--warning">계약만료</span>`;
+      return `<span class="pill pill--danger">만료</span>`;
     }
-    /* 만료 임박 — 서명완료(유효) 임금계약이 종료 30일 이내. 인사카드 statusBadge 와 동일 기준. */
-    if (wage && wage.kind === 'soon') return `<span class="pill pill--warning">만료 임박</span>`;
+    /* 만료임박 — 서명완료(유효) 임금계약이 종료 30일 이내. 인사카드 statusBadge 와 동일 기준. */
+    if (wage && wage.kind === 'soon') return `<span class="pill pill--warning">만료임박</span>`;
     if (!MILESTONES.contractSent(r)) return `<span style="color:var(--color-text-muted);">-</span>`;
-    if (r.contractWage) return `<span class="pill pill--success">계약완료</span>`;
-    return `<span class="pill pill--info">작성중</span>`;
+    if (r.contractWage) return `<span class="pill pill--success">서명완료</span>`;
+    return `<span class="pill pill--info">서명대기</span>`;
   }
 
   /* 입사서류 상태 — 미발송 / 진행중 / 제출완료 */
@@ -807,12 +895,7 @@
       return `<span style="color:var(--color-text-muted);">-</span>`;
     }
     const btns = [];
-    const canMail = !MILESTONES.idDone(r) &&
-      ((r.status === 'registered') || (r.status === 'inProgress' && MILESTONES.mailSent(r)));
-    if (canMail) {
-      const isResend = r.status === 'inProgress';
-      btns.push(`<button class="btn btn--xs" type="button" data-row-act="mail-send" data-row-act-resend="${isResend ? '1' : '0'}">이메일 발송</button>`);
-    }
+    /* 이메일 발송 버튼 제거 — 액션 컬럼은 문자 발송만 노출 */
     if ((r.phone || '').trim()) {
       btns.push(`<button class="btn btn--xs" type="button" data-row-act="sms-send">문자 발송</button>`);
     }
@@ -832,9 +915,96 @@
     return `<span class="pill pill--success">재직</span>`;
   }
   function accountStatusPill(r) {
-    return MILESTONES.idDone(r)
-      ? `<span class="pill pill--info">등록완료</span>`
-      : `<span class="pill">미등록</span>`;
+    if (MILESTONES.idDone(r))      return `<span class="pill pill--info">등록완료</span>`;
+    if (r.approval === 'rejected') return `<span class="pill pill--danger">등록실패</span>`;
+    return `<span class="pill pill--warning">등록대기</span>`;
+  }
+  /* 계정 등록 상태 코드 — 등록완료(done) / 등록실패(failed·반려) / 등록대기(waiting) */
+  function acctRegCode(r) {
+    if (r.acctReg === 'done')      return 'done';
+    if (r.approval === 'rejected') return 'failed';
+    return 'waiting';
+  }
+  /* 계정 등록 컬럼 — 본인 계정/정보 등록 진행 상태(pill 만). 액션은 「기능」 컬럼으로 분리.
+   *   · 등록대기 : 안내 발송됐으나 본인 미등록
+   *   · 등록완료 : 본인 등록 완료
+   *   · 등록실패 : HR 검토에서 반려됨(재발송 시 등록대기로 복귀) */
+  function acctRegCellHTML(r) {
+    switch (acctRegCode(r)) {
+      case 'done':   return `<span class="pill pill--info">등록완료</span>`;
+      case 'failed': return `<span class="pill pill--danger">등록실패</span>`;
+      default:       return `<span class="pill pill--warning">등록대기</span>`;
+    }
+  }
+  /* 기능 컬럼 — 계정 등록 상태에 따른 액션.
+   *   · 대기중       : [재발송] [재발송 이력]
+   *   · 등록완료+승인대기 : [검토]
+   *   · 그 외         : - */
+  function acctActionCellHTML(r) {
+    if (r.acctReg !== 'done') {
+      /* 재발송 — 하루 2회 한도 소진 시 버튼 비활성(툴팁 안내), 잔여 시 툴팁으로 사용 횟수 표기 */
+      const used = resendsToday(r);
+      const resendBtn = (used >= RESEND_DAILY_MAX)
+        ? `<button class="btn btn--xs" type="button" disabled title="오늘 재발송 한도(${RESEND_DAILY_MAX}회) 소진 · 내일 다시 가능">재발송</button>`
+        : `<button class="btn btn--xs" type="button" data-row-act="resend" title="오늘 ${used}/${RESEND_DAILY_MAX}회 사용">재발송</button>`;
+      return `<div style="display:flex;flex-wrap:nowrap;gap:4px;align-items:center;justify-content:center;white-space:nowrap;">`
+        + resendBtn
+        + `<button class="btn btn--xs" type="button" data-row-act="resend-hist">재발송 이력</button>`
+        + `</div>`;
+    }
+    if (r.approval === 'pending') {
+      return `<button class="btn btn--xs" type="button" data-row-act="review">검토</button>`;
+    }
+    return `<span style="color:var(--color-text-muted);">-</span>`;
+  }
+  /* ===== 재발송 정책 헬퍼 — 하루 2회 + 5분 쿨다운 ===== */
+  /* 오늘(현지 기준) 재발송 건수 — resendHistory 의 ts(epoch) 기준 */
+  function resendsToday(emp) {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    return (emp.resendHistory || []).filter(h => {
+      if (!h.ts) return false;
+      const t = new Date(h.ts);
+      return t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
+    }).length;
+  }
+  /* 마지막 재발송 시각(epoch). 이력 없으면 0 */
+  function lastResendTs(emp) {
+    const list = emp.resendHistory || [];
+    return list.reduce((mx, h) => Math.max(mx, h.ts || 0), 0);
+  }
+  /* 재발송 가능 여부 판정 — { ok } | { ok:false, msg } */
+  function resendGate(emp) {
+    if (resendsToday(emp) >= RESEND_DAILY_MAX) {
+      return { ok: false, msg: `오늘 재발송 한도(${RESEND_DAILY_MAX}회)를 모두 사용했습니다. 내일 다시 시도해 주세요.` };
+    }
+    const last = lastResendTs(emp);
+    const elapsed = Date.now() - last;
+    if (last && elapsed < RESEND_COOLDOWN_MS) {
+      const minsLeft = Math.max(1, Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 60000));
+      return { ok: false, msg: `최근 재발송 후 5분이 지나야 재발송할 수 있습니다. (약 ${minsLeft}분 후 가능)` };
+    }
+    return { ok: true };
+  }
+  /* 승인 상태 컬럼 — 계정 등록완료 건에 대한 HR 검토 결과.
+   *   승인 전(muted, 계정 등록 전이라 아직 검토 단계 아님) / [승인][반려](검토 대기)
+   *   / 승인완료 / 반려(삭제 가능) */
+  function approvalCellHTML(r) {
+    switch (r.approval) {
+      case 'pending':
+        return `<div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;white-space:nowrap;">`
+          + `<button class="btn btn--xs btn--primary" type="button" data-row-act="approve">승인</button>`
+          + `<button class="btn btn--xs btn--danger" type="button" data-row-act="reject">반려</button>`
+          + `</div>`;
+      case 'approved':
+        return `<span class="pill pill--success">승인완료</span>`;
+      case 'rejected':
+        return `<span class="pill pill--danger">반려</span>`;
+      default:
+        /* none — 계정 등록 전이라 아직 승인 대상 아님. 빈 셀/대시 대신 muted pill 로
+         *   상태를 명시해 컬럼 전체가 일관된 pill 체계가 되도록 함. */
+        return `<span class="pill pill--muted">승인 전</span>`;
+    }
   }
   /* 근로 계약 — 서명 상태(미작성/서명대기/서명완료/만료/만료 임박). 도급직은 해당없음.
    *   contractCellState(labor).ctr 를 단일 진실원으로 사용 (인사카드 상태 뱃지와 동일 기준). */
@@ -856,22 +1026,18 @@
     return `<span style="color:var(--color-text-muted);">-</span>`;
   }
   function nameCellHTML(r) {
-    const dept = r.dept ? esc(r.dept) : '';
-    const pos  = r.position ? esc(r.position) : '';
-    /* 사진 + 이름  부서·직책 한 줄 inline.
-     *   이름과 부서·직책 사이는 여백(8px)만 — 구두점 없음.
-     *   부서·직책 사이에는 구두점(·) 노출 (둘 다 값 있을 때만). 색상은 muted. */
-    const dot = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 2px;" aria-hidden="true">·</span>`;
-    const meta = (v) => v
-      ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`
-      : '';
-    const sep = (dept && pos) ? dot : '';
+    /* 사진 + 이름  팀·직위·직책 한 줄 inline.
+     *   이름과 메타 사이는 여백(8px)만.
+     *   팀·직위·직책 각 항목 사이는 구두점(·)으로만 구분 — 구두점 앞뒤 여백 없이 붙임. 색상은 muted. */
+    const parts = [r.dept, r.rank, r.position].filter(Boolean).map(esc);   // 팀 · 직위 · 직책
+    const dot = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);" aria-hidden="true">·</span>`;
+    const meta = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
     return `
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">
         ${rowAvatarHTML(r, { size: 24 })}
         <a href="#" data-emp-card-link style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(displayName(r))}</a>
         <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">
-          ${meta(dept)}${sep}${meta(pos)}
+          ${parts.map(meta).join(dot)}
         </span>
       </div>
     `;
@@ -1061,8 +1227,9 @@
          검색조건 드롭다운(성명/사번)이 바뀔 때마다 문구가 흔들리지 않도록 전 화면 공통 워딩으로 통일. */
       advanced: [
         { name: 'account', label: '계정 상태', options: [
-          { value: 'unregistered', label: '미등록' },
+          { value: 'unregistered', label: '등록대기' },
           { value: 'registered',   label: '등록완료' },
+          { value: 'failed',       label: '등록실패' },
         ]},
         { name: 'empType', label: '근로 유형', options: [
           { value: 'regular',    label: '정규직' },
@@ -1142,10 +1309,9 @@
                 <button class="btn btn--sm" type="button" data-act="org-download"><span style="display:inline-flex;align-items:center;gap:4px;">${(window.Icons && window.Icons.download) || ''}<span>조직도 다운로드</span></span></button>
                 <button class="btn btn--sm" type="button" data-act="list-download"><span style="display:inline-flex;align-items:center;gap:4px;">${(window.Icons && window.Icons.download) || ''}<span>리스트 다운로드</span></span></button>
                 <span style="width:1px;height:20px;background:var(--color-border);margin:0 4px;"></span>
-                <button class="btn btn--sm" type="button" data-act="mail-send" disabled>이메일 발송</button>
-                <button class="btn btn--sm" type="button" data-act="sms-send" disabled>문자 발송</button>
+                <button class="btn btn--sm" type="button" data-act="bulk-approve" disabled>승인</button>
                 <button class="btn btn--sm btn--danger" type="button" data-act="delete" disabled>삭제</button>
-                <!-- 모바일(≤768px) 전용 — 위 6개 액션을 케밥(⋮) 팝오버 하나로 대체 (CSS 로 표시 전환) -->
+                <!-- 모바일(≤768px) 전용 — 위 액션들을 케밥(⋮) 팝오버 하나로 대체 (CSS 로 표시 전환) -->
                 <span class="dd dd--row empi-toolbar-more" data-dd>
                   <button class="btn--kebab" type="button" aria-label="더보기 액션">${window.Icons && window.Icons.moreVertical || '⋮'}</button>
                   <div class="dd__menu">
@@ -1154,8 +1320,7 @@
                     <button class="dd__item" type="button" data-act="org-download">조직도 다운로드</button>
                     <button class="dd__item" type="button" data-act="list-download">리스트 다운로드</button>
                     <div class="dd__divider"></div>
-                    <button class="dd__item" type="button" data-act="mail-send" disabled>이메일 발송</button>
-                    <button class="dd__item" type="button" data-act="sms-send" disabled>문자 발송</button>
+                    <button class="dd__item" type="button" data-act="bulk-approve" disabled>승인</button>
                     <button class="dd__item dd__item--danger" type="button" data-act="delete" disabled>삭제</button>
                   </div>
                 </span>
@@ -1168,16 +1333,14 @@
                   <thead>
                     <tr>
                       <th style="width:36px"><input type="checkbox" data-check-all /></th>
-                      <th style="width:48px;text-align:right;">No</th>
+                      <th style="width:48px;text-align:center;">No</th>
                       <th>사번</th>
                       <th>성명</th>
-                      <th style="width:80px;">직위</th>
+                      <th style="width:96px;">근무지</th>
                       <th style="width:84px;text-align:center;">재직 상태</th>
-                      <th style="width:100px;">입사일</th>
-                      <th style="width:84px;text-align:center;">계정 상태</th>
-                      <th style="width:96px;text-align:center;">근로 계약</th>
-                      <th style="width:96px;text-align:center;">임금 계약</th>
-                      <th style="width:150px;text-align:center;"></th>
+                      <th style="width:84px;text-align:center;">계정 등록</th>
+                      <th style="width:170px;text-align:center;">기능</th>
+                      <th style="width:150px;text-align:center;">승인 상태</th>
                     </tr>
                   </thead>
                   <tbody id="empi-list-body"></tbody>
@@ -1549,8 +1712,7 @@
         if (act === 'create')               openCreateModal();
         else if (act === 'org-download')    doOrgChartDownload();
         else if (act === 'list-download')   doExcelDownload();
-        else if (act === 'mail-send')       doMailSend(false);
-        else if (act === 'sms-send')        doSmsSend();
+        else if (act === 'bulk-approve')    doApproveBulk(getSelectedRows());
         else if (act === 'delete')          doDeleteBulk(getSelectedRows());
         return;
       }
@@ -1578,19 +1740,26 @@
     });
 
     $('#empi-list-body', pageEl).addEventListener('click', (e) => {
-      // 행 단위 인라인 액션 — 기능 컬럼의 「이메일 발송」 단일 버튼
+      // 행 단위 인라인 액션 — 계정 등록(재발송/재발송 이력/검토) · 승인 상태(승인/반려)
       const actBtn = e.target.closest('[data-row-act]');
       if (actBtn) {
+        e.preventDefault();
         e.stopPropagation();
         const tr = actBtn.closest('[data-emp-row]');
         if (!tr) return;
         const emp = STATE.rows.find(r => r.id === tr.dataset.empRow);
         if (!emp) return;
         const act = actBtn.dataset.rowAct;
-        if (act === 'mail-send') {
-          /* 발송 모드 자동 판정 — mailSent 마일스톤 통과한 행은 재발송 (쿨다운 검증 적용) */
-          const isResend = actBtn.dataset.rowActResend === '1';
-          openMailModal([emp], isResend);
+        if (act === 'resend') {
+          openResendModal(emp);
+        } else if (act === 'resend-hist') {
+          openResendHistModal(emp);
+        } else if (act === 'review') {
+          openCardModal(emp);            // 등록 정보 검토 — 인사정보카드 열기
+        } else if (act === 'approve') {
+          doApproveAccount(emp);
+        } else if (act === 'reject') {
+          doRejectAccount(emp);
         } else if (act === 'sms-send') {
           if (!(emp.phone || '').trim()) {
             window.toast && window.toast('등록된 휴대전화 번호가 없습니다.', 'warning');
@@ -1727,22 +1896,20 @@
     /* No — 도메인 표준: 내림차순(N→1). 첫 행이 총 건수, 페이지를 넘겨도 전체 기준 연속 */
     const startIdx = (STATE.page - 1) * STATE.pageSize;
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">조회 결과가 없습니다.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">조회 결과가 없습니다.</td></tr>`;
     } else {
       body.innerHTML = rows.map((r, i) => {
         return `
           <tr data-emp-row="${esc(r.id)}" class="${STATE.selectedIds.has(r.id) ? 'is-selected' : ''}">
             <td><input type="checkbox" ${STATE.selectedIds.has(r.id) ? 'checked' : ''} /></td>
-            <td style="text-align:right;color:var(--color-text-muted);">${total - (startIdx + i)}</td>
+            <td style="text-align:center;color:var(--color-text-muted);">${total - (startIdx + i)}</td>
             <td><a href="#" data-emp-card-link class="link-code">${esc(r.id)}</a></td>
             <td>${nameCellHTML(r)}</td>
-            <td style="white-space:nowrap;">${nz(r.rank)}</td>
+            <td style="white-space:nowrap;">${nz(r.site)}</td>
             <td style="text-align:center;">${employmentStatusPill(r)}</td>
-            <td>${nz(dispYmd(r.joinDate))}</td>
-            <td style="text-align:center;">${accountStatusPill(r)}</td>
-            <td style="text-align:center;">${laborInfoPill(r)}</td>
-            <td style="text-align:center;">${wageInfoPill(r)}</td>
-            <td style="text-align:center;">${rowActionsHTML(r)}</td>
+            <td style="text-align:center;">${acctRegCellHTML(r)}</td>
+            <td style="text-align:center;">${acctActionCellHTML(r)}</td>
+            <td style="text-align:center;">${approvalCellHTML(r)}</td>
           </tr>
         `;
       }).join('');
@@ -1786,39 +1953,384 @@
     updateActionButtons();
   }
 
-  /* 삭제 정책 (v3) ====================================================
-   *   허용: registered ~ 정보등록 완료 (계약 발송 전까지) / contractExpired / retired
-   *   불허: 계약 발송 이후 ~ completed
-   *           — 계약/서류가 이미 발송·서명되어 있으므로 흔적 보존 필요
-   *           — 입사확정자(completed)는 [퇴사 처리] 후 삭제. 본 화면에서 퇴사 처리 트리거는 별도 화면 (인사 관리). */
+  /* 삭제 정책 (v4) ====================================================
+   *   · 종료 라이프사이클(contractExpired / retired) — 삭제 가능 (흔적 보존 불필요)
+   *   · 입사확정(completed) — 본 화면에서 삭제 불가. [퇴사 처리] 후 삭제 (별도 화면: 인사 관리)
+   *   · 온보딩(계정 등록 승인 워크플로) 진행 중(registered / inProgress) —
+   *       승인 '반려'(rejected) 건만 삭제 가능.
+   *       승인 전(none) / 승인 대기(pending) / 승인완료(approved) 는 삭제 불가 (진행 중 데이터 보호). */
   function isDeletable(r) {
-    if (['contractExpired','retired'].includes(r.status)) return true;
-    if (r.status === 'registered') return true;
-    /* inProgress 중에도 계약 발송 전까지는 삭제 가능 (정보등록 완료까지) */
-    if (r.status === 'inProgress' && !MILESTONES.contractSent(r)) return true;
-    return false;
+    if (r.status === 'contractExpired' || r.status === 'retired') return true;
+    if (r.status === 'completed') return false;
+    return r.approval === 'rejected';   // 온보딩 진행 중 — 반려 건만 삭제 가능
+  }
+  /* 삭제 불가 사유 (blocked 안내 문구용) */
+  function deleteBlockReason(r) {
+    if (r.status === 'completed') return '입사확정 — 퇴사 처리 후 삭제 가능';
+    const ap = { none: '승인 전', pending: '승인 대기', approved: '승인완료' }[r.approval] || '승인 전';
+    return `${ap} — 반려 건만 삭제 가능`;
+  }
+
+  /* ============ 계정 등록 안내 재발송 / 승인 워크플로 ============ */
+  /* 재발송 — 사유 입력 모달 → (전송) → '휴대폰 번호로 전송됩니다' alert + 이력 기록.
+   *   사유 조회는 [재발송 이력] 모달에서만 가능. */
+  function openResendModal(emp) {
+    if (!emp) return;
+    /* 재발송 정책 게이트 — 하루 2회 + 5분 쿨다운. 불가 시 모달을 열지 않고 토스트 안내 */
+    const gate = resendGate(emp);
+    if (!gate.ok) { window.toast && window.toast(gate.msg, 'warning'); return; }
+    const bd = _buildResendModal();
+    bd.querySelector('[data-rs-name]').textContent = displayName(emp);
+    bd.querySelector('[data-rs-phone]').textContent = emp.phone || '(휴대폰 번호 없음)';
+    const ta = bd.querySelector('[data-rs-reason]');
+    const errEl = bd.querySelector('[data-rs-error]');
+    ta.value = '';
+    errEl.style.display = 'none';
+    ta.classList.remove('is-invalid');
+    ta.oninput = () => { if (ta.value.trim()) { ta.classList.remove('is-invalid'); errEl.style.display = 'none'; } };
+
+    function close() {
+      bd.classList.remove('is-open');
+      bd.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+    }
+    function submit() {
+      const reason = ta.value.trim();
+      if (!reason) {
+        ta.classList.add('is-invalid');
+        errEl.style.display = 'block';
+        ta.focus();
+        return;
+      }
+      emp.resendHistory = emp.resendHistory || [];
+      emp.resendHistory.unshift({ at: nowStamp(), ts: Date.now(), reason, by: '정혜진' });
+      /* 새 초대 링크 재발송 — 반려(등록실패) 상태였다면 등록대기로 복귀 (재등록 기회 부여) */
+      if (emp.approval === 'rejected') emp.approval = 'none';
+      close();
+      /* 버튼 상태(한도 소진/툴팁) 즉시 갱신 */
+      applyFilter();
+      renderTable();
+      /* 발송 결과 — 휴대폰 번호로 전송 안내 alert */
+      if (window.App && typeof App.sweetAlert === 'function') {
+        App.sweetAlert({
+          icon: 'success',
+          title: '재발송 완료',
+          message: `${displayName(emp)} 님에게 등록된 휴대폰 번호(${emp.phone || '-'})로 전송됩니다.`,
+        });
+      } else {
+        window.alert('등록된 휴대폰 번호로 전송됩니다.');
+      }
+    }
+    function onClick(e) {
+      if (e.target === bd) { close(); return; }
+      if (e.target.closest('[data-rs-close], [data-rs-cancel]')) { close(); return; }
+      if (e.target.closest('[data-rs-submit]')) { submit(); return; }
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    bd.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    bd.classList.add('is-open');
+    setTimeout(() => ta.focus(), 30);
+  }
+
+  /* 재발송 이력 모달 — 사유·일시·발송자 목록 (사유 조회는 여기서만) */
+  function openResendHistModal(emp) {
+    if (!emp) return;
+    const bd = _buildResendHistModal();
+    bd.querySelector('[data-rh-name]').textContent = displayName(emp);
+    const list = (emp.resendHistory || []);
+    const body = bd.querySelector('[data-rh-body]');
+    body.innerHTML = list.length
+      ? list.map(h => `
+          <tr>
+            <td style="text-align:center;white-space:nowrap;">${esc(h.at || '-')}</td>
+            <td>${esc(h.reason || '-')}</td>
+            <td style="text-align:center;white-space:nowrap;">${esc(h.by || '-')}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="3" style="text-align:center;color:var(--color-text-muted);padding:24px 0;">재발송 이력이 없습니다.</td></tr>`;
+
+    function close() {
+      bd.classList.remove('is-open');
+      bd.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+    }
+    function onClick(e) {
+      if (e.target === bd) { close(); return; }
+      if (e.target.closest('[data-rh-close]')) { close(); return; }
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    bd.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    bd.classList.add('is-open');
+  }
+
+  /* 대상자 컨텍스트 칩 — 확인 모달 제목 아래 '사번 · 부서 · 직위' 를 pill 로 노출 (누구를 처리하는지 즉시 인지) */
+  function acctConfirmContextHTML(emp) {
+    const sep = ` <span style="color:var(--color-divider);">·</span> `;
+    const parts = [
+      `<span style="color:var(--color-text);font-weight:var(--fw-medium);">${esc(emp.id)}</span>`,
+      emp.dept ? esc(emp.dept) : '',
+      emp.rank ? esc(emp.rank) : '',
+    ].filter(Boolean);
+    return `<span style="display:inline-flex;align-items:center;flex-wrap:wrap;justify-content:center;gap:2px 4px;padding:5px 12px;background:var(--color-surface-alt);border-radius:var(--radius-pill);font-size:var(--fs-sm);color:var(--color-text-sub);">${parts.join(sep)}</span>`;
+  }
+  /* 승인 — 계정 등록완료 건을 승인 처리 */
+  function doApproveAccount(emp, opts) {
+    if (!emp) return;
+    opts = opts || {};
+    const run = () => {
+      emp.approval = 'approved';
+      applyFilter();
+      renderTable();
+      if (opts.fromCard) closeModal('modal-empi-card');   // 카드에서 승인 시 카드 닫기
+      window.toast && window.toast(`${displayName(emp)} 님의 계정 등록을 승인했습니다.`, 'success');
+    };
+    /* 카드 검토 승인 — 누락/미완료 항목이 있으면 확인 문구로 한 번 더 안내(승인 자체는 허용) */
+    const miss = opts.fromCard ? cardReviewMissingCount(emp) : 0;
+    const bodyText = miss > 0
+      ? `누락되었거나 미완료된 항목이 ${miss}건 있습니다.\n그래도 승인하면 계정 등록이 완료되며, ERP에 로그인할 수 있습니다.`
+      : '승인하면 계정 등록이 완료되며, ERP에 로그인할 수 있습니다.';
+    openAcctConfirm({
+      icon: miss > 0 ? 'warning' : 'success',
+      titleHTML: `<strong style="color:var(--color-brand-primary);">${esc(displayName(emp))}</strong>님의 계정 등록을 승인하시겠습니까?`,
+      contextHTML: acctConfirmContextHTML(emp),
+      bodyText, confirmText: '승인', onConfirm: run,
+    });
+  }
+  /* 반려 — 계정 등록 요청 반려. 반려 시 approval=rejected + '등록대기' 복귀 →
+   *   기능 컬럼에 [재발송]·[재발송 이력] 재노출(새 초대 링크). 반려 건은 삭제 가능. */
+  function doRejectAccount(emp, opts) {
+    if (!emp) return;
+    opts = opts || {};
+    const run = (reason) => {
+      emp.approval = 'rejected';
+      emp.acctReg = 'waiting';
+      emp.rejectReason = reason || '';   // 반려 사유 기록 (재발송 시 참고)
+      applyFilter();
+      renderTable();
+      if (opts.fromCard) closeModal('modal-empi-card');   // 카드에서 반려 시 카드 닫기
+      window.toast && window.toast(`${displayName(emp)} 님의 계정 등록을 반려했습니다.`, 'success');
+    };
+    openAcctConfirm({
+      icon: 'warning',
+      titleHTML: `<strong style="color:var(--color-brand-primary);">${esc(displayName(emp))}</strong>님의 계정 등록 요청을 반려하시겠습니까?`,
+      contextHTML: acctConfirmContextHTML(emp),
+      bodyText: '반려하면 계정 등록이 완료되지 않습니다.\n필요한 경우 새 초대 링크를 다시 발송할 수 있으며,\n반려된 요청은 목록에서 삭제할 수 있습니다.',
+      reason: { required: true, label: '반려 사유', placeholder: '반려 사유를 입력해 주세요 (예: 계좌번호 형식 오류)', errorText: '반려 사유를 입력해 주세요.' },
+      confirmText: '반려', danger: true, onConfirm: run,
+    });
+  }
+  /* 일괄 승인 — 툴바 [승인]. 선택 행 중 '등록완료 + 승인 대기' 건만 승인 처리. */
+  function doApproveBulk(targets) {
+    const list = (targets || []).filter(r => r.acctReg === 'done' && r.approval === 'pending');
+    if (!list.length) {
+      window.toast && window.toast('승인 대기 상태의 선택 건이 없습니다.', 'warning');
+      return;
+    }
+    const head = list.length === 1
+      ? `${esc(displayName(list[0]))} (${esc(list[0].id)})`
+      : `${esc(displayName(list[0]))} 외 ${list.length - 1}명`;
+    const run = () => {
+      list.forEach(r => { r.approval = 'approved'; });
+      applyFilter();
+      renderTable();
+      window.toast && window.toast(`${list.length}건 승인 완료`, 'success');
+    };
+    openAcctConfirm({
+      icon: 'success',
+      titleHTML: `선택한 <strong style="color:var(--color-brand-primary);">${list.length}명</strong>의 계정 등록을 승인하시겠습니까?`,
+      contextHTML: `<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--color-surface-alt);border-radius:var(--radius-pill);font-size:var(--fs-sm);color:var(--color-text-sub);">${head}</span>`,
+      bodyText: '승인하면 선택한 대상의 계정 등록이 완료되며, ERP에 로그인할 수 있습니다.',
+      confirmText: `${list.length}건 승인`, onConfirm: run,
+    });
+  }
+
+  /* ============ 계정 승인/반려 확인 모달 (sweet 스타일 — 아이콘 + 중앙 정렬) ============
+   *   UI Kit 의 .sweet-icon / .sweet-body 컴포넌트를 조합. 신규 클래스 없음. */
+  let _acctConfirmEl = null;
+  function _buildAcctConfirmModal() {
+    if (_acctConfirmEl) return _acctConfirmEl;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal-backdrop" data-acct-confirm-host style="z-index:1160;">
+        <div class="modal" style="max-width:420px;">
+          <div class="modal__body" style="padding:28px 24px 8px;text-align:center;">
+            <div class="sweet-icon" data-ac-icon style="margin:0 auto;"></div>
+            <div class="sweet-body">
+              <div class="sweet-body__title" data-ac-title style="line-height:1.45;"></div>
+              <div data-ac-context style="margin:12px 0 2px;"></div>
+              <div class="sweet-body__text" data-ac-text style="white-space:pre-line;line-height:1.6;margin-top:10px;"></div>
+              <div data-ac-reason style="display:none;text-align:left;margin-top:16px;">
+                <label class="form-label" data-ac-reason-label style="display:block;margin-bottom:6px;"></label>
+                <textarea class="input" data-ac-reason-input rows="2" style="width:100%;height:52px;min-height:52px;resize:vertical;"></textarea>
+                <div class="field-error" data-ac-reason-error style="display:none;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="modal__footer" style="justify-content:center;gap:8px;padding-bottom:22px;">
+            <button class="btn" type="button" data-ac-cancel style="min-width:84px;">취소</button>
+            <button class="btn btn--primary" type="button" data-ac-confirm style="min-width:84px;">확인</button>
+          </div>
+        </div>
+      </div>`;
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    _acctConfirmEl = document.querySelector('[data-acct-confirm-host]');
+    return _acctConfirmEl;
+  }
+  const _ACCT_GLYPH = { success: '✓', warning: '!', danger: '✕', info: 'i', question: '?' };
+  function openAcctConfirm(opts) {
+    opts = opts || {};
+    const bd = _buildAcctConfirmModal();
+    const icon = opts.icon || (opts.danger ? 'warning' : 'success');
+    const iconEl = bd.querySelector('[data-ac-icon]');
+    iconEl.className = 'sweet-icon sweet-icon--' + icon;
+    iconEl.textContent = _ACCT_GLYPH[icon] || 'i';
+    bd.querySelector('[data-ac-title]').innerHTML = opts.titleHTML || '';
+    const ctxEl = bd.querySelector('[data-ac-context]');
+    ctxEl.innerHTML = opts.contextHTML || '';
+    ctxEl.style.display = opts.contextHTML ? '' : 'none';
+    bd.querySelector('[data-ac-text]').textContent = opts.bodyText || '';
+    const confirmBtn = bd.querySelector('[data-ac-confirm]');
+    confirmBtn.textContent = opts.confirmText || '확인';
+    confirmBtn.className = 'btn ' + (opts.danger ? 'btn--danger' : 'btn--primary');
+    bd.querySelector('[data-ac-cancel]').textContent = opts.cancelText || '취소';
+
+    /* 사유 입력 — opts.reason 이 있으면 textarea 노출(필드 검증은 인라인 .field-error 로).
+     *   opts.reason = { required, label, placeholder, errorText } */
+    const reasonWrap  = bd.querySelector('[data-ac-reason]');
+    const reasonInput = bd.querySelector('[data-ac-reason-input]');
+    const reasonError = bd.querySelector('[data-ac-reason-error]');
+    const reasonLabel = bd.querySelector('[data-ac-reason-label]');
+    if (opts.reason) {
+      const req = opts.reason.required !== false;
+      reasonWrap.style.display = '';
+      reasonInput.value = '';
+      reasonInput.placeholder = opts.reason.placeholder || '';
+      reasonInput.classList.remove('is-invalid');
+      reasonLabel.innerHTML = (req ? '<em style="color:var(--color-danger);">*</em> ' : '') + esc(opts.reason.label || '사유');
+      reasonError.textContent = opts.reason.errorText || '사유를 입력해 주세요.';
+      reasonError.style.display = 'none';
+      reasonInput.oninput = () => { reasonInput.classList.remove('is-invalid'); reasonError.style.display = 'none'; };
+    } else {
+      reasonWrap.style.display = 'none';
+    }
+
+    function close() {
+      bd.classList.remove('is-open');
+      bd.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+    }
+    function onClick(e) {
+      if (e.target === bd) { close(); return; }
+      if (e.target.closest('[data-ac-cancel]')) { close(); return; }
+      if (e.target.closest('[data-ac-confirm]')) {
+        let reasonVal;
+        if (opts.reason) {
+          reasonVal = (reasonInput.value || '').trim();
+          if (opts.reason.required !== false && !reasonVal) {
+            /* 필드 검증 실패 — 토스트가 아닌 인라인 안내(도메인 표준) */
+            reasonInput.classList.add('is-invalid');
+            reasonError.style.display = '';
+            reasonInput.focus();
+            return;   // 모달 닫지 않음
+          }
+        }
+        close();
+        if (typeof opts.onConfirm === 'function') opts.onConfirm(reasonVal);
+      }
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    bd.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    bd.classList.add('is-open');
+  }
+
+  /* 재발송 사유 입력 모달 DOM — 최초 1회 생성 후 재사용 */
+  let _resendModalEl = null;
+  function _buildResendModal() {
+    if (_resendModalEl) return _resendModalEl;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal-backdrop" data-resend-modal-host style="z-index:1150;">
+        <div class="modal" style="max-width:460px;">
+          <div class="modal__header">
+            <h3 class="modal__title">계정 등록 안내 재발송</h3>
+            <button class="modal__close" type="button" data-rs-close aria-label="닫기">&times;</button>
+          </div>
+          <div class="modal__body">
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;color:var(--color-text-sub);font-size:var(--fs-sm);">
+              <div><span style="color:var(--color-text-muted);">대상</span> &nbsp;<strong data-rs-name style="color:var(--color-text);"></strong></div>
+              <div><span style="color:var(--color-text-muted);">휴대폰</span> &nbsp;<span data-rs-phone></span></div>
+            </div>
+            <label class="form-label"><em style="color:var(--color-danger);">*</em> 재발송 사유</label>
+            <textarea class="input" data-rs-reason rows="3" style="width:100%;resize:vertical;" placeholder="재발송 사유를 입력해 주세요"></textarea>
+            <div class="field-error" data-rs-error style="display:none;">재발송 사유를 입력해 주세요.</div>
+            <p class="form-help" style="margin-top:8px;">전송 시 대상자의 등록된 휴대폰 번호로 안내가 발송됩니다.</p>
+          </div>
+          <div class="modal__footer">
+            <button class="btn" type="button" data-rs-cancel>취소</button>
+            <button class="btn btn--primary" type="button" data-rs-submit>전송</button>
+          </div>
+        </div>
+      </div>`;
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    _resendModalEl = document.querySelector('[data-resend-modal-host]');
+    return _resendModalEl;
+  }
+  /* 재발송 이력 모달 DOM — 최초 1회 생성 후 재사용 */
+  let _resendHistModalEl = null;
+  function _buildResendHistModal() {
+    if (_resendHistModalEl) return _resendHistModalEl;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal-backdrop" data-resend-hist-host style="z-index:1150;">
+        <div class="modal" style="max-width:560px;">
+          <div class="modal__header">
+            <h3 class="modal__title">재발송 이력 — <span data-rh-name></span></h3>
+            <button class="modal__close" type="button" data-rh-close aria-label="닫기">&times;</button>
+          </div>
+          <div class="modal__body">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th style="width:150px;text-align:center;">일시</th>
+                  <th>사유</th>
+                  <th style="width:90px;text-align:center;">발송자</th>
+                </tr>
+              </thead>
+              <tbody data-rh-body></tbody>
+            </table>
+          </div>
+          <div class="modal__footer">
+            <button class="btn btn--primary" type="button" data-rh-close>확인</button>
+          </div>
+        </div>
+      </div>`;
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    _resendHistModalEl = document.querySelector('[data-resend-hist-host]');
+    return _resendHistModalEl;
+  }
+  /* 현재 시각 스탬프 'YY/MM/DD   HH:MM' (SWADPIA §2 일시 표기) — 재발송 이력 기록용 */
+  function nowStamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${String(d.getFullYear()).slice(-2)}/${p(d.getMonth() + 1)}/${p(d.getDate())}   ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
   function updateActionButtons() {
     const sel = getSelectedRows();
     const has = sel.length > 0;
-    /* 이메일 발송 — 미발송(registered) 또는 메일발송됐으나 본인정보 미입력(idDone 전) 행만 활성 */
-    const allMailable = has && sel.every(r =>
-      r.status === 'registered' ||
-      (r.status === 'inProgress' && MILESTONES.mailSent(r) && !MILESTONES.infoDone(r))
-    );
     const allDeletable = has && sel.every(isDeletable);
-    /* 문자 발송 — 휴대전화 번호가 있는 행이 1건 이상 선택되면 활성 */
-    const anySmsable = has && sel.some(r => (r.phone || '').trim());
+    /* 승인 — 계정 등록완료 + 승인 대기(pending) 행이 1건 이상 선택되면 활성 (일괄 승인) */
+    const anyApprovable = has && sel.some(r => r.acctReg === 'done' && r.approval === 'pending');
 
     const pageEl = document.getElementById('page-hr-info-mgmt');
     /* 데스크탑 인라인 버튼 + 모바일 케밥 메뉴 항목 모두 동일 data-act 를 가지므로 전부 동기화 */
     const setDisabled = (act, off) => {
       pageEl && pageEl.querySelectorAll(`.toolbar [data-act="${act}"]`).forEach(el => { el.disabled = off; });
     };
-    setDisabled('mail-send', !allMailable);
-    setDisabled('sms-send',  !anySmsable);
-    setDisabled('delete',    !allDeletable);
+    setDisabled('bulk-approve', !anyApprovable);
+    setDisabled('delete',       !allDeletable);
 
     /* 선택 카운트 — 체크 시 즉시 반영되도록 renderTable 외부에서도 갱신 */
     const selCnt = pageEl && pageEl.querySelector('[data-sel-count]');
@@ -2026,8 +2538,15 @@
       dept: emp.dept, job: emp.job, rank: emp.rank, position: emp.position,
       empType: emp.empType, contractSubType: emp.contractSubType,
       contractOut: !!emp.contractOut, jobCat: emp.jobCat,
-      site: data.근무지 || emp.site || '본사',
+      site: data.근무지 || emp.site || '성수동',
     };
+    /* 임금계약서는 최신 근로계약을 자동 기준으로 연결한다(직원이 별도 선택하지 않음).
+       ※ 하나의 근로계약에 임금계약을 여러 번 갱신 작성 가능 — 모두 동일 근로계약번호로 연결된다. */
+    let linkedLaborId = '';
+    if (kind === 'wage' && typeof App.HRContract.historyRowsByEmp === 'function') {
+      const laborRows = (App.HRContract.historyRowsByEmp(emp.id) || []).filter(it => it.kind === '근로계약서');
+      linkedLaborId = laborRows.length ? laborRows[0].id : '';   // 최신순 정렬 → 첫 건이 최신 근로계약
+    }
     App.HRContract.addRowFromExternal({
       emp: empPayload,
       kind: kind === 'labor' ? '근로계약서' : '임금계약서',
@@ -2039,6 +2558,7 @@
       registeredBy: currentUserName(),
       sentBy: currentUserName(),
       source: '인사정보카드 발송',
+      linkedLaborId: linkedLaborId,
       salary: kind === 'wage' ? {
         base:      data.기본급 || '',
         allowance: data.직무수당 || '',
@@ -2293,8 +2813,8 @@
     if (!targets || !targets.length) return;
     const blocked = targets.filter(r => !isDeletable(r));
     if (blocked.length) {
-      const msg = `다음은 삭제할 수 없습니다 — 계약 진행 중 또는 입사확정 상태입니다. (퇴사 처리 후 삭제 가능)\n\n` +
-        blocked.slice(0, 5).map(r => `· ${displayName(r)} (${r.id}) — ${(STATUS[r.status]||{}).label || r.status}`).join('\n') +
+      const msg = `다음은 삭제할 수 없습니다.\n계정 등록 승인 워크플로는 '반려' 건만, 입사확정자는 퇴사 처리 후 삭제할 수 있습니다.\n\n` +
+        blocked.slice(0, 5).map(r => `· ${displayName(r)} (${r.id}) — ${deleteBlockReason(r)}`).join('\n') +
         (blocked.length > 5 ? `\n... 외 ${blocked.length - 5}명` : '');
       window.sweet ? window.sweet({ icon: 'warn', title: '삭제 불가', text: msg, confirmText: '확인' })
                    : alert(msg);
@@ -2787,25 +3307,18 @@
     /* 도급 소속회사 옵션 — 「도급직 여부=해당」 선택 시 노출 */
     const companyOptions = MASTER.contractCompanies
       .map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    const html = `
-<div class="modal-backdrop" id="modal-empi-create" data-modal-id="empi-create">
-  <div class="modal modal--lg">
-    <div class="modal__header">
-      <div class="modal__title">임직원 등록</div>
-      <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal__body" style="background:var(--color-surface-alt);">
+    /* 상세 화면 카드 헬퍼 — 흰 카드(제목 헤더 + 본문). 계약서 작성 화면의 leftCard 스타일과 동일.
+       overflow:visible — 부서 콤보 등 드롭다운(absolute 패널)이 카드 밖으로 펼쳐질 수 있게 한다. */
+    const card = (title, body, attr) => `
+      <section${attr || ''} style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;overflow:visible;box-shadow:0 1px 2px rgba(15,23,42,0.04);">
+        <header style="padding:12px 16px;border-bottom:1px solid var(--color-divider);">
+          <span style="font-size:15px;font-weight:var(--fw-semibold);color:var(--color-text);letter-spacing:-0.2px;">${title}</span>
+        </header>
+        <div style="padding:14px 16px;">${body}</div>
+      </section>`;
 
-      <!-- ===== 1. 필수 정보 (펼친 상태) ===== -->
-      <section class="empi-acc is-open" data-empi-acc style="margin-bottom:14px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-surface);overflow:hidden;">
-        <div data-empi-acc-head style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;background:var(--color-surface-alt);border-bottom:1px solid var(--color-divider);">
-          <span style="font-weight:var(--fw-semibold);font-size:var(--fs-md);">필수 정보</span>
-          <span data-empi-acc-chev style="transition:transform 200ms;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--color-text-sub);transform:rotate(90deg);">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </span>
-        </div>
-        <div data-empi-acc-body style="padding:14px;">
-
+    /* ===== 1. 필수 정보 (펼침) — 사진/입사일/사번/성명/연락처 ===== */
+    const bodyRequired = `
           <!-- 사진 + 사번(자동) + 입사일 -->
           <div class="empi-c-idrow" style="display:flex;gap:16px;align-items:flex-start;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;">
             <div class="id-photo-uploader id-photo-uploader--inline" data-photo-uploader id="empi-c-photo-uploader" style="padding-top:2px;">
@@ -2867,7 +3380,11 @@
             </div>
           </div>
 
-          <!-- 도급직 여부 (필수) — 해당 시 소속회사 + 사원 유형(근태용) 입력 -->
+`;
+
+    /* ===== 2. 근무 정보 (펼침) — 도급직/사원유형/근무지/부서/직위/직책/직무 ===== */
+    const bodyWork = `
+          <!-- 도급직 여부 — '해당' 시 소속회사 노출. 사원 유형·근무지·부서·직위·직책·직무는 상시 노출 -->
           <div class="fm-tbl fm-tbl--compact" style="border-top:0;">
             <div class="fm-tbl__row fm-tbl__row--1">
               <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 도급직 여부</div>
@@ -2886,7 +3403,7 @@
                 <div class="field-error" data-empi-c-err="company" hidden style="width:100%;"></div>
               </div>
             </div>
-            <div class="fm-tbl__row fm-tbl__row--1" id="empi-c-jobcat-row" style="display:none;">
+            <div class="fm-tbl__row fm-tbl__row--1" id="empi-c-jobcat-row">
               <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 사원 유형</div>
               <div class="fm-tbl__value" style="background:var(--color-surface);gap:20px;min-height:44px;align-items:center;flex-wrap:wrap;padding:6px 12px;">
                 <label class="cb"><input type="radio" name="empi-c-jobcat" value="office" /> 사무직</label>
@@ -2897,21 +3414,52 @@
             </div>
           </div>
 
-        </div>
-      </section>
+          <!-- 근무지 / 부서 -->
+          <div class="fm-tbl fm-tbl--compact">
+            <div class="fm-tbl__row fm-tbl__row--2">
+              <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 근무지</div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;">
+                <select class="select" id="empi-c-site" style="width:100%;">
+                  <option value="">선택</option>
+                  ${siteOptions}
+                </select>
+              </div>
+              <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 부서</div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;">
+                <div class="combo" id="empi-c-dept" data-empi-c-dept-combo>
+                  <button class="combo__field" type="button"><span class="combo__value combo__value--placeholder">선택</span></button>
+                  <div class="combo__panel">
+                    <input class="combo__search" placeholder="본부·팀·파트 검색">
+                    <div class="combo__list"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <!-- ===== 2. 선택 정보 (접힌 상태) ===== -->
-      <section class="empi-acc" data-empi-acc style="margin-bottom:14px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-surface);overflow:hidden;">
-        <div data-empi-acc-head style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;background:var(--color-surface-alt);border-bottom:1px solid var(--color-divider);">
-          <span style="font-weight:var(--fw-semibold);font-size:var(--fs-md);">선택 정보</span>
-          <span data-empi-acc-chev style="transition:transform 200ms;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--color-text-sub);">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </span>
-        </div>
-        <div data-empi-acc-body style="padding:14px;display:none;">
+          <!-- 직위 / 직책 / 직무 -->
+          <div class="fm-tbl fm-tbl--compact">
+            <div class="fm-tbl__row fm-tbl__row--2">
+              <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 직위</div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-rank" style="width:100%;"></select></div>
+              <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 직책</div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-position" style="width:100%;"></select></div>
+            </div>
+            <div class="fm-tbl__row fm-tbl__row--2">
+              <div class="fm-tbl__label"><span style="color:var(--color-danger);">*</span> 직무</div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-job" style="width:100%;"></select></div>
+              <div class="fm-tbl__label"></div>
+              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"></div>
+            </div>
+          </div>`;
 
-          <!-- 2-1. 개인 정보 — 영문 이름 / 생년월일 / 주소 -->
-          <div style="font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-sub);margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--color-divider);">개인 정보</div>
+    /* ===== 3·4. 근로/임금 계약 정보 — body 는 openCreateModal 에서 동적 렌더
+       (renderCardEditEmployment / renderCardEditWage 재사용). 도급직=해당 시 섹션 숨김. ===== */
+    const bodyLabor = `<div data-empi-c-labor-body></div>`;
+    const bodyWage  = `<div data-empi-c-wage-body></div>`;
+
+    /* ===== 5. 선택 정보 (접힘) — 개인 정보(영문 이름 / 생년월일 / 주소) ===== */
+    const bodySelect = `
           <div class="fm-tbl fm-tbl--compact">
             <div class="fm-tbl__row fm-tbl__row--2">
               <div class="fm-tbl__label">영문 이름</div>
@@ -2930,62 +3478,73 @@
                 <input class="input" type="text" id="empi-c-address-detail" placeholder="상세 주소를 입력해 주세요" style="width:100%;" />
               </div>
             </div>
-          </div>
+          </div>`;
 
-          <!-- 2-2. 근무 정보 — 근무지 / 부서 -->
-          <div style="font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-sub);margin:16px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--color-divider);">근무 정보</div>
-          <div class="fm-tbl fm-tbl--compact">
-            <div class="fm-tbl__row fm-tbl__row--2">
-              <div class="fm-tbl__label">근무지</div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;">
-                <select class="select" id="empi-c-site" style="width:100%;">
-                  <option value="">선택</option>
-                  ${siteOptions}
-                </select>
-              </div>
-              <div class="fm-tbl__label">부서</div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;">
-                <div class="combo" id="empi-c-dept" data-empi-c-dept-combo>
-                  <button class="combo__field" type="button"><span class="combo__value combo__value--placeholder">선택</span></button>
-                  <div class="combo__panel">
-                    <input class="combo__search" placeholder="본부·팀·파트 검색">
-                    <div class="combo__list"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2-3. 조직 정보 — 직위 / 직책 / 직무 -->
-          <div style="font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-sub);margin:16px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--color-divider);">조직 정보</div>
-          <div class="fm-tbl fm-tbl--compact">
-            <div class="fm-tbl__row fm-tbl__row--2">
-              <div class="fm-tbl__label">직위</div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-rank" style="width:100%;"></select></div>
-              <div class="fm-tbl__label">직책</div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-position" style="width:100%;"></select></div>
-            </div>
-            <div class="fm-tbl__row fm-tbl__row--2">
-              <div class="fm-tbl__label">직무</div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"><select class="select" id="empi-c-job" style="width:100%;"></select></div>
-              <div class="fm-tbl__label"></div>
-              <div class="fm-tbl__value" style="background:var(--color-surface);padding:6px 12px;"></div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-    </div>
-    <div class="modal__footer">
-      <button class="btn" type="button" data-modal-close>취소</button>
-      <button class="btn btn--primary" type="button" data-empi-create-submit>등록</button>
+    /* 임직원 등록 — 모달이 아닌 '계약서 작성'과 동일한 풀스크린 상세 화면(page-bar + 스크롤 본문).
+       #page-hr-info-mgmt(.page: flex column) 의 자식으로 렌더 → 열릴 때 목록 형제를 숨기고 상세만 노출. */
+    const html = `
+<div id="modal-empi-create" class="empi-create-detail" style="display:none;flex:1;min-height:0;flex-direction:column;background:var(--color-surface);">
+  <div class="page-bar">
+    <button class="page-bar__back" type="button" data-empi-detail-close aria-label="목록으로">←</button>
+    <div class="page-bar__divider"></div>
+    <div class="page-bar__title">임직원 등록</div>
+    <span class="page-bar__spacer"></span>
+    <span data-empi-create-hint style="align-self:center;margin-right:8px;color:var(--color-danger);font-size:12px;"></span>
+    <button class="btn" type="button" data-empi-detail-close>취소</button>
+    <button class="btn btn--primary" type="button" data-empi-create-submit>등록</button>
+  </div>
+  <div class="empi-create-detail__body" style="flex:1;min-height:0;overflow:auto;background:var(--color-surface-alt);padding:18px 22px;">
+    <!-- 전 항목 펼침 · 상세 화면 폭을 꽉 채우는 2열 카드 그리드 (좁으면 1열로 접힘) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(460px,1fr));gap:16px;align-items:start;max-width:1680px;margin:0 auto;">
+      <!-- 좌: 기본 · 근무 · 근로 계약 -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+        ${card('기본 정보', bodyRequired)}
+        ${card('근무 정보', bodyWork)}
+        ${card('근로 계약 정보', bodyLabor, ' id="empi-c-labor-section"')}
+      </div>
+      <!-- 우: 임금 계약 · 개인 정보(선택) -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+        ${card('임금 계약 정보', bodyWage, ' id="empi-c-wage-section"')}
+        ${card('개인 정보 <span style=\"font-size:12px;color:var(--color-text-muted);font-weight:var(--fw-regular);\">(선택)</span>', bodySelect)}
+      </div>
     </div>
   </div>
 </div>`;
     const wrap = document.createElement('div');
     wrap.innerHTML = html.trim();
-    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    const host = document.getElementById('page-hr-info-mgmt') || document.body;
+    while (wrap.firstChild) host.appendChild(wrap.firstChild);
+  }
+
+  /* 상세 화면 열기/닫기 — 목록(형제 노드)을 숨기고 상세만 노출 (page.is-active 유지, GNB/LNB 그대로) */
+  function showCreateDetail() {
+    const detail = document.getElementById('modal-empi-create');
+    const page = document.getElementById('page-hr-info-mgmt');
+    if (!detail) return;
+    if (page && detail.parentElement === page) {
+      Array.from(page.children).forEach(ch => {
+        if (ch === detail) return;
+        ch.dataset.empiPrevDisplay = ch.style.display || '';
+        ch.style.display = 'none';
+      });
+    }
+    detail.style.display = 'flex';
+    const body = detail.querySelector('.empi-create-detail__body');
+    if (body) body.scrollTop = 0;
+  }
+  function closeCreateDetail() {
+    const detail = document.getElementById('modal-empi-create');
+    const page = document.getElementById('page-hr-info-mgmt');
+    if (detail) detail.style.display = 'none';
+    if (page) {
+      Array.from(page.children).forEach(ch => {
+        if (ch === detail) return;
+        if ('empiPrevDisplay' in ch.dataset) {
+          ch.style.display = ch.dataset.empiPrevDisplay;
+          delete ch.dataset.empiPrevDisplay;
+        }
+      });
+    }
   }
 
   /* =================================================================
@@ -3013,6 +3572,7 @@
     rrnRevealed: false,    // 주민번호 마스킹 해제 여부 (hr_admin 만)
     histPages: {},         // 이력·현황 탭 — 표(현황/이력)별 현재 페이지 {key: page}
     cardRoot: null,        // 렌더 루트 — null 이면 모달, 값이 있으면 해당 컨테이너(내 정보 페이지)
+    reviewDockMin: false,  // 등록 검토 Floating Dock 접힘 여부 (검토 진입 시에만 노출)
   };
   /* 카드 렌더 루트 — 모달(기본) 또는 내 정보 페이지 컨테이너. 헤더/본문/이벤트 위임이 공유한다. */
   function cardRootEl() { return CARD_STATE.cardRoot || document.getElementById('modal-empi-card'); }
@@ -3392,16 +3952,15 @@
     return `${yy}${mm}${dd}-${back}`;
   }
   function rrnFieldValueHTML(emp) {
-    const full = mockRRN(emp);
+    /* 신규 등록 — 주민번호 미입력 시 mock 대신 빈값 '-' 표시 */
+    if (emp._noMock && !emp.ssn) {
+      return `<span style="color:var(--color-text-muted);">-</span>`;
+    }
+    const full = emp.ssn || mockRRN(emp);
+    /* 주민번호는 항상 마스킹 고정 — 권한과 무관하게 앞 6자리 + 성별 1자리만 노출, 뒷자리는 노출 불가 (눈 토글 제거) */
     const masked = full.slice(0, 8) + '●●●●●●';
-    const reveal = canViewPrivate();
-    const showFull = reveal && CARD_STATE.rrnRevealed;
-    const valueText = showFull ? full : masked;
-    const btn = reveal
-      ? `<button type="button" data-empi-card-rrn-toggle title="${showFull ? '주민번호 가리기' : '주민번호 보기'}" style="border:none;background:transparent;cursor:pointer;color:var(--color-text-muted);padding:2px 4px;margin-left:4px;border-radius:4px;display:inline-flex;align-items:center;line-height:0;" onmouseover="this.style.background='var(--color-surface-alt)'" onmouseout="this.style.background='transparent'">${showFull ? ICO_EYE_OFF : ICO_EYE_LG}</button>`
-      : '';
-    /* vertical 중앙 정렬 — 텍스트·버튼·외부 pill 이 한 baseline 위에 떨어지도록 inline-flex 로 감쌈. */
-    return `<span style="display:inline-flex;align-items:center;font-family:'SF Mono','Consolas',monospace;letter-spacing:1px;line-height:1.5;">${esc(valueText)}${btn}</span>`;
+    /* vertical 중앙 정렬 — 텍스트·외부 pill 이 한 baseline 위에 떨어지도록 inline-flex 로 감쌈. */
+    return `<span style="display:inline-flex;align-items:center;font-family:'SF Mono','Consolas',monospace;letter-spacing:1px;line-height:1.5;">${esc(masked)}</span>`;
   }
 
   /* --- Mock seed 테이블 데이터 (학력·경력·가족·자격·어학 등) --- */
@@ -3480,7 +4039,7 @@
   function mockWorksiteHistory(emp) {
     /* 근무지 변경 이력 — 첫 행이 현재 근무지(최신). emp.site 를 현재 근무지로 사용.
        컬럼: 변경일 / 기존 근무지 / 신규 근무지. */
-    const cur = emp.site || '본사';
+    const cur = emp.site || '성수동';
     if (isExecDemo(emp)) {
       return [
         ['2024-01-01', '강남사옥', cur],
@@ -3709,7 +4268,7 @@
     /* 주민번호 — 마스킹 + 성별 circle pill + 생일 */
     const genderText = emp.gender === 'F' ? '여' : '남';
     const rrnInline = `${rrnFieldValueHTML(emp)}${pillCircle(genderText)}`;
-    const birthHTML = emp.birth ? esc(dispYmd(emp.birth)) : '<span style="color:var(--color-text-muted);font-style:italic;">입력하기</span>';
+    const birthHTML = emp.birth ? esc(dispYmd(emp.birth)) : '<span style="color:var(--color-text-muted);">-</span>';
 
     /* 주소 — 우편번호 chip (있으면) + 주소 본문 */
     let addressHTML;
@@ -3729,7 +4288,11 @@
     /* 인라인 정렬 보장 — 복합 값(텍스트 + pill/button)은 inline-flex 컨테이너로 감싸 vertical-align 통일 */
     const wrapInline = (html) => `<span style="display:inline-flex;align-items:center;">${html}</span>`;
     const joinCell    = emp.joinDate ? wrapInline(`${esc(dispYmd(emp.joinDate))}${pillWarm(workDurationText(emp.joinDate))}`) : '';
-    const rrnCell     = wrapInline(`${rrnFieldValueHTML(emp)}${pillCircle(emp.gender === 'F' ? '여' : '남')}`);
+    /* 주민등록번호 빈값(미입력)이면 성별 pill 도 숨긴다 — 주민번호에서 성별이 파생되기 때문. */
+    const rrnEmpty = !!(emp._noMock && !emp.ssn);
+    const rrnCell     = rrnEmpty
+      ? rrnFieldValueHTML(emp)
+      : wrapInline(`${rrnFieldValueHTML(emp)}${pillCircle(emp.gender === 'F' ? '여' : '남')}`);
     const addrCell    = (() => {
       if (!emp.address) return '';
       const z = String(emp.address).match(/^\[(\d{5})\]\s*(.*)$/);
@@ -3808,13 +4371,10 @@
      *   미등록(하나라도 없음) 시 전체 편집 가능(승인 불요) — 이때 도급직 여부도 여기서 지정.
      *   ※ 도급직도 근무지/부서/직위/직책/직무는 그대로 유지, 도급직 전용 소속회사·사원 유형만 추가. */
     const isOut = !!(emp.contractOut || emp.empType === 'outsourced');
-    /* 등록완료 판정 — 근무 정보 필수 항목(사원 유형 포함, hasWorkInfo) + (도급직이면 소속회사까지) */
+    /* 등록완료 판정 — 근무 정보 필수 항목(사원 유형 포함, hasWorkInfo) + (도급직이면 소속회사까지).
+       (등록 상태 pill 은 노출하지 않음 — 안내 문구 노출 조건으로만 사용) */
     const done = hasWorkInfo(emp) && (!isOut || !!emp.contractCompany);
-    const statusHTML = done
-      ? `<span class="pill pill--success" style="font-size:11px;">등록완료</span>`
-      : `<span class="pill pill--warning" style="font-size:11px;">미등록</span>`;
     const rows = [
-      ['등록 상태',   statusHTML, { html: true }],
       ['도급직 여부', isOut ? '해당' : '해당 없음'],
     ];
     if (isOut) rows.push(['소속회사', emp.contractCompany || '-']);
@@ -3870,6 +4430,8 @@
     if (!spec) return [];
     const stored = emp['_pt_' + key];
     if (Array.isArray(stored)) return stored;
+    /* 신규 등록 임직원(_noMock) — 데모 mock 시드 없이 빈 표로 시작 (입력한 내용만 표시) */
+    if (emp._noMock) return [];
     return spec.mock(emp) || [];
   }
   /* 표 섹션 액션 — 인사담당자=[편집](직접 CRUD), 당사자 본인=[+추가](결재 요청), 그 외=없음 */
@@ -4278,12 +4840,33 @@
   /* 중복 계약 판정 — 신규 계약서 작성 시 '동일 시작일'의 유효 계약만 중복으로 본다.
      시작일이 다르면(기간의 정함 없음 포함) 재계약(신규)으로 간주해 허용한다.
      유효 = App.HRContract 이력 중 만료/반려/무효가 아닌 계약. */
-  function findOverlappingContract(emp, kind, start /* end, indef 무시 */) {
+  /* 신규 계약 기간이 기존(유효) 계약과 겹치는지 검사 — 겹치면 추가 작성 불가.
+     유효 = 만료/반려/무효/취소 가 아닌 계약. 무기(기간의 정함 없음)는 종료일을 +∞ 로 본다.
+     end/indef 미전달 시 시작일 하루짜리로 간주(기존 호출 호환). */
+  function findOverlappingContract(emp, kind, start, end, indef) {
     if (!emp || !start) return null;
     if (!(window.App && App.HRContract && typeof App.HRContract.historyRowsByEmp === 'function')) return null;
     const rows = (App.HRContract.historyRowsByEmp(emp.id) || [])
       .filter(it => it.kind === kind && ['만료', '반려', '무효', '취소'].indexOf(it.statusLabel) < 0);
-    return rows.find(it => (it.startDate || '') === start) || null;
+    const INF = '9999-12-31';
+    const aS = start, aE = indef ? INF : (end || start);
+    return rows.find(it => {
+      const bS = it.startDate || '';
+      if (!bS) return false;
+      const bE = it.indefinite ? INF : (it.endDate || bS);
+      return aS <= bE && bS <= aE;   // 기간 겹침 (aS≤bE && bS≤aE)
+    }) || null;
+  }
+  /* 동일 '시작일' 계약 판정 — 임금계약 전용. 임금계약은 시작일이 다르면 항상 재계약(갱신)으로 허용하고,
+     시작일이 완전히 같은 유효 계약만 중복으로 본다(무기 계약끼리도 시작일이 다르면 허용).
+     ※ 근로계약은 기간 겹침(findOverlappingContract)으로 판정하지만, 임금은 새 계약이 이전 계약을
+       자동 대체하므로(무기 갱신 포함) 기간 겹침이 아니라 시작일 일치만 중복으로 본다. */
+  function findSameStartContract(emp, kind, start) {
+    if (!emp || !start) return null;
+    if (!(window.App && App.HRContract && typeof App.HRContract.historyRowsByEmp === 'function')) return null;
+    return (App.HRContract.historyRowsByEmp(emp.id) || [])
+      .filter(it => it.kind === kind && ['만료', '반려', '무효', '취소'].indexOf(it.statusLabel) < 0)
+      .find(it => (it.startDate || '') === start) || null;
   }
   /* 중복 계약 안내용 기간 문자열 — 'YY/MM/DD ~ YY/MM/DD' 또는 'YY/MM/DD ~ 기간의 정함 없음' */
   function dupPeriodText(it) {
@@ -4304,6 +4887,14 @@
   function hasWorkInfo(emp) {
     return !!(emp && emp.dept && emp.rank && emp.position && emp.job && emp.site && emp.jobCat);
   }
+  /* 근로/임금 계약서 서명 대기(서명진행중) 여부 — 발송됐으나 아직 서명 전.
+     서명 대기 중에는 근무 정보 편집을 막는다(계약서 내용과 근무 정보가 어긋나는 것을 방지). */
+  function contractSigningInProgress(emp) {
+    if (!emp) return false;
+    const laborSigning = !emp.contractLabor && !!emp.contractSentDate;
+    const wageSigning  = !emp.contractWage  && !!emp.wageContractSentDate;
+    return laborSigning || wageSigning;
+  }
 
   /* === (등록 상태 × 계약 상태) 파생 — 인사정보카드와 동일 기준의 단일 진실원.
    *   계약 관리 「일괄 작성」 등 외부 화면이 직원별 상태를 동일하게 표시·게이팅하도록 공용.
@@ -4321,11 +4912,11 @@
     /* 계약 상태(서명) 공통 판정 — renderSectionContract.statusBadge 와 동일 룰 */
     function sign(signed, end, signing) {
       if (!signed) return signing ? { code:'signing', label:'서명대기', pill:'info' }
-                                   : { code:'unsigned', label:'미작성', pill:'warning' };
+                                   : { code:'unsigned', label:'서명대기', pill:'info' };
       if (end && end < today) return { code:'expired', label:'만료', pill:'danger' };
       if (end) {
         const d = Math.round((new Date(end) - new Date(today)) / 86400000);
-        if (d >= 0 && d <= 30) return { code:'soon', label:'만료 임박', pill:'warning' };
+        if (d >= 0 && d <= 30) return { code:'soon', label:'만료임박', pill:'warning' };
       }
       return { code:'signed', label:'서명완료', pill:'success' };
     }
@@ -4373,22 +4964,24 @@
 
   /* ============ 계약 서명 상태 pill — 그리드/필터 공용 단일 진실원 ============
    *   contractCellState(emp, kind).ctr.code → 사용자 표기 라벨.
-   *   미작성(unsigned) / 서명대기(signing) / 서명완료(signed) / 만료(expired) / 만료 임박(soon) / 해당없음(na) */
+   *   상태값 5종: 서명대기(signing·unsigned) / 서명완료(signed) / 만료(expired) / 만료임박(soon) / 해당없음(na)
+   *   ※ 미발송(unsigned)·발송후 미서명(signing) 은 사용자 표기상 모두 '서명대기' 로 통일. */
   const SIGN_PILL = {
-    unsigned: { label: '미작성',   pill: ''        },
+    unsigned: { label: '서명대기', pill: 'info'    },
     signing:  { label: '서명대기', pill: 'info'    },
     signed:   { label: '서명완료', pill: 'success' },
-    soon:     { label: '만료 임박', pill: 'warning' },
+    soon:     { label: '만료임박', pill: 'warning' },
     expired:  { label: '만료',     pill: 'danger'  },
     na:       { label: '해당없음', pill: ''        },
   };
-  /* 계약 서명 상태 값(옵션) — 상세검색 필터 / 컬럼 pill 공통 사용 */
+  /* 계약 서명 상태 값(옵션) — 상세검색 필터 / 컬럼 pill 공통 사용.
+   *   unsigned 은 signing 으로 정규화되어 '서명대기' 필터에 함께 매칭된다(아래 필터 로직 참고). */
   const SIGN_FILTER_OPTIONS = [
-    { value: 'unsigned', label: '미작성' },
     { value: 'signing',  label: '서명대기' },
     { value: 'signed',   label: '서명완료' },
-    { value: 'soon',     label: '만료 임박' },
+    { value: 'soon',     label: '만료임박' },
     { value: 'expired',  label: '만료' },
+    { value: 'na',       label: '해당없음' },
   ];
   function signPillHTML(emp, kind) {
     const st = contractCellState(emp, kind);
@@ -4457,14 +5050,14 @@
       const o = opts || {};
       if (o.na) return '<span class="pill" style="font-size:11px;">해당없음</span>';
       if (!signed) {
-        if (o.signing) return '<span class="pill pill--info" style="font-size:11px;">서명대기</span>';
-        return '<span class="pill pill--warning" style="font-size:11px;">미작성</span>';
+        /* 미발송(미작성)·발송후 미서명 모두 사용자 표기상 '서명대기' 로 통일 */
+        return '<span class="pill pill--info" style="font-size:11px;">서명대기</span>';
       }
       if (endDate && endDate < today) return '<span class="pill pill--danger" style="font-size:11px;">만료</span>';
-      /* 만료 임박 — 서명완료(유효) 계약이 종료 30일 이내(아직 만료 전). 계약 관리 화면과 동일 기준. */
+      /* 만료임박 — 서명완료(유효) 계약이 종료 30일 이내(아직 만료 전). 계약 관리 화면과 동일 기준. */
       if (endDate) {
         const d = Math.round((new Date(endDate) - new Date(today)) / 86400000);
-        if (d >= 0 && d <= 30) return '<span class="pill pill--warning" style="font-size:11px;">만료 임박</span>';
+        if (d >= 0 && d <= 30) return '<span class="pill pill--warning" style="font-size:11px;">만료임박</span>';
       }
       return '<span class="pill pill--success" style="font-size:11px;">서명완료</span>';
     }
@@ -4689,7 +5282,7 @@
     const wageHist = subBlockHTML({
       key:'ctrhist-wage', title: '임금 계약 이력', visibility: 'public',
       badge: newCtrBtn('wage', wageApplicable, false),
-      body: contractHistoryTableHTML(allHist.filter(it => it.kind === '임금계약서')),
+      body: contractHistoryTableHTML(allHist.filter(it => it.kind === '임금계약서'), { showLinkedLabor: true }),
     });
 
     /* 외부(계약 관리 개별 작성) 에서 단일 박스만 재사용 — opts.only: 'labor' | 'wage' | 'hist' */
@@ -4749,7 +5342,10 @@
   /* 근로/임금 계약 이력 — 6컬럼 테이블 (계약번호 | 유형 | 계약 기간 | 상태 | 작성 담당자 | 작성일).
      · 날짜: SWADPIA §1 YY/MM/DD.  · §3.1 정렬: 계약번호·유형·기간·상태·작성일=중앙 / 작성 담당자(이름)=좌.
      · 계약번호는 link-code — 행 클릭(is-clickable) 시 서명본 미리보기(data-empi-ctrhist-preview). */
-  function contractHistoryTableHTML(rows) {
+  function contractHistoryTableHTML(rows, opts) {
+    const o = opts || {};
+    /* 임금계약 이력만 '연결 근로계약' 컬럼 노출 — 임금계약은 근로계약에 의존하므로 어떤 근로계약 기준인지 표기. */
+    const showLinked = !!o.showLinkedLabor;
     if (!rows || !rows.length) {
       return `<div style="padding:14px 16px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;color:var(--color-text-muted);font-size:13px;text-align:center;">등록된 계약 이력이 없습니다.</div>`;
     }
@@ -4759,16 +5355,22 @@
       if (it.indefinite) return `${s} ~ <span style="color:var(--color-text-muted);">기간의 정함 없음</span>`;
       return `${s} ~ ${yy(it.endDate)}`;
     };
-    /* 서명 대기(canCancel)만 [취소] 노출 — 서명 완료·만료 등은 취소 불가.
+    /* 서명 대기(canCancel)만 [취소] 노출 — 서명 완료·만료·등록 세트 발송분은 취소 불가.
        버튼은 행 미리보기(preview)와 분리 — 클릭 핸들러가 취소 액션을 먼저 처리한다. */
     const cancelBtn = (it) => it.canCancel
       ? ` <button class="btn btn--xs btn--soft-danger" type="button" data-empi-ctrhist-cancel="${esc(it.id)}" title="서명 대기 계약을 취소합니다.">취소</button>`
       : '';
+    /* 계약번호를 눌러야 미리보기 — 행 전체 클릭으로는 열지 않는다.
+       임금계약 이력의 '연결 근로계약' 번호를 누르면 연결된 근로계약서 미리보기가 열린다. */
+    const linkedCell = (it) => showLinked
+      ? `<td class="col-center">${it.linkedLaborId ? `<span class="link-code" data-empi-ctrhist-preview="${esc(it.linkedLaborId)}" style="cursor:pointer;" title="연결된 근로계약서 미리보기">${esc(it.linkedLaborId)}</span>` : '<span style="color:var(--color-text-muted);">-</span>'}</td>`
+      : '';
     const body = rows.map(it => `
-      <tr class="is-clickable" data-empi-ctrhist-preview="${esc(it.id)}">
-        <td class="col-center"><span class="link-code">${esc(it.id)}</span></td>
+      <tr>
+        <td class="col-center"><span class="link-code" data-empi-ctrhist-preview="${esc(it.id)}" style="cursor:pointer;" title="${esc(it.kind)} 미리보기">${esc(it.id)}</span></td>
         <td class="col-center">${esc(it.kind)}</td>
         <td class="col-center">${period(it)}</td>
+        ${linkedCell(it)}
         <td class="col-center"><span class="pill${it.statusPill ? ' pill--' + it.statusPill : ''}" style="font-size:11px;">${esc(it.statusLabel)}</span>${cancelBtn(it)}</td>
         <td>${esc(it.registeredBy || '-')}</td>
         <td class="col-center">${yy(it.createdAt)}</td>
@@ -4779,6 +5381,7 @@
           <th class="col-center">계약번호</th>
           <th class="col-center">유형</th>
           <th class="col-center">계약 기간</th>
+          ${showLinked ? '<th class="col-center">연결 근로계약</th>' : ''}
           <th class="col-center">상태</th>
           <th>작성 담당자</th>
           <th class="col-center">작성일</th>
@@ -4794,9 +5397,12 @@
     /* 근무 정보 — 근무지/부서/직위/직책/직무. 근무지만 편집, 부서·직위·직책·직무는 발령 관리. */
     const myInfo = isMyInfoView();
     const worksiteAct = (!myInfo && canEditEmployment()) ? ['edit'] : [];
+    /* 근로/임금 계약서 서명 대기 중에는 근무 정보 편집 잠금 (편집 버튼 비활성 + 안내) */
+    const worksiteLocked = contractSigningInProgress(emp);
     sections.push(sectionShellHTML({
       key:'worksite', level: 1, title: '근무 정보', visibility: 'public',
-      actions: worksiteAct,
+      actions: worksiteAct, actionsDisabled: worksiteLocked,
+      description: worksiteLocked ? '근로·임금 계약서 서명 대기 중에는 수정할 수 없습니다.' : '',
       body: renderSectionWorkInfo(emp),
     }));
 
@@ -5462,86 +6068,9 @@
       return sectionShellHTML({ key:'docs', level:1, title:'회사 서류', visibility:'public',
         body: emptyBox('서류 보관함 모듈을 불러올 수 없습니다.') });
     }
-    const master = App.JoinDocs.masterDocs().filter(d => docApplicableToEmp(d, emp));
-    const keptKeys = App.JoinDocs.getKept(emp.id);
-    const kept = master.filter(d => keptKeys.indexOf(d.key) >= 0);
-    const signedCnt = kept.filter(d => myDocStatus(emp.id, d).state === 'signed').length;
-    const resignCnt = kept.filter(d => myDocStatus(emp.id, d).state === 'resign').length;
-    const unsignedCnt = kept.length - signedCnt - resignCnt;
-    const resignChip = resignCnt ? ` · 재서명 <strong style="color:var(--color-warning);">${resignCnt}</strong>` : '';
-
-    /* readonly(HR 열람) — 라이브러리 보관 버튼 숨김. 본인(셀프서비스)만 노출. */
-    const libBtn = readonly ? '' : `<button class="btn btn--sm btn--primary" type="button" data-myinfo-lib-open>+ 서류 자료실</button>`;
-    const banner = `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:16px;border-radius:8px;background:var(--color-surface-alt);border:1px solid var(--color-border);">
-      <span style="font-size:13px;color:var(--color-text-sub);">
-        보관 <strong style="color:var(--color-text);">${kept.length}</strong>건 · 서명완료 <strong style="color:var(--color-success);">${signedCnt}</strong> · 미서명 <strong style="color:${unsignedCnt ? 'var(--color-warning)' : 'var(--color-text-muted)'};">${unsignedCnt}</strong>${resignChip}
-      </span>
-      <span style="flex:1;"></span>
-      ${libBtn}
-    </div>`;
-
     const dash = '<span style="color:var(--color-text-muted);">-</span>';
     const thStyle = 'font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface-alt);';
     const tdBase  = 'font-size:13px;color:var(--color-text);padding:11px 12px;';
-    const rowsHTML = kept.map((d, i) => {
-      const isLast = i === kept.length - 1;
-      const td = tdBase + (isLast ? '' : 'border-bottom:1px solid var(--color-divider);');
-      const st = myDocStatus(emp.id, d);
-      const sig = st.sig;
-      let statusPill, actBtn;
-      if (st.state === 'resign') {
-        statusPill = `<span style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><span class="pill pill--warning" style="font-size:11px;">재서명 필요</span><span class="t-muted" style="font-size:10px;">→ ${esc(d.activeVersion)}</span></span>`;
-        /* readonly — 재서명(수정) 액션 숨김 */
-        actBtn = readonly ? dash : `<button class="btn btn--xs btn--primary" type="button" data-myinfo-doc-sign="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">재서명</button>`;
-      } else if (st.state === 'signed') {
-        statusPill = '<span class="pill pill--success" style="font-size:11px;">서명완료</span>';
-        /* 미리보기는 열람 액션 — readonly 에서도 허용 */
-        actBtn = `<button class="btn btn--xs" type="button" data-empi-doc-preview="doc:${esc(d.key)}" data-empi-doc-name="${esc(d.name)}" data-empi-doc-signed="1">미리보기</button>`;
-      } else {
-        statusPill = '<span class="pill" style="font-size:11px;">미서명</span>';
-        /* readonly — 서명(수정) 액션 숨김 */
-        actBtn = readonly ? dash : `<button class="btn btn--xs btn--primary" type="button" data-myinfo-doc-sign="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">서명하기</button>`;
-      }
-      /* 서명 이력 — 과거(재서명 전 포함) 서명본이 있으면 [이력] 노출 (열람 — readonly 에서도 허용) */
-      const histN = (App.JoinDocs.getSignatureHistory ? App.JoinDocs.getSignatureHistory(emp.id, d.key) : []).length;
-      const histBtn = histN > 0
-        ? ` <button class="btn btn--xs" type="button" data-myinfo-sighist="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">이력${histN > 1 ? ` (${histN})` : ''}</button>`
-        : '';
-      const muted = (v) => v ? esc(v) : dash;
-      return `<tr>
-        <td style="${td}text-align:center;color:var(--color-text-muted);">${i + 1}</td>
-        <td style="${td}font-weight:var(--fw-medium);">${esc(d.name)}</td>
-        <td style="${td}text-align:center;color:var(--color-text-muted);">${esc((sig && sig.version) || d.activeVersion || '-')}</td>
-        <td style="${td}text-align:center;">${statusPill}</td>
-        <td style="${td}">${muted(sig && sig.signedAt)}</td>
-        <td style="${td}text-align:center;white-space:nowrap;">${actBtn}${histBtn}</td>
-      </tr>`;
-    }).join('');
-    const emptyKeptMsg = readonly
-      ? '보관한 서류가 없습니다.'
-      : '보관한 서류가 없습니다.<br/><strong>[+ 서류 자료실]</strong> 에서 필요한 서류를 보관하세요.';
-    const tableHTML = kept.length ? `<div class="empi-tblwrap"><table class="empi-tbl empi-tbl--data" style="width:100%;border-collapse:collapse;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:6px;overflow:hidden;">
-      <thead><tr>
-        <th style="${thStyle}width:40px;text-align:center;">No</th>
-        <th style="${thStyle}">서류명</th>
-        <th style="${thStyle}width:80px;text-align:center;">버전</th>
-        <th style="${thStyle}width:110px;text-align:center;">서명 상태</th>
-        <th style="${thStyle}width:150px;">서명일시</th>
-        <th style="${thStyle}width:120px;text-align:center;">${readonly ? '미리보기' : '서명·미리보기'}</th>
-      </tr></thead>
-      <tbody>${rowsHTML}</tbody>
-    </table></div>`
-      : `<div style="padding:32px 16px;background:var(--color-surface-alt);border-radius:var(--radius-md);text-align:center;color:var(--color-text-muted);font-size:var(--fs-sm);line-height:1.7;">
-          ${emptyKeptMsg}
-        </div>`;
-
-    const companySection = sectionShellHTML({
-      key: 'docs', level: 1, title: '회사 서류', descBlock: true,
-      description: readonly
-        ? ''
-        : '자료실에서 서류를 보관해 서명하고, 서명본을 미리보기·PDF로 받습니다.',
-      visibility: 'public', body: banner + tableHTML,
-    });
 
     /* ── 본인 제출 서류 (업로드) ── 주민등록등본·원천징수영수증 등 직접 업로드 */
     const uploads = App.JoinDocs.getUploads(emp.id);
@@ -5581,14 +6110,14 @@
           ${emptyUpMsg}
         </div>`;
     const uploadSection = sectionShellHTML({
-      key: 'uploads', level: 1, title: '본인 제출 서류', descBlock: true,
+      key: 'uploads', level: 1, title: '제출 서류', descBlock: true,
       description: readonly
         ? ''
-        : '주민등록등본·원천징수영수증·통장사본 등 본인 증빙을 업로드합니다.',
+        : '회사에 제출해야하는 서류를 업로드합니다.',
       visibility: 'public', body: upToolbar + upTable,
     });
 
-    return companySection + uploadSection;
+    return uploadSection;
   }
 
   /* ===== 서류 자료실 모달 — 전체 서류 열람 + 보관/서명/미리보기 ===== */
@@ -6113,6 +6642,163 @@
     });
   }
 
+  /* ============ 인사정보카드 — 등록 검토 Floating Dock (승인 / 반려) ============
+   *   임직원 관리 [검토] 진입(계정 등록완료 + HR 승인 대기) 시 카드 우하단에 떠서,
+   *   신상 정보(주소·이메일·휴대전화)와 지급 정보(계좌)의 누락·형식 오류를 체크리스트로 보여주고
+   *   카드 안에서 바로 승인·반려한다.
+   *   · 그룹 클릭 → 해당 탭으로 이동(누락 항목 즉시 확인)
+   *   · 접기(—) 토글로 최소화 — 카드 본문을 가리지 않게
+   *   내 정보(셀프서비스) 뷰·모달 외 컨테이너에서는 노출하지 않는다. */
+  const ICO_CHK_OK   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
+  const ICO_CHK_MISS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12" y2="16.5"/></svg>`;
+  const ICO_CHK_NA   = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>`;
+
+  /* 검토 대상 여부 — 계정 등록완료 + HR 승인 대기 (모달에서만; 내 정보 뷰 제외) */
+  function cardReviewActive(emp) {
+    return !!emp && !isMyInfoView() && emp.acctReg === 'done' && emp.approval === 'pending';
+  }
+  /* 검토 체크리스트 — 각 항목 {label, state:'ok'|'bad'|'na', note} (note = 문제 사유: '미입력' | '형식 오류')
+   *   계정 등록·계약 정보처럼 시스템상 반드시 채워지는 값은 제외하고,
+   *   본인이 입력해 누락·형식 오류가 날 수 있는 항목만 확인한다.
+   *   · 신상 정보 : 주소(미입력) / 개인 이메일·휴대전화(형식)
+   *   · 지급 정보 : 은행·계좌번호·예금주(미입력) / 계좌번호(숫자만, 하이픈 없이) */
+  function cardReviewChecklist(emp) {
+    const filled  = (v) => !!(v != null && String(v).trim());
+    const ok      = (label) => ({ label, state: 'ok' });
+    const bad     = (label, note) => ({ label, state: 'bad', note });
+    const na      = (label) => ({ label, state: 'na' });
+    /* 형식 검증 — 값이 있을 때만 형식을 따진다(빈 값은 '미입력'). */
+    const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim());
+    const phoneOk = (v) => /^01[016789]\d{7,8}$/.test(String(v).replace(/[\s-]/g, ''));   // 010… 숫자 10~11자리
+    const acctOk  = (v) => /^\d+$/.test(String(v).trim());                                 // 계좌번호 — 하이픈 없이 숫자만
+    const checkFmt = (label, v, fmtOk) => !filled(v) ? bad(label, '미입력') : (fmtOk(v) ? ok(label) : bad(label, '형식 오류'));
+
+    const groups = [];
+
+    /* 신상 정보 — 주소(미입력) + 개인 이메일·휴대전화(형식) */
+    groups.push({
+      key: 'personal', tab: 'personal', title: '신상 정보',
+      items: [
+        filled(emp.address) ? ok('주소') : bad('주소', '미입력'),
+        checkFmt('개인 이메일', emp.email, emailOk),
+        checkFmt('휴대전화',   emp.phone, phoneOk),
+      ],
+    });
+
+    /* 지급 정보 — 계좌 미입력 + 계좌번호 형식(숫자만). 임금계약 비해당(도급직)은 해당없음. */
+    if (!isWageContractApplicable(emp)) {
+      groups.push({ key: 'pay', tab: 'payroll', title: '지급 정보', items: [na('지급 계좌')] });
+    } else {
+      groups.push({
+        key: 'pay', tab: 'payroll', title: '지급 정보',
+        items: [
+          filled(emp.bankName) ? ok('은행') : bad('은행', '미입력'),
+          checkFmt('계좌번호', emp.bankAccount, acctOk),
+          filled(emp.bankHolder || displayName(emp)) ? ok('예금주') : bad('예금주', '미입력'),
+        ],
+      });
+    }
+    return groups;
+  }
+  /* 전체 누락/형식오류 건수 */
+  function cardReviewMissingCount(emp) {
+    return cardReviewChecklist(emp).reduce((n, g) => n + g.items.filter(i => i.state === 'bad').length, 0);
+  }
+
+  /* Dock 껍데기 style (접힘/펼침 공통) */
+  function reviewDockShellStyle() {
+    return 'position:absolute;right:20px;bottom:20px;width:340px;max-width:calc(100% - 40px);z-index:6;'
+         + 'background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;'
+         + 'box-shadow:0 10px 32px rgba(15,23,42,0.20);display:flex;flex-direction:column;overflow:hidden;';
+  }
+  /* Dock 내부 HTML */
+  function reviewDockInnerHTML(emp) {
+    const groups = cardReviewChecklist(emp);
+    const totalMiss = groups.reduce((n, g) => n + g.items.filter(i => i.state === 'miss').length, 0);
+    const min = !!CARD_STATE.reviewDockMin;
+
+    /* 헤더 — 타이틀 + (접힘 시 상태 pill) + 접기/펼치기 토글 */
+    const headStatusPill = min
+      ? (totalMiss > 0
+          ? `<span class="pill pill--warning" style="font-size:11px;">${totalMiss}건 확인</span>`
+          : `<span class="pill pill--success" style="font-size:11px;">이상 없음</span>`)
+      : '';
+    const chevron = min
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const header = `
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:${min ? '0' : '1px solid var(--color-divider)'};background:var(--color-surface-alt);">
+        <span style="display:inline-flex;color:var(--color-brand-primary);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </span>
+        <span style="font-size:13px;font-weight:var(--fw-semibold);color:var(--color-text);flex:1;min-width:0;">등록 정보 검토</span>
+        ${headStatusPill}
+        <button type="button" data-review-dock-min title="${min ? '펼치기' : '접기'}"
+          style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--color-border);border-radius:5px;background:var(--color-surface);color:var(--color-text-sub);cursor:pointer;flex-shrink:0;">${chevron}</button>
+      </div>`;
+
+    if (min) return header;
+
+    /* 체크리스트 — 그룹 단위(클릭 시 해당 탭 이동). 문제 항목만 하단에 빨간 글씨로 사유와 함께 표기. */
+    const rowHTML = (g) => {
+      const bad = g.items.filter(i => i.state === 'bad');
+      const allNa = g.items.every(i => i.state === 'na');
+      let ico, color, statusText;
+      if (bad.length)       { ico = ICO_CHK_MISS; color = 'var(--color-danger)';  statusText = `${bad.length}건 확인`; }
+      else if (allNa)       { ico = ICO_CHK_NA;   color = 'var(--color-text-muted)'; statusText = '해당없음'; }
+      else                  { ico = ICO_CHK_OK;   color = 'var(--color-success)'; statusText = '이상 없음'; }
+      const detail = bad.length
+        ? `<div style="margin:3px 0 0 23px;font-size:11.5px;color:var(--color-danger);line-height:1.5;">${esc(bad.map(i => `${i.label} ${i.note}`).join(', '))}</div>`
+        : '';
+      return `
+        <li data-review-jump="${esc(g.tab)}" title="클릭하면 ‘${esc(g.title)}’ 항목으로 이동합니다"
+            style="list-style:none;padding:8px 14px;border-bottom:1px solid var(--color-divider);cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-flex;color:${color};flex-shrink:0;">${ico}</span>
+            <span style="font-size:12.5px;font-weight:var(--fw-medium);color:var(--color-text);flex:1;min-width:0;">${esc(g.title)}</span>
+            <span style="font-size:11.5px;color:${color};flex-shrink:0;">${statusText}</span>
+          </div>
+          ${detail}
+        </li>`;
+    };
+    const list = `<ul style="margin:0;padding:0;max-height:44vh;overflow:auto;">${groups.map(rowHTML).join('')}</ul>`;
+
+    /* 요약 + 액션 */
+    const summary = totalMiss > 0
+      ? `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-warning);margin-bottom:10px;">
+           <span style="display:inline-flex;">${ICO_CHK_MISS}</span>${totalMiss}건 확인이 필요합니다.</div>`
+      : `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-success);margin-bottom:10px;">
+           <span style="display:inline-flex;">${ICO_CHK_OK}</span>모든 항목이 확인되었습니다.</div>`;
+    const footer = `
+      <div style="padding:12px 14px;border-top:1px solid var(--color-divider);background:var(--color-surface);">
+        ${summary}
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn btn--sm btn--danger" data-review-act="reject" style="flex:1;">반려</button>
+          <button type="button" class="btn btn--sm btn--primary" data-review-act="approve" style="flex:1;">승인</button>
+        </div>
+      </div>`;
+
+    return header + list + footer;
+  }
+  /* Dock 렌더 — 검토 대상이면 카드에 주입/갱신, 아니면 제거 */
+  function renderCardReviewDock() {
+    const modal = document.getElementById('modal-empi-card');
+    if (!modal) return;
+    const card = modal.querySelector('.modal');
+    if (!card) return;
+    let dock = card.querySelector('[data-review-dock]');
+    const emp = CARD_STATE.emp;
+    if (!cardReviewActive(emp)) { if (dock) dock.remove(); return; }
+    card.style.position = 'relative';   // Dock 의 absolute 기준
+    if (!dock) {
+      dock = document.createElement('div');
+      dock.setAttribute('data-review-dock', '');
+      card.appendChild(dock);
+    }
+    dock.setAttribute('style', reviewDockShellStyle());
+    dock.innerHTML = reviewDockInnerHTML(emp);
+  }
+
   /* --- 모달 open/close --- */
   function openCardModal(emp) {
     if (!emp) return;
@@ -6123,10 +6809,12 @@
     CARD_STATE.tab = 'personal';
     CARD_STATE.rrnRevealed = false;
     CARD_STATE.histPages = {};   // 모달 재오픈 시 이력·현황 표 페이지 초기화
+    CARD_STATE.reviewDockMin = false;   // 검토 Dock 은 펼친 상태로 시작
     /* role 은 직전 세션 토글값 유지 (모달 재오픈 시 사용자가 마지막 선택한 권한으로 시작) */
     renderCardHeader();
     renderCardBody();
     openModal('modal-empi-card');
+    renderCardReviewDock();   // 검토 대상(등록완료+승인대기)이면 우하단 승인/반려 Dock 노출
   }
 
   /* ============ 내 정보 페이지 — 인사정보카드 내용을 풀페이지로 이식 ============
@@ -6270,6 +6958,30 @@
         printEmployeeCard();
         return;
       }
+      /* 등록 검토 Dock — 접기/펼치기 토글 */
+      if (e.target.closest('[data-review-dock-min]')) {
+        CARD_STATE.reviewDockMin = !CARD_STATE.reviewDockMin;
+        renderCardReviewDock();
+        return;
+      }
+      /* 등록 검토 Dock — 그룹 클릭 시 해당 탭으로 이동(누락 항목 즉시 확인) */
+      const reviewJump = e.target.closest('[data-review-jump]');
+      if (reviewJump) {
+        CARD_STATE.tab = reviewJump.dataset.reviewJump;
+        CARD_STATE.rrnRevealed = false;
+        renderCardHeader();
+        renderCardBody();
+        return;
+      }
+      /* 등록 검토 Dock — 승인 / 반려 */
+      const reviewAct = e.target.closest('[data-review-act]');
+      if (reviewAct) {
+        const emp = CARD_STATE.emp;
+        if (!emp) return;
+        if (reviewAct.dataset.reviewAct === 'approve') doApproveAccount(emp, { fromCard: true });
+        else doRejectAccount(emp, { fromCard: true });
+        return;
+      }
       /* 탭 네비 클릭 */
       const tabBtn = e.target.closest('[data-empi-card-tabs] [data-tab]');
       if (tabBtn) {
@@ -6313,13 +7025,6 @@
         CARD_STATE.role = roleBtn.dataset.role;
         if (CARD_STATE.role !== 'hr_admin') CARD_STATE.rrnRevealed = false;
         renderCardHeader();
-        renderCardBody();
-        return;
-      }
-      /* 주민번호 마스킹 토글 — 인사담당자만 */
-      const rrnBtn = e.target.closest('[data-empi-card-rrn-toggle]');
-      if (rrnBtn && canViewPrivate()) {
-        CARD_STATE.rrnRevealed = !CARD_STATE.rrnRevealed;
         renderCardBody();
         return;
       }
@@ -6551,6 +7256,13 @@
         /* 근무 정보 — 미등록이면 전체 편집(근무지/부서/직위/직책/직무), 등록완료면 근무지만 편집 */
         if ((act === 'edit' || act === 'add') && sec === 'worksite') {
           const emp = CARD_STATE.emp;
+          /* 근로/임금 계약서 서명 대기 중에는 편집 차단 */
+          if (contractSigningInProgress(emp)) {
+            const m = '근로·임금 계약서 서명이 진행 중입니다. 서명 완료 후 근무 정보를 수정할 수 있습니다.';
+            if (window.App && typeof App.sweetAlert === 'function') App.sweetAlert({ icon: 'info', title: '수정 불가', message: m });
+            else window.toast && window.toast(m, 'warning');
+            return;
+          }
           openCardSectionEdit(hasWorkInfo(emp) ? 'worksite' : 'workinfo');
           return;
         }
@@ -7851,8 +8563,9 @@
     else if (!wageIndef && !endEl.value)   showErr('period', '계약 종료일을 선택하거나 「기간의 정함 없음」을 선택해 주세요.', endEl);
     else if (!wageIndef && endEl.value < startEl.value) showErr('period', '종료일은 시작일 이후로 설정해 주세요.', endEl);
     else if (CARD_STATE.newContractFlow === 'wage') {
-      /* 신규 임금계약 작성 — 동일 '시작일'의 유효 임금계약서가 있으면 안내(작성 차단). 시작일이 다르면 재계약으로 허용. */
-      const dup = findOverlappingContract(CARD_STATE.emp, '임금계약서', startEl.value);
+      /* 신규 임금계약 작성 — 동일 '시작일'의 유효 임금계약서가 있으면 안내(작성 차단). 시작일이 다르면
+         재계약(갱신)으로 허용 — 무기(기간의 정함 없음) 임금계약끼리도 시작일이 다르면 허용한다. */
+      const dup = findSameStartContract(CARD_STATE.emp, '임금계약서', startEl.value);
       if (dup) showErr('period', `이미 같은 시작일의 임금계약서가 존재합니다 (${dup.id}, ${dupPeriodText(dup)}). 시작일을 변경해 주세요.`, startEl);
     }
 
@@ -8221,7 +8934,8 @@
     const indef   = !!(modal.querySelector('[data-empi-ce-indefinite]') || {}).checked;
     const isRegular = empType === 'regular';
 
-    /* 계약기간 */
+    /* 계약기간 — 신규 근로계약 작성 시 기존(유효) 근로계약과 기간이 겹치면 추가 작성 불가.
+       (겹치지 않는 이후 기간이면 재계약으로 허용) */
     if (!startEl.value) {
       showErr('period', '계약 시작일을 선택해 주세요.', startEl);
     } else if (!(isRegular && indef)) {
@@ -8230,13 +8944,13 @@
       } else if (endEl.value < startEl.value) {
         showErr('period', '종료일은 시작일 이후로 설정해 주세요.', endEl);
       } else if (CARD_STATE.newContractFlow === 'labor') {
-        const dup = findOverlappingContract(CARD_STATE.emp, '근로계약서', startEl.value);
-        if (dup) showErr('period', `이미 같은 시작일의 근로계약서가 존재합니다 (${dup.id}, ${dupPeriodText(dup)}). 시작일을 변경해 주세요.`, startEl);
+        const dup = findOverlappingContract(CARD_STATE.emp, '근로계약서', startEl.value, endEl.value, false);
+        if (dup) showErr('period', `이미 해당 기간에 근로계약서가 존재합니다 (${dup.id}, ${dupPeriodText(dup)}). 기존 계약 종료 이후 기간으로 설정해 주세요.`, startEl);
       }
     } else if (isRegular && indef && CARD_STATE.newContractFlow === 'labor') {
-      /* 정규직 무기계약 — 동일 시작일이면 중복(시작일 다르면 재계약 허용) */
-      const dup = findOverlappingContract(CARD_STATE.emp, '근로계약서', startEl.value);
-      if (dup) showErr('period', `이미 같은 시작일의 근로계약서가 존재합니다 (${dup.id}, ${dupPeriodText(dup)}). 시작일을 변경해 주세요.`, startEl);
+      /* 정규직 무기계약 — 기존 유효 근로계약이 있으면 기간이 겹치므로 추가 작성 불가 */
+      const dup = findOverlappingContract(CARD_STATE.emp, '근로계약서', startEl.value, '', true);
+      if (dup) showErr('period', `이미 유효한 근로계약서가 존재합니다 (${dup.id}, ${dupPeriodText(dup)}). 기존 계약을 종료한 뒤 작성해 주세요.`, startEl);
     }
 
     /* 부서는 「근무 정보」에서 관리 — 근로 계약 정보 모달에서 검증하지 않음. */
@@ -8309,7 +9023,7 @@
           const pe = (modal.querySelector('[data-empi-ce-probation-end]') || {}).value || '';
           hint.textContent = `수습 기간(${ps || '—'} ~ ${pe || '—'}) 의 기간제 근로계약서로 생성됩니다.`;
         } else if (isPermanent) {
-          hint.textContent = '기간제 근로계약서 작성을 원하신다면 수습을 체크해주세요.';
+          hint.textContent = '기간의 정함 없는 정규직 근로계약서로 생성됩니다. (수습 계약이 필요하면 위 「수습」을 체크하세요.)';
         } else {
           hint.textContent = '서명 요청 발송 시 이 종류의 근로계약서로 생성됩니다.';
         }
@@ -8382,6 +9096,28 @@
     /* 수습 종료일 변경 시 — 기간제 근로계약서 수습 기간 표시 갱신 */
     const probEndEl = modal.querySelector('[data-empi-ce-probation-end]');
     if (probEndEl) probEndEl.addEventListener('input', updateDocType);
+
+    /* 계약 시작일이 수습 종료일 이후이면 수습 자동 해제 → 정규직 근로계약서로 전환.
+       (재계약/추가 작성: 최초 수습이 이미 끝난 뒤 시작하는 근로계약은 수습이 없는 정규직 계약이다.) */
+    const ceStartEl = modal.querySelector('[data-empi-ce-contract-start]');
+    if (ceStartEl) {
+      const autoDropProbation = () => {
+        const v = (modal.querySelector('[name="empi-ce-emptype"]:checked') || {}).value || '';
+        if (v !== 'regular') return;
+        const pc = modal.querySelector('[data-empi-ce-probation]');
+        if (!pc || !pc.checked) return;
+        const pe = (modal.querySelector('[data-empi-ce-probation-end]') || {}).value || '';
+        const s  = ceStartEl.value || '';
+        if (pe && s && s > pe) {
+          pc.checked = false;
+          const probP = modal.querySelector('[data-empi-ce-probation-period]');
+          if (probP) probP.style.display = 'none';
+          updateDocType();   // 정규직 근로계약서로 갱신
+        }
+      };
+      ceStartEl.addEventListener('change', autoDropProbation);
+      ceStartEl.addEventListener('input', autoDropProbation);
+    }
 
     /* 근무형태 (고정/교대) — 영역별 노출 토글.
      *   - 고정: 근무조 row 노출, 근무시간/휴게시간 = 근무조에서 채워진 시·분 표시
@@ -9312,9 +10048,107 @@
       });
     }
   }
+  /* 등록 모달 — 근로/임금 계약 입력용 합성 emp. 재사용 render/wire 함수가 emp 파라미터 +
+     CARD_STATE.emp 를 읽으므로 등록 세션 동안 이 객체를 CARD_STATE.emp 로 지정한다.
+     (등록 모달은 인사카드가 열려있지 않은 상태에서 진입 → CARD_STATE 덮어써도 안전. 다음 카드 오픈 시 재설정됨) */
+  let _createEmp = null;
+  function newCreateEmp() {
+    return {
+      id: '(신규)', joinDate: '', empType: '', contractSubType: '',
+      contractStartDate: '', contractEndDate: '', probation: false, probationStart: '', probationEnd: '',
+      dept: '', site: '', job: '', rank: '', position: '',
+      wageType: '', contractAmount: '', wageContractStartDate: '', wageContractEndDate: '',
+    };
+  }
+  /* 근로/임금 계약 body 를 인사카드 설정 폼(renderCardEditEmployment / renderCardEditWage)으로 렌더 + 와이어링.
+     매 오픈/재렌더마다 innerHTML 을 새로 써서 이전 리스너를 폐기 노드와 함께 정리한다. */
+  function renderCreateLaborBody(modal) {
+    const host = modal.querySelector('[data-empi-c-labor-body]');
+    if (!host) return;
+    host.innerHTML = renderCardEditEmployment(_createEmp);
+    wireEmploymentEditDeps(modal);
+    lockCreateContractStart(modal);
+    /* 수습 종료일 = 입사일 + 3개월 자동, 편집 불가 (수습 시작일은 렌더에서 이미 readonly) */
+    const pe = host.querySelector('[data-empi-ce-probation-end]');
+    if (pe) {
+      pe.readOnly = true;
+      pe.style.background = 'var(--color-surface-alt)';
+      pe.title = '수습 종료일은 입사일로부터 3개월로 자동 설정됩니다.';
+    }
+  }
+  function renderCreateWageBody(modal) {
+    const host = modal.querySelector('[data-empi-c-wage-body]');
+    if (!host) return;
+    host.innerHTML = renderCardEditWage(_createEmp);
+    wireWageEditDeps(modal);
+    stripWageExtras(host);
+    lockCreateContractStart(modal);
+  }
+  /* 임직원 등록의 임금 계약 정보에서는 '지급 정보(지급일/방법)'와 '공제 안내'를 노출하지 않는다.
+     (재사용한 임금 계약 설정 폼에서 해당 노드만 제거 — 값은 저장 시 기본값으로 대체) */
+  function stripWageExtras(host) {
+    /* 공제 안내 — 입력이 속한 fm-tbl 블록(+ 감싼 margin 래퍼) 제거 */
+    const ded = host.querySelector('[data-empi-cw-deduction]');
+    if (ded) {
+      const tbl = ded.closest('.fm-tbl');
+      const wrap = tbl && tbl.parentElement;
+      (wrap && wrap.children.length === 1 ? wrap : tbl || ded).remove();
+    }
+    /* 지급 정보 — 지급일/방법 fm-tbl + 바로 앞 섹션 구분선 제거 */
+    const pay = host.querySelector('[data-empi-cw-payday]');
+    if (pay) {
+      const tbl = pay.closest('.fm-tbl');
+      const divider = tbl && tbl.previousElementSibling;
+      if (divider) divider.remove();
+      if (tbl) tbl.remove();
+    }
+  }
+  function renderCreateContractBodies() {
+    const modal = document.getElementById('modal-empi-create');
+    if (!modal) return;
+    CARD_STATE.emp = _createEmp;
+    CARD_STATE.contractEditLockType = false;
+    CARD_STATE.newContractFlow = null;
+    renderCreateLaborBody(modal);
+    renderCreateWageBody(modal);
+  }
+  /* 계약 시작일 = 입사일 (편집 불가) — 근로/임금 시작일 모두 readonly + 입사일 값 동기화 */
+  function lockCreateContractStart(modal) {
+    const join = (modal.querySelector('#empi-c-joindate') || {}).value || '';
+    ['[data-empi-ce-contract-start]', '[data-empi-cw-start]'].forEach(sel => {
+      const el = modal.querySelector(sel);
+      if (!el) return;
+      el.value = join;
+      el.readOnly = true;
+      el.style.background = 'var(--color-surface-alt)';
+      el.title = '계약 시작일은 입사일과 동일합니다.';
+    });
+  }
+  /* 도급직 여부 → 근로/임금 계약 섹션 표시 토글 (도급직은 근로/임금 계약 없음) */
+  function toggleCreateContractSections(modal) {
+    const isOut = (modal.querySelector('[name="empi-c-outsourced"]:checked') || {}).value === '1';
+    const laborSec = modal.querySelector('#empi-c-labor-section');
+    const wageSec  = modal.querySelector('#empi-c-wage-section');
+    if (laborSec) laborSec.style.display = isOut ? 'none' : '';
+    if (wageSec)  wageSec.style.display  = isOut ? 'none' : '';
+  }
+  /* 섹션 표시/재렌더로 본문 높이가 바뀔 때 스크롤이 맨 위로 튀지 않도록 —
+     기준 요소(사용자가 조작한 컨트롤)의 화면상 위치를 토글 전후 동일하게 유지한다. */
+  function preserveDetailScroll(modal, anchorEl, fn) {
+    const body = modal.querySelector('.empi-create-detail__body');
+    const has = anchorEl && typeof anchorEl.getBoundingClientRect === 'function';
+    const before = has ? anchorEl.getBoundingClientRect().top : 0;
+    fn();
+    if (body && has) {
+      const after = anchorEl.getBoundingClientRect().top;
+      body.scrollTop += (after - before);
+    }
+  }
+
   function openCreateModal() {
     /* 모달 첫 사용 시점 동적 주입 — index.html 에 markup 두지 않고 페이지 자체에서 관리 */
     injectCreateModal();
+    _createEmp = newCreateEmp();
     setupDeptCombo();
     fillSelect('empi-c-job',      MASTER.jobs);
     fillSelect('empi-c-rank',     MASTER.ranks);
@@ -9365,11 +10199,11 @@
     const probWrap = document.getElementById('empi-c-probation-wrap');
     if (probWrap) probWrap.style.display = 'none';
 
-    /* 도급직 여부: 기본 '해당 없음'. 소속회사 + 사원 유형 행은 숨김 + 값 초기화 */
+    /* 도급직 여부: 기본 '해당 없음'. 사원 유형은 상시 노출(선택 초기화만), 소속회사 행만 숨김 + 값 초기화 */
     const outNo = document.querySelector('[name="empi-c-outsourced"][value=""]');
     if (outNo) outNo.checked = true;
     const jobcatRow = document.getElementById('empi-c-jobcat-row');
-    if (jobcatRow) jobcatRow.style.display = 'none';
+    if (jobcatRow) jobcatRow.style.display = '';
     const companyRow = document.getElementById('empi-c-contract-company-row');
     if (companyRow) companyRow.style.display = 'none';
     const companySel = document.getElementById('empi-c-contract-company');
@@ -9381,9 +10215,12 @@
     const photoHost = document.getElementById('empi-c-photo-uploader');
     if (photoHost && window.App && App.PhotoUploader) App.PhotoUploader.reset(photoHost);
     $('[data-empi-create-submit]').disabled = false;
+    /* 근로/임금 계약 body 렌더(인사카드 설정 폼 재사용) + 도급직 여부 기준 섹션 표시 */
+    renderCreateContractBodies();
+    if (modal) toggleCreateContractSections(modal);
     /* 이전 인라인 오류 제거 */
     if (window.App && App.Forms && App.Forms.clearAll) App.Forms.clearAll(document.getElementById('modal-empi-create'));
-    openModal('modal-empi-create');
+    showCreateDetail();
   }
 
   /* 입사일 기반으로 수습기간 강제 동기화.
@@ -9432,6 +10269,8 @@
     /* 아코디언 클릭 토글 + 주소 검색 버튼 — 단일 위임 핸들러.
      *   SVG chevron 은 기본(`>`) 모양이며, 펼침 시 90도 회전하여 (`⌄`) 형태가 됨. */
     modal.addEventListener('click', (e) => {
+      /* 상세 화면 닫기 (← 뒤로 / 취소) — 목록으로 복귀 */
+      if (e.target.closest('[data-empi-detail-close]')) { e.preventDefault(); closeCreateDetail(); return; }
       /* 주소 검색 — 데모 mock (실제 환경에서는 Daum 우편번호 API 등 연동) */
       const zipBtn = e.target.closest('[data-empi-zipcode-search]');
       if (zipBtn) {
@@ -9528,20 +10367,36 @@
       });
     });
 
-    /* 도급직 여부 토글 — '해당' 선택 시 소속회사 + 사원 유형 행 노출, '해당 없음' 시 숨김·초기화 */
+    /* 도급직 여부 토글 — '해당' 선택 시 소속회사 행 노출 + 근로/임금 계약 섹션 숨김(도급직은 계약 없음).
+       사원 유형은 상시 노출(숨기지 않음). '해당 없음' 시 소속회사 숨김·초기화 + 계약 섹션 노출. */
     modal.querySelectorAll('[name="empi-c-outsourced"]').forEach(el => {
       el.addEventListener('change', () => {
-        const isOut = (modal.querySelector('[name="empi-c-outsourced"]:checked') || {}).value === '1';
-        const companyRow = modal.querySelector('#empi-c-contract-company-row');
-        const jobcatRow  = modal.querySelector('#empi-c-jobcat-row');
-        if (companyRow) companyRow.style.display = isOut ? '' : 'none';
-        if (jobcatRow)  jobcatRow.style.display  = isOut ? '' : 'none';
-        if (!isOut) {
-          const companySel = modal.querySelector('#empi-c-contract-company');
-          if (companySel) companySel.value = '';
-          modal.querySelectorAll('[name="empi-c-jobcat"]').forEach(r => { r.checked = false; });
-        }
+        preserveDetailScroll(modal, el, () => {
+          const isOut = (modal.querySelector('[name="empi-c-outsourced"]:checked') || {}).value === '1';
+          const companyRow = modal.querySelector('#empi-c-contract-company-row');
+          if (companyRow) companyRow.style.display = isOut ? '' : 'none';
+          if (!isOut) {
+            const companySel = modal.querySelector('#empi-c-contract-company');
+            if (companySel) companySel.value = '';
+          }
+          /* 도급직=해당 → 근로 유형은 외부인력(outsourced)으로 파생, 계약 섹션 숨김 */
+          if (_createEmp) _createEmp.empType = isOut ? 'outsourced' : '';
+          toggleCreateContractSections(modal);
+        });
       });
+    });
+
+    /* 근로 유형(근로 계약 정보) 변경 → 임금 유형 파생: 일용직=시급제 / 정규·계약직=연봉제.
+       renderCardEditWage 가 empType 로 임금유형·분기를 결정하므로 임금 body 를 재렌더한다.
+       (근로 계약 body 의 표시 동기화는 wireEmploymentEditDeps 가 별도 처리) */
+    modal.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t && t.name === 'empi-ce-emptype') {
+        preserveDetailScroll(modal, t, () => {
+          if (_createEmp) _createEmp.empType = (modal.querySelector('[name="empi-ce-emptype"]:checked') || {}).value || '';
+          renderCreateWageBody(modal);
+        });
+      }
     });
 
     /* 수습 체크박스 토글 → 기간 입력 표시 + 기본값(입사일 ~ 입사일+3개월) 자동 채움 */
@@ -9558,12 +10413,22 @@
       });
     }
 
-    /* 입사일 변경 → 수습 적용 중이면 기간을 입사일 기반으로 갱신 (사용자가 수동 변경한 값은 유지) */
+    /* 입사일 변경 → (1) 합성 emp 갱신, (2) 근로/임금 계약 시작일(=입사일, readonly) 동기화,
+       (3) 수습 적용 중이면 수습 기간을 입사일 기반으로 갱신 */
     const joinEl = modal.querySelector('#empi-c-joindate');
     if (joinEl) {
       joinEl.addEventListener('change', () => {
-        const probCb2 = modal.querySelector('#empi-c-probation');
-        if (probCb2 && probCb2.checked) syncProbationPeriod(modal);
+        const j = joinEl.value || '';
+        if (_createEmp) _createEmp.joinDate = j;
+        lockCreateContractStart(modal);
+        /* 근로 계약 body 의 수습 기간(readonly 시작일 = 입사일) 동기화 */
+        const probCe = modal.querySelector('[data-empi-ce-probation]');
+        if (probCe && probCe.checked) {
+          const ps = modal.querySelector('[data-empi-ce-probation-start]');
+          const pe = modal.querySelector('[data-empi-ce-probation-end]');
+          if (ps) ps.value = j;
+          if (pe && j) pe.value = addMonths(j, 3);
+        }
       });
     }
 
@@ -9607,23 +10472,102 @@
         ok = false;
       }
 
-      /* 도급직=해당 → 소속회사 + 사원 유형(근태용) 필수 */
+      /* ===== 근무 정보 — 전 항목 필수 (사원 유형 / 근무지 / 부서 / 직위 / 직책 / 직무, 도급직=해당 시 소속회사) ===== */
       const outChecked = (modal.querySelector('[name="empi-c-outsourced"]:checked') || {}).value === '1';
+      const reqSelects = [
+        { id: 'empi-c-site',     msg: '근무지를 선택해 주세요.' },
+        { id: 'empi-c-rank',     msg: '직위를 선택해 주세요.' },
+        { id: 'empi-c-position', msg: '직책을 선택해 주세요.' },
+        { id: 'empi-c-job',      msg: '직무를 선택해 주세요.' },
+      ];
+      reqSelects.forEach(({ id, msg }) => {
+        const el = modal.querySelector('#' + id);
+        if (el && !el.value) { if (F) F.setFieldError(el, msg); ok = false; firstInvalid.push(el); }
+      });
+      /* 부서 (콤보) */
+      if (!deptCurVal) {
+        const deptHost = modal.querySelector('#empi-c-dept');
+        if (F && deptHost) F.setFieldError(deptHost, '부서를 선택해 주세요.');
+        ok = false; if (deptHost) firstInvalid.push(deptHost);
+      }
+      /* 사원 유형 (라디오) — 상시 필수 */
+      const jobcatErr = modal.querySelector('[data-empi-c-err="jobcat"]');
+      if (!modal.querySelector('[name="empi-c-jobcat"]:checked')) {
+        if (jobcatErr) { jobcatErr.textContent = '사원 유형을 선택해 주세요.'; jobcatErr.hidden = false; }
+        ok = false; firstInvalid.push(modal.querySelector('#empi-c-jobcat-row'));
+      } else if (jobcatErr) { jobcatErr.hidden = true; }
+      /* 도급직=해당 → 소속회사 필수 */
       if (outChecked) {
         const companySel = modal.querySelector('#empi-c-contract-company');
         if (companySel && !companySel.value) {
           if (F) F.setFieldError(companySel, '소속회사를 선택해 주세요.');
           ok = false; firstInvalid.push(companySel);
         }
-        const jobcatErr = modal.querySelector('[data-empi-c-err="jobcat"]');
-        if (!modal.querySelector('[name="empi-c-jobcat"]:checked')) {
-          if (jobcatErr) { jobcatErr.textContent = '사원 유형을 선택해 주세요.'; jobcatErr.hidden = false; }
-          ok = false; firstInvalid.push(modal.querySelector('#empi-c-jobcat-row'));
-        } else if (jobcatErr) { jobcatErr.hidden = true; }
+      }
+
+      /* ===== 근로/임금 계약 검증 (도급직=해당없음일 때만 — 도급직은 계약 없음) ===== */
+      const numOf = (v) => Number(String(v == null ? '' : v).replace(/[^0-9.]/g, '')) || 0;
+      const showCErr = (slotSel, msg, focusEl) => {
+        const slot = modal.querySelector(slotSel);
+        if (slot) { slot.textContent = msg; slot.hidden = false; }
+        if (focusEl) { focusEl.classList.add('is-invalid'); firstInvalid.push(focusEl); }
+        else if (slot) { firstInvalid.push(slot); }
+        ok = false;
+      };
+      const ceType    = (modal.querySelector('[name="empi-ce-emptype"]:checked') || {}).value || '';
+      const ceEndEl   = modal.querySelector('[data-empi-ce-contract-end]');
+      const ceProbCb  = modal.querySelector('[data-empi-ce-probation]');
+      const ceProbEnd = modal.querySelector('[data-empi-ce-probation-end]');
+      const cwTypeEl  = modal.querySelector('[name="empi-cw-wagetype"]:checked');
+      const cwAmountEl= modal.querySelector('[data-empi-cw-amount]');
+      const cwEndEl   = modal.querySelector('[data-empi-cw-end]');
+      const cwIndefEl = modal.querySelector('[data-empi-cw-indefinite]');
+      const cwKindEl  = modal.querySelector('[name="empi-cw-kind"]:checked');
+      const cwHDayEl  = modal.querySelector('[data-empi-cw-hours-day]');
+      const cwHWeekEl = modal.querySelector('[data-empi-cw-hours-week]');
+      const cwHMonEl  = modal.querySelector('[data-empi-cw-hours-month]');
+      const joinValForC = (modal.querySelector('#empi-c-joindate') || {}).value || '';
+      if (!outChecked) {
+        /* 근로 유형 필수 */
+        if (!ceType) showCErr('[data-empi-ce-err="emptype"]', '근로 유형을 선택해 주세요.');
+        const ceProbOn = ceType === 'regular' && !!(ceProbCb && ceProbCb.checked);
+        /* 계약 종료일 규칙 —
+           · 정규직 + 수습 O → 수습 종료일 필수 / 정규직 + 수습 X → 기간의 정함 없음(종료일 불요)
+           · 계약직(일반·촉탁·인턴) / 일용직 → 종료일 필수 & 시작일 이후 */
+        if (ceType === 'regular') {
+          if (ceProbOn) {
+            if (ceProbEnd && !ceProbEnd.value) showCErr('[data-empi-ce-err="probend"]', '수습 종료일을 선택해 주세요.', ceProbEnd);
+            else if (ceProbEnd && joinValForC && ceProbEnd.value <= joinValForC) showCErr('[data-empi-ce-err="probend"]', '수습 종료일은 입사일 이후로 설정해 주세요.', ceProbEnd);
+          }
+        } else if (ceType === 'contract' || ceType === 'daily') {
+          if (ceEndEl && !ceEndEl.value) showCErr('[data-empi-ce-err="period"]', '계약 종료일을 선택해 주세요.', ceEndEl);
+          else if (ceEndEl && joinValForC && ceEndEl.value <= joinValForC) showCErr('[data-empi-ce-err="period"]', '종료일은 시작일 이후로 설정해 주세요.', ceEndEl);
+        }
+        /* 임금 — 계약 금액 필수 */
+        if (cwAmountEl && numOf(cwAmountEl.value) <= 0) showCErr('[data-empi-cw-err="amount"]', '계약 금액을 입력해 주세요.', cwAmountEl);
+        /* 임금 계약 종료일 — 기간의 정함 없음 아니면 시작일보다 미래 필수 */
+        if (!(cwIndefEl && cwIndefEl.checked)) {
+          if (cwEndEl && !cwEndEl.value) showCErr('[data-empi-cw-err="period"]', '임금 계약 종료일을 선택해 주세요.', cwEndEl);
+          else if (cwEndEl && joinValForC && cwEndEl.value <= joinValForC) showCErr('[data-empi-cw-err="period"]', '종료일은 시작일보다 미래로 설정해 주세요.', cwEndEl);
+        }
+        /* 소정 근로시간 (1일·1주·월) */
+        if (cwHDayEl && numOf(cwHDayEl.value) <= 0) showCErr('[data-empi-cw-err="stdhours"]', '소정 근로시간을 입력해 주세요.', cwHDayEl);
+        else if (cwHWeekEl && numOf(cwHWeekEl.value) <= 0) showCErr('[data-empi-cw-err="stdhours"]', '소정 근로시간을 입력해 주세요.', cwHWeekEl);
+        else if (cwHMonEl && numOf(cwHMonEl.value) <= 0) showCErr('[data-empi-cw-err="stdhours"]', '소정 근로시간을 입력해 주세요.', cwHMonEl);
+        /* 연봉제 — 임금 계약 유형(고정 OT / 포괄임금) 필수 */
+        if ((cwTypeEl || {}).value === 'annual' && !cwKindEl) showCErr('[data-empi-cw-err="kind"]', '임금 계약 유형을 선택해 주세요.');
       }
 
       if (!ok) {
-        (firstInvalid[0] || modal.querySelector('.is-invalid'))?.scrollIntoView({ behavior:'smooth', block:'center' });
+        /* 오류가 접힌 아코디언 안에 있으면 펼쳐서 보이게 한다 */
+        const focus = firstInvalid[0] || modal.querySelector('.is-invalid');
+        const acc = focus && focus.closest ? focus.closest('[data-empi-acc]') : null;
+        if (acc && !acc.classList.contains('is-open')) {
+          acc.classList.add('is-open');
+          const ab = acc.querySelector('[data-empi-acc-body]'); if (ab) ab.style.display = '';
+          const ac = acc.querySelector('[data-empi-acc-chev]'); if (ac) ac.style.transform = 'rotate(90deg)';
+        }
+        focus?.scrollIntoView({ behavior:'smooth', block:'center' });
         return;
       }
 
@@ -9651,25 +10595,72 @@
       const dd = jD || '';
       const seq = String(STATE.rows.filter(r => r.id.startsWith('SW'+yy+mm+dd)).length + 1).padStart(2,'0');
       const empId = `SW${yy}${mm}${dd}${seq}`;
-      /* 도급직 여부 → 고용 형태 파생.
-       *   · 해당      → empType='outsourced', contractOut=true, 소속회사·사원 유형(근태용) 필수
-       *   · 해당 없음 → empType='' (정규/계약/일용은 근로 계약 정보 설정 단계에서 지정) */
-      const isOut = (modal.querySelector('[name="empi-c-outsourced"]:checked') || {}).value === '1';
-      const empType = isOut ? 'outsourced' : '';
-      const contractSubType = '';
+      /* 고용 형태 파생.
+       *   · 도급직=해당      → empType='outsourced', contractOut=true (근로/임금 계약 없음)
+       *   · 도급직=해당없음  → empType = 근로 계약 정보의 근로 유형(정규/계약/일용) */
+      const isOut = outChecked;
+      const empType = isOut ? 'outsourced' : ceType;
+      const contractSubType = (!isOut && ceType === 'contract')
+        ? ((modal.querySelector('[name="empi-ce-csubtype"]:checked') || {}).value || '') : '';
       const contractOut = isOut;
       const contractCompany = isOut ? ((modal.querySelector('#empi-c-contract-company') || {}).value || '') : '';
-      const jobCat = isOut ? ((modal.querySelector('[name="empi-c-jobcat"]:checked') || {}).value || '') : '';
+      /* 사원 유형(사무/생산/연구)은 근무 정보에서 상시 입력 → 도급 여부와 무관하게 저장 */
+      const jobCat = (modal.querySelector('[name="empi-c-jobcat"]:checked') || {}).value || '';
       /* 등록일은 오늘 — 채번용 yy/mm/dd 는 입사일이므로 별도 계산 */
       const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
       const fname = modal.querySelector('#empi-c-fname').value.trim();
       const gname = modal.querySelector('#empi-c-gname').value.trim();
       /* 수습은 정규직 한정 (도급/파견 등 외부 인력은 수습 개념 자체 없음) */
-      const probationOn = empType === 'regular'
-        && !!(modal.querySelector('#empi-c-probation') || {}).checked;
-      const joinVal = modal.querySelector('#empi-c-joindate').value;
-      const probationStart = probationOn ? (modal.querySelector('#empi-c-probation-start').value || joinVal) : '';
-      const probationEnd   = probationOn ? (modal.querySelector('#empi-c-probation-end').value   || addMonths(joinVal, 3)) : '';
+      const probationOn = empType === 'regular' && !!(ceProbCb && ceProbCb.checked);
+      const joinVal = joinValForC;
+      const probationStart = probationOn ? (((modal.querySelector('[data-empi-ce-probation-start]') || {}).value) || joinVal) : '';
+      const probationEnd   = probationOn ? (((ceProbEnd || {}).value) || addMonths(joinVal, 3)) : '';
+
+      /* 계약 기간 — 시작일 = 입사일. 종료일: 정규직=무기(''), 계약직/일용직=입력값 */
+      const contractStartDate = isOut ? '' : joinVal;
+      const contractEndDate = (!isOut && (ceType === 'contract' || ceType === 'daily'))
+        ? ((ceEndEl && ceEndEl.value) || '') : '';
+
+      /* 임금 계약 필드 수집 (도급직=해당없음일 때만) */
+      let wageFields = {};
+      if (!isOut) {
+        const cwType = (cwTypeEl || {}).value || (empType === 'daily' ? 'hourly' : 'annual');
+        const isHourly = cwType === 'hourly';
+        const amountRaw = numOf(cwAmountEl && cwAmountEl.value);
+        /* 시급제 계약 금액 = 시급 + 주휴수당(시급 20% 원단위 절사) */
+        const hourlyWage = isHourly ? amountRaw : '';
+        const contractAmount = isHourly ? (amountRaw + Math.floor(amountRaw * 0.2)) : amountRaw;
+        /* 고정 OT / 포괄 기준시간 상세 — 카테고리별 입력 수집 */
+        const readHours = (attrPrefix) => {
+          const m = {};
+          (typeof INCLUSIVE_OT_CATEGORIES !== 'undefined' ? INCLUSIVE_OT_CATEGORIES : []).forEach(c => {
+            const el = modal.querySelector(`[${attrPrefix}-${c.key}]`);
+            const n = el ? numOf(el.value) : 0;
+            if (n) m[c.key] = n;
+          });
+          return m;
+        };
+        wageFields = {
+          incomeType: 'earned',
+          wageType: cwType,
+          contractAmount, hourlyWage,
+          wageContractKind: isHourly ? '' : ((cwKindEl || {}).value || 'fixedOT'),
+          fixedOTHoursDetail: readHours('data-empi-cw-foth'),
+          inclusiveOTHours:   readHours('data-empi-cw-inch'),
+          baseSalary:        numOf((modal.querySelector('[data-empi-cw-base]')       || {}).value),
+          fixedOTAmount:     numOf((modal.querySelector('[data-empi-cw-fot-amount]') || {}).value),
+          inclusiveOTAmount: numOf((modal.querySelector('[data-empi-cw-inc-amount]') || {}).value),
+          deductionPolicy: (modal.querySelector('[data-empi-cw-deduction]') || {}).value || '근로기준법 및 취업규칙에 따름',
+          payDay:    numOf((modal.querySelector('[data-empi-cw-payday]')    || {}).value) || 10,
+          payMethod: (modal.querySelector('[data-empi-cw-paymethod]') || {}).value || '계좌이체',
+          hoursPerDay:   numOf((cwHDayEl  || {}).value),
+          hoursPerWeek:  numOf((cwHWeekEl || {}).value),
+          hoursPerMonth: numOf((cwHMonEl  || {}).value),
+          wageContractStartDate: joinVal,
+          wageContractEndDate:   (cwIndefEl && cwIndefEl.checked) ? '' : ((cwEndEl && cwEndEl.value) || ''),
+          wageIndefinite: !!(cwIndefEl && cwIndefEl.checked),
+        };
+      }
 
       /* 사진 업로더에서 dataURL 추출 — 미업로드면 빈 문자열, 기존 mock 사진 흐름과 동일하게 emp.photoUrl 로 저장 */
       const photoHost = document.getElementById('empi-c-photo-uploader');
@@ -9716,20 +10707,178 @@
         jobCat,
         site: (modal.querySelector('#empi-c-site') || {}).value || '',
         infoStatus: 'none',
+        /* 근로/임금 계약 — 등록과 동시에 서명 요청 발송 → 서명진행중.
+           서명진행중 판정 = contractLabor/contractWage=false + *SentDate 존재 (도급직은 계약 없음 → 미발송) */
         contractLabor: false,
         contractWage: false,
+        contractStartDate,
+        contractEndDate,
+        contractSentDate:     isOut ? '' : todayYmd,
+        wageContractSentDate: isOut ? '' : todayYmd,
         docSigned: 0,
         ssn: '',
         probation: probationOn,
         probationStart,
         probationEnd,
+        /* 신규 등록 — 인사카드의 학력·경력/자격·역량/개인정보(장애·신체·병역·가족)/주민번호를
+           데모 mock 없이 빈값으로 시작 (입력한 내용만 표시). 표 데이터도 명시적 빈 배열로 고정. */
+        _noMock: true,
+        _pt_education: [], _pt_career: [], _pt_licenses: [], _pt_languages: [],
+        _pt_family: [], _pt_disability: [], _pt_bodyInfo: [], _pt_military: [],
+        ...wageFields,
       };
-      STATE.rows.unshift(row);
-      applyFilter();
-      renderTable();
-      closeAllModals();
-      window.toast && window.toast(`등록 완료 — 사번 ${empId}`, 'success');
+
+      /* 근로계약 종료일: 정규직 무기=미지정, 수습=수습종료일, 계약/일용=계약종료일 */
+      let laborEndForPush = '', laborIndef = false;
+      if (empType === 'regular') {
+        if (probationOn) { laborEndForPush = probationEnd; laborIndef = false; }
+        else { laborEndForPush = ''; laborIndef = true; }
+      } else if (empType === 'contract' || empType === 'daily') { laborEndForPush = contractEndDate; laborIndef = false; }
+
+      /* 커밋에 필요한 정보 보관 — 도급직이면 계약 없이 바로 등록, 그 외엔 계약서 미리보기 모달을 거쳐 발송 */
+      _pendingCreate = { row, isOut, empId, joinVal, laborEndForPush, laborIndef };
+
+      if (isOut) {
+        commitCreate();   // 도급직 — 근로/임금 계약 없음 → 즉시 등록
+      } else {
+        openContractPreview();   // 근로계약서·임금계약서 미리보기 → [서명 요청 발송] 로 확정
+      }
     });
+  }
+
+  /* ============ 임직원 등록 — 근로/임금 계약서 미리보기 → 서명 요청 발송 ============ */
+  let _pendingCreate = null;
+
+  /* 미리보기용 계약서 문서 HTML — App.HRContract.TEMPLATES + renderContractHTML 재사용(미커밋) */
+  function buildCreateContractDoc(kind) {
+    const HRC = window.App && App.HRContract;
+    const pc = _pendingCreate;
+    if (!HRC || !HRC.TEMPLATES || !pc) return '<div style="padding:24px;color:var(--color-text-muted);">미리보기를 생성할 수 없습니다.</div>';
+    const r = pc.row;
+    const isLabor = kind === '근로계약서';
+    const empTypeLabel = { regular:'정규직', contract:'계약직', daily:'일용직', outsourced:'도급직' }[r.empType] || '';
+    const jobCatLabel  = { office:'사무직', production:'생산직', research:'연구직' }[r.jobCat] || '';
+    const startDate = isLabor ? (r.contractStartDate || pc.joinVal) : (r.wageContractStartDate || pc.joinVal);
+    const endDate   = isLabor ? pc.laborEndForPush : (r.wageContractEndDate || '');
+    const indef     = isLabor ? pc.laborIndef : !!r.wageIndefinite;
+    const v = {
+      회사명: HRC.COMPANY, 직원명: r.name, 사번: r.id,
+      부서: r.dept || '', 직무: r.job || '', 직위: r.rank || '', 직책: r.position || '',
+      고용구분: empTypeLabel, 소속형태: r.contractOut ? '도급' : '-', 직군: jobCatLabel,
+      시작일: startDate || '', 종료일: indef ? '' : (endDate || ''), 무기: indef,
+      근무지: r.site || '성수동', 근무시간: '09:00 ~ 18:00',
+      기본급: r.baseSalary || '', 직무수당: '', 식대: '', 지급일: r.payDay || '',
+      /* 임금계약서 급여(제3조) — wageClauses 가 읽는 임금 모델 키 */
+      wageTypeKey: r.wageType || '', wageContractKindKey: r.wageContractKind || '',
+      계약금액: r.contractAmount || '', 월기본급: r.baseSalary || '',
+      월시간외수당: r.fixedOTAmount || '', 월고정연장근무수당: r.inclusiveOTAmount || '',
+      시급: r.hourlyWage || '', 주휴수당: r.hourlyWage ? Math.floor(Number(r.hourlyWage) * 0.2) : '',
+      fixedOTHours: '',
+      작성일: r.registeredAt || '',
+    };
+    const tpl = HRC.TEMPLATES[kind];
+    if (!tpl) return '<div style="padding:24px;color:var(--color-text-muted);">계약서 템플릿을 찾을 수 없습니다.</div>';
+    return HRC.renderContractHTML({ body: tpl(v) }, { omitSignatures: true });
+  }
+
+  function injectContractPreviewModal() {
+    if (document.getElementById('modal-empi-ctr-preview')) return;
+    const html = `
+<div class="modal-backdrop" id="modal-empi-ctr-preview" data-modal-id="empi-ctr-preview" style="z-index:1150;">
+  <div class="modal modal--lg" style="height:90vh;display:flex;flex-direction:column;">
+    <div class="modal__header">
+      <div class="modal__title">계약서 미리보기 · 서명 요청</div>
+      <button class="modal__close" data-empi-ctrpv-close type="button" aria-label="닫기">✕</button>
+    </div>
+    <div style="border-bottom:1px solid var(--color-divider);background:var(--color-surface);padding:0 20px;">
+      <div class="tabs tabs--underline">
+        <div class="tabs__nav">
+          <button type="button" class="tabs__tab is-active" data-empi-ctrpv-tab="근로계약서">근로계약서</button>
+          <button type="button" class="tabs__tab" data-empi-ctrpv-tab="임금계약서">임금계약서</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal__body" style="flex:1;min-height:0;overflow:auto;background:var(--color-surface-alt);padding:18px 20px;">
+      <div data-empi-ctrpv-doc="근로계약서" class="doc-editor__paper is-readonly" style="font-family:inherit;"></div>
+      <div data-empi-ctrpv-doc="임금계약서" class="doc-editor__paper is-readonly" style="font-family:inherit;display:none;"></div>
+    </div>
+    <div class="modal__footer">
+      <span style="flex:1;font-size:12px;color:var(--color-text-muted);align-self:center;">발송 시 근로계약서·임금계약서 2건의 전자 서명 요청이 함께 전송됩니다.</span>
+      <button class="btn" type="button" data-empi-ctrpv-close>취소</button>
+      <button class="btn btn--primary" type="button" data-empi-ctrpv-send>서명 요청 발송</button>
+    </div>
+  </div>
+</div>`;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    /* 이벤트 위임 — 탭 전환 / 닫기 / 발송 (1회 바인딩) */
+    const modal = document.getElementById('modal-empi-ctr-preview');
+    modal.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-empi-ctrpv-tab]');
+      if (tab) { setContractPreviewTab(tab.dataset.empiCtrpvTab); return; }
+      if (e.target.closest('[data-empi-ctrpv-close]') || e.target === modal) { closeModal('modal-empi-ctr-preview'); return; }
+      if (e.target.closest('[data-empi-ctrpv-send]')) { commitCreate(); closeModal('modal-empi-ctr-preview'); return; }
+    });
+  }
+  function setContractPreviewTab(kind) {
+    const modal = document.getElementById('modal-empi-ctr-preview');
+    if (!modal) return;
+    modal.querySelectorAll('[data-empi-ctrpv-tab]').forEach(t => t.classList.toggle('is-active', t.dataset.empiCtrpvTab === kind));
+    modal.querySelectorAll('[data-empi-ctrpv-doc]').forEach(d => { d.style.display = d.dataset.empiCtrpvDoc === kind ? '' : 'none'; });
+  }
+  function openContractPreview() {
+    injectContractPreviewModal();
+    const modal = document.getElementById('modal-empi-ctr-preview');
+    if (!modal) { commitCreate(); return; }   // 미리보기 불가 시 폴백 — 바로 등록
+    modal.querySelector('[data-empi-ctrpv-doc="근로계약서"]').innerHTML = buildCreateContractDoc('근로계약서');
+    modal.querySelector('[data-empi-ctrpv-doc="임금계약서"]').innerHTML = buildCreateContractDoc('임금계약서');
+    setContractPreviewTab('근로계약서');
+    openModal('modal-empi-ctr-preview');
+  }
+
+  /* 실제 등록 확정 — STATE 행 추가 + (도급직 아니면) 근로·임금 계약서 서명 요청 발송(계약 이력 signing 누적) */
+  function commitCreate() {
+    const pc = _pendingCreate;
+    if (!pc) return;
+    const { row, isOut, empId, joinVal, laborEndForPush, laborIndef } = pc;
+    STATE.rows.unshift(row);
+    if (!isOut && window.App && App.HRContract && typeof App.HRContract.addRowFromExternal === 'function') {
+      const empPayload = {
+        id: empId, name: row.name, fname: row.fname, gname: row.gname,
+        dept: row.dept, job: row.job, rank: row.rank, position: row.position,
+        empType: row.empType, contractSubType: row.contractSubType, contractOut: false, jobCat: row.jobCat,
+        site: row.site || '성수동',
+      };
+      /* 근로계약서 먼저 발송 → 반환된 계약번호를 임금계약서의 '연결 근로계약'으로 연결.
+         (임금계약은 근로계약에 의존 — 최신 근로계약 기준으로 자동 연결, 직원이 별도 선택하지 않음) */
+      const laborRow = App.HRContract.addRowFromExternal({
+        emp: empPayload, kind: '근로계약서', mode: 'individual',
+        startDate: joinVal, endDate: laborEndForPush, indefinite: laborIndef,
+        status: 'signing', registeredBy: '정혜진', sentBy: '정혜진', source: '임직원 등록 발송',
+        salary: { base: '', allowance: '', meal: '', payday: '' },
+      });
+      App.HRContract.addRowFromExternal({
+        emp: empPayload, kind: '임금계약서', mode: 'individual',
+        startDate: joinVal, endDate: row.wageContractEndDate || '', indefinite: !!row.wageIndefinite,
+        status: 'signing', registeredBy: '정혜진', sentBy: '정혜진', source: '임직원 등록 발송',
+        linkedLaborId: laborRow && laborRow.id,   // 연결된 근로계약번호
+        salary: {
+          base: row.baseSalary || '', allowance: '', meal: '', payday: row.payDay || '',
+          wageType: row.wageType || '', wageKind: row.wageContractKind || '',
+          contractAmount: row.contractAmount || '',
+          fixedOT: row.fixedOTAmount || '', inclusiveOT: row.inclusiveOTAmount || '',
+          hourly: row.hourlyWage || '', holiday: row.hourlyWage ? Math.floor(Number(row.hourlyWage) * 0.2) : '',
+        },
+      });
+    }
+    _pendingCreate = null;
+    applyFilter();
+    renderTable();
+    closeCreateDetail();
+    window.toast && window.toast(
+      isOut ? `등록 완료 — 사번 ${empId}` : `등록 완료 — 사번 ${empId} · 근로·임금 계약서 서명 요청 발송`,
+      'success');
   }
 
   /* ============ SCR-EMP-03 일괄 등록 ============ */
@@ -10438,7 +11587,8 @@
   function renderPrivatePanel(emp) {
     /* 민감정보 — read-only. 공개정보 탭에 이미 있는 사번/성명/성별은 중복 제거, 주민등록번호만 남김
      * 정책 (안내 문구는 표시하지 않음): 본 탭은 인사팀원·인사팀장·대표이사만 접근, 주민등록번호 마스킹 표시 */
-    const ssn = emp.ssn || '';
+    /* 주민등록번호 — 항상 마스킹 (앞 6자리 + 성별 1자리만, 뒷자리 노출 불가) */
+    const ssn = emp.ssn ? (emp.ssn.slice(0, 8) + '●●●●●●') : '';
     return `
       ${infoSection('민감정보', `
         <div class="fm-tbl fm-tbl--compact">
@@ -11432,7 +12582,8 @@
     }
   }
   function bindModalClose() {
-    ['modal-empi-create','modal-empi-bulk','modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit','modal-empi-shift-pick'].forEach(id => {
+    /* modal-empi-create 는 모달이 아닌 인페이지 상세 화면 → 여기서 제외 (자체 닫기 핸들러 사용) */
+    ['modal-empi-bulk','modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit','modal-empi-shift-pick'].forEach(id => {
       const m = document.getElementById(id);
       if (!m) return;
       m.addEventListener('click', (e) => {
@@ -11489,7 +12640,10 @@
   /* ============ 공유 mock 데이터 — script load 시점에 즉시 생성 ============
    *   다른 페이지(계약/발령/인사/조직)가 IIFE 단계에서 App.HRInfoMgmt.list() 를 호출하므로
    *   __onShow 가 아닌 모듈 로드 시점에 한 번만 STATE.rows 를 채워둔다. */
-  STATE.rows = applyContractExpiredDemo(makeMock());
+  /* 5명 고정 시드 — makeMock() 이 이미 완료 상태로 반환하므로 만료 데모 래퍼(applyContractExpiredDemo)는
+     적용하지 않는다. 아래 이름 기반 데모 보정 IIFE 들은 5명 시드에 매칭되는 이름이 없어 자동 no-op 이며,
+     seedWageContract() 만 서명완료 직원의 임금 필드를 직위 기준으로 채운다. */
+  STATE.rows = makeMock();
   /* 데모 보정 — 「작성중」 상태 직원 노출용.
    *   contractSentDate 만 셋팅하고 contractLabor=false 로 두어 grid/drawer 에서
    *   근로/임금계약 컬럼이 「작성중」 pill 로 표시되도록 함. */
@@ -11683,7 +12837,7 @@
     /* 근무 정보 완료 (근무지·부서·직위·직책·직무) */
     r.empType = 'regular'; r.contractOut = false; r.contractSubType = '';
     r.dept = '인사팀'; r.job = '인사'; r.rank = '대리'; r.position = '팀원'; r.jobCat = 'office';
-    r.site = r.site || '본사';
+    r.site = r.site || '성수동';
     /* 근로계약 서명완료 + 소정근로시간 */
     r.contractLabor = true; r.contractWage = true;
     r.hoursPerDay = 8; r.hoursPerWeek = 40; r.hoursPerMonth = 209;
@@ -11714,7 +12868,8 @@
       const x = new Date(today); x.setDate(x.getDate() + n);
       return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
     };
-    if (cand[0]) { cand[0].onLeave = true; cand[0].leaveReturnDate = plusDays(80); }
+    /* 휴직 데모 비활성 — 5명 시드는 전원 재직 상태로 노출 */
+    void cand; void plusDays;
   })();
 
   /* 시드 로드 후 status 정규화 — 마일스톤·isComplete 기반으로 메인 status 보정 */
@@ -11728,7 +12883,7 @@
             || STATE.rows.find(r => r.status !== 'retired')
             || STATE.rows[0];
     if (me) {
-      me.fname = '윤'; me.gname = '성수'; me.name = '윤성수'; me.nameFlip = false;
+      /* 이름은 유지 — 현재 로그인 사용자 포인터만 지정 (내 정보 페이지 렌더용) */
       MY_EMP_ID = me.id;
     }
   })();
@@ -11757,7 +12912,8 @@
         bindOC();
         built = true;
       } else {
-        /* 재진입 — 부서 변경이 있을 수 있으니 트리·그리드 재렌더 */
+        /* 재진입 — 등록 상세가 열려 있었다면 목록으로 복귀 후 트리·그리드 재렌더 */
+        closeCreateDetail();
         if (!findDept(STATE.selectedDeptId)) STATE.selectedDeptId = 'C0';
         renderTreeOnly();
         updateDeptTitle();
@@ -11909,7 +13065,7 @@
         const merged = Object.assign({
           status: 'completed', infoStatus: 'done',
           dept: '-', job: '-', rank: '-', position: '',
-          empType: 'regular', jobCat: 'office', site: '본사',
+          empType: 'regular', jobCat: 'office', site: '성수동',
           joinDate: emp.joinDate || '',
         }, emp);
         list.push(merged);

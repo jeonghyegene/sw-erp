@@ -25,6 +25,8 @@
   function fmtYM(s) { s = String(s || ''); return s.length >= 7 ? s.slice(2, 4) + '/' + s.slice(5, 7) : s; }
   function nowHMS() { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
   function ensureDeps() { return App.AttStatus && App.AttStatus.EMP_LIST && App.AttStatus.ME; }
+  /* 조직도 — 임직원 관리(App.HRInfoMgmt)/근태 조직도(App.AttOrg) 트리를 단일 소스로 재사용 */
+  function HRI() { return window.App && (App.AttOrg || App.HRInfoMgmt); }
 
   const DOW_KO = ['일','월','화','수','목','금','토'];
   const GRANTED_ME = 15;   /* 본인 발생 연차(요청 사양 — 15일 보유) */
@@ -37,6 +39,8 @@
   const STATE = {
     span: 'month',            /* 'month'(월간, 기본) | 'year'(연간 다이어리) */
     view: 'cal',              /* 'cal' | 'dash' (월간 모드 내부 뷰) */
+    /* 권한자 조직도 선택 부서 id — 임직원 관리와 동일 id 체계('C0'=전사, 'T1','P11'…) */
+    selectedDeptId: 'C0',
     ym: null,                 /* 'YYYY-MM' */
     plans: null,              /* lazy seed */
     form: null,               /* 모달 추가/수정 폼 draft */
@@ -128,9 +132,11 @@
   }
   function myRemain(excludeId) { return Number((GRANTED_ME - myPlannedDays(excludeId)).toFixed(1)); }
 
-  /* 자기 팀(본인 소속 부서)의 인원 + 그 인원들의 계획 — 조직도 제거로 범위는 본인 소속 고정 */
+  /* 조직도 선택 부서(자손 포함)의 인원 + 그 인원들의 계획 — 권한자 조직도 선택 범위. */
   function scopeEmps() {
-    const myDept = ME().dept;
+    const h = HRI();
+    if (h && h.empsInDept) return h.empsInDept(people(), STATE.selectedDeptId);
+    const myDept = ME().dept;   /* 조직도 헬퍼 없으면 본인 소속으로 fallback */
     return people().filter(e => e.dept === myDept);
   }
   function scopedPlans() {
@@ -138,7 +144,14 @@
     return getPlans().filter(p => ids.has(p.empId));
   }
   function selectedScopeName() {
-    return ME().dept || '내 팀';
+    if (STATE.selectedDeptId === 'C0') return '성원애드피아 전체';
+    const h = HRI();
+    return (h && h.deptName && h.deptName(STATE.selectedDeptId)) || ME().dept || '내 팀';
+  }
+  /* 좌측 조직도 HTML — 임직원 관리 트리 재사용. 인원 수는 계획서 대상 명단(people) 기준 집계. */
+  function renderOrgTree() {
+    const h = HRI();
+    return (h && h.deptTreeHTML) ? h.deptTreeHTML(STATE.selectedDeptId, { emps: people() }) : '';
   }
 
   function shiftMonth(ym, delta) {
@@ -153,11 +166,19 @@
    *  Shell — 좌 조직도 + 우(헤더 + 본문)
    * ========================================================= */
   function renderShell(pageEl) {
-    /* 조직도 제거 — 본인 소속(자기 팀) 범위로 고정, 전체 폭 단일 패널 */
+    /* 권한자 시점 — 좌측 조직도 + 우측(헤더 + 캘린더/대시보드). 부서별 근태현황/연차현황과 동일 레이아웃. */
     pageEl.innerHTML = `
-      <div style="height:100%;display:flex;flex-direction:column;">
-        <header class="att-page__head" data-lp-head></header>
-        <div class="att-page__body" data-lp-body style="flex:1;min-height:0;overflow:auto;"></div>
+      <div class="split" style="--split-left:240px;height:100%;">
+        <aside class="split__left">
+          <div class="split__head"><h3>조직도</h3></div>
+          <div class="split__body" style="padding:0;display:flex;flex-direction:column;min-height:0;">
+            <ul class="tree tree--selectable" data-lp-tree style="flex:1;overflow:auto;padding:8px 10px;margin:0;"></ul>
+          </div>
+        </aside>
+        <section class="split__right">
+          <header class="att-page__head" data-lp-head></header>
+          <div class="att-page__body" data-lp-body style="flex:1;min-height:0;overflow:auto;"></div>
+        </section>
       </div>
     `;
   }
@@ -165,8 +186,6 @@
   /* ============ 헤더(툴바) ============ */
   function renderHead() {
     const A = App.AttStatus;
-    const scopeName = selectedScopeName();
-    const cnt = scopeEmps().length;
     const remain = myRemain();
     const planned = myPlannedDays();
     return `
@@ -177,10 +196,6 @@
             <button type="button" data-lp-ym-prev aria-label="이전">‹</button>
             <button type="button" data-lp-today>오늘</button>
             <button type="button" data-lp-ym-next aria-label="다음">›</button>
-          </div>
-          <div class="att-target-chip" style="cursor:default;">
-            <span class="att-target-chip__name">${esc(scopeName)}</span>
-            <span class="att-target-chip__meta">${cnt}명</span>
           </div>
         </div>
         <div class="att-tb__right">
@@ -317,6 +332,8 @@
     const totalDays = Number(plans.reduce((a, p) => a + planDays(p), 0).toFixed(1));
     const planners = new Set(plans.map(p => p.empId)).size;
     const meId = ME().id;
+    /* 사원 메타(부서·직위·직책) 조회 — 계획 행에 사번/사진/부서/직위/직책 표시 */
+    const byId = {}; people().forEach(e => { byId[e.id] = e; });
     const kpis = [
       { l: '대상 인원', v: `${emps.length}${unit('명')}`, c: 'var(--color-brand-primary)' },
       { l: '계획 인원', v: `${planners}${unit('명')}`, c: 'var(--color-text)' },
@@ -325,16 +342,21 @@
     ];
     const tbody = plans.length ? plans.map(p => {
       const mine = p.empId === meId;
+      const emp = byId[p.empId] || {};
+      const dept = emp.dept || p.dept || '';
+      const position = emp.position || '';   /* 직책 */
+      const rank = emp.rank || '';   /* 직위 */
       return `
         <tr>
+          <td>${esc(p.empId)}</td>
           <td>
             <div style="display:flex;align-items:center;gap:8px;min-width:0;">
               <span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc((p.empName || '').slice(0, 1))}</span>
               <span style="font-weight:var(--fw-medium);white-space:nowrap;">${esc(p.empName)}</span>
               ${mine ? '<span class="pill pill--info" style="font-size:10px;">본인</span>' : ''}
+              ${[dept, rank, position].filter(Boolean).length ? `<span style="display:inline-flex;align-items:center;">${[dept, rank, position].filter(Boolean).map((v, i, a) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${esc(v)}</span>${i < a.length - 1 ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);">·</span>` : ''}`).join('')}</span>` : ''}
             </div>
           </td>
-          <td>${esc(p.dept || '-')}</td>
           <td style="text-align:center;"><span class="pill ${isHalf(p.type) ? 'pill--warning' : 'pill--info'}">${esc(typeLabel(p.type))}</span></td>
           <td>${esc(fmtRange(p))}</td>
           <td style="text-align:right;">${planDays(p)}일</td>
@@ -351,15 +373,14 @@
       </div>
       <div class="table-card">
         <div class="table-card__cap">
-          <strong>${esc(selectedScopeName())} 연차 계획</strong>
-          <span class="t-muted" style="font-size:var(--fs-xs);">${plans.length}건</span>
+          <span class="toolbar__count">총 <strong>${emps.length}</strong>명</span>
         </div>
         <div class="table-card__body">
           <table class="prs-editor__table prs-editor__table--wide" style="width:100%;">
             <thead>
               <tr>
-                <th style="width:140px;text-align:left;">성명</th>
-                <th style="min-width:110px;text-align:left;">부서</th>
+                <th style="width:110px;text-align:left;">사번</th>
+                <th style="width:210px;text-align:left;">성명</th>
                 <th style="width:90px;text-align:center;">구분</th>
                 <th style="width:180px;text-align:left;">기간</th>
                 <th style="width:70px;text-align:right;">일수</th>
@@ -403,6 +424,8 @@
 
   function renderAll(pageEl) {
     hidePop();
+    const tree = pageEl.querySelector('[data-lp-tree]');
+    if (tree) tree.innerHTML = renderOrgTree();
     pageEl.querySelector('[data-lp-head]').innerHTML = renderHead();
     pageEl.querySelector('[data-lp-body]').innerHTML = renderBody();
   }
@@ -661,6 +684,10 @@
       hidePop();
     });
     pageEl.addEventListener('click', e => {
+      /* 좌측 조직도 — 노드 클릭 시 data-id 로 선택 부서 전환 (본인 계획은 부서와 무관하게 유지) */
+      const treeNode = e.target.closest('.tree__node[data-id]');
+      if (treeNode) { STATE.selectedDeptId = treeNode.dataset.id; renderAll(pageEl); return; }
+
       if (e.target.closest('[data-lp-ym-prev]')) { STATE.ym = shiftMonth(STATE.ym, -1); renderAll(pageEl); return; }
       if (e.target.closest('[data-lp-ym-next]')) { STATE.ym = shiftMonth(STATE.ym, +1); renderAll(pageEl); return; }
       if (e.target.closest('[data-lp-today]'))   { STATE.ym = App.AttStatus.TODAY.slice(0, 7); renderAll(pageEl); return; }

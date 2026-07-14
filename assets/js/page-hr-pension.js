@@ -409,7 +409,7 @@
       id: m.id, name: m.name, dept: m.dept || '', jobCat: m.jobCat || 'office',
       joinDate: (m.joinDate || '').slice(0, 10), resignDate: '', active: true,
       photoUrl: m.photoUrl || '', position: m.position || '', empType: m.empType || 'regular',
-      site: m.site || '본사', infoStatus: m.infoStatus || 'done',
+      site: m.site || '성수동', infoStatus: m.infoStatus || 'done',
     }));
     const retired = (window.App && App.HRResign && App.HRResign.list) ? App.HRResign.list() : [];
     const seen = {};
@@ -1159,7 +1159,7 @@
         if (m && App.HRInfoCard && App.HRInfoCard.open) {
           App.HRInfoCard.open(Object.assign({
             empType: m.empType || 'regular', jobCat: m.jobCat || 'office',
-            site: m.site || '본사', infoStatus: 'done',
+            site: m.site || '성수동', infoStatus: 'done',
           }, m));
         }
         return;

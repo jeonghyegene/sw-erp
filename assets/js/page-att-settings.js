@@ -898,12 +898,6 @@
     return `<span class="pill ${tone}" style="font-weight:var(--fw-regular);">${star}<strong>${esc(code)}</strong> ${esc(lbl)}<span class="t-muted">${tm}</span></span>`;
   }
 
-  /* 근무정책 뱃지 — 통상(info) / 교대(purple) */
-  function policyPill(p) {
-    return p === 'shift'
-      ? '<span class="pill pill--purple">교대근무</span>'
-      : '<span class="pill pill--info">통상근무</span>';
-  }
   /* 부서 단위(본부/팀/파트) — 조직 type 우선, 없으면 이름 접미사로 추정 */
   function unitLabel(type, name) {
     if (type === 'hq') return '본부';
@@ -944,6 +938,10 @@
       const tag = (!inheriting && !isTopDept(name))
         ? `<span class="pill pill--info" style="font-size:10px;" title="상위와 다르게 별도 설정">별도</span>`
         : '';
+      /* 교대근무 부서만 부서명 옆에 표시 (통상근무는 표시 없음 — 근무정책 컬럼 대체) */
+      const shiftTag = ((cfg.policy || 'regular') === 'shift')
+        ? `<span class="pill pill--purple" style="font-size:10px;" title="교대근무 부서">교대근무</span>`
+        : '';
       /* 사용 가능한 근무조 — 이 부서에 연결된 근무조(복수). 기본 근무조와 동일 스타일(코드 brand-primary + 명칭 muted). */
       const codes = (cfg.codes || []);
       const codesCell = codes.length
@@ -953,15 +951,14 @@
       const dm = deptMeta(name);
       const snackCell = (dm.snackStart && dm.snackEnd) ? `${esc(dm.snackStart)}~${esc(dm.snackEnd)}` : '<span class="t-muted">-</span>';
       return `<tr class="shift-tbl__row is-clickable" data-dept-row="${esc(name)}">
-        <td><span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">${branch}<span style="${inheriting ? 'color:var(--color-text-sub);' : 'font-weight:var(--fw-medium);'}white-space:nowrap;">${esc(name)}</span>${tag}</span></td>
+        <td><span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">${branch}<span style="${inheriting ? 'color:var(--color-text-sub);' : 'font-weight:var(--fw-medium);'}white-space:nowrap;">${esc(name)}</span>${tag}${shiftTag}</span></td>
         <td style="text-align:center;"><span class="pill pill--muted">${unitLabel(o.type, name)}</span></td>
         <td>${mgr ? esc(mgr) : '<span class="t-muted">미지정</span>'}</td>
-        <td style="text-align:center;">${policyPill(cfg.policy || 'regular')}</td>
         <td>${codesCell}</td>
         <td style="text-align:center;">${def ? `<strong style="color:var(--color-brand-primary);">${esc(def)}</strong>${defS ? ` <span class="t-muted">${esc(defS.label || '')}</span>` : ''}` : '<span class="t-muted">미지정</span>'}</td>
         <td style="text-align:center;white-space:nowrap;">${snackCell}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--color-text-muted);">조직 정보가 없습니다.</td></tr>`;
+    }).join('') : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--color-text-muted);">조직 정보가 없습니다.</td></tr>`;
 
     return `
       <div class="toolbar">
@@ -975,7 +972,6 @@
                 <th style="min-width:160px;">부서명</th>
                 <th style="width:70px;text-align:center;">부서단위</th>
                 <th style="width:104px;">관리자</th>
-                <th style="width:96px;text-align:center;">근무정책</th>
                 <th style="min-width:180px;">사용 가능한 근무조</th>
                 <th style="min-width:130px;text-align:center;">기본 근무조</th>
                 <th style="width:120px;text-align:center;">간식시간</th>
@@ -1048,13 +1044,10 @@
          </div>`
       : '';
 
-    /* ② 근무정책 (통상/교대) */
-    const policyContent = inherit
-      ? `<div>${policyPill(policy)}</div>`
-      : `<div style="display:flex;gap:8px;flex-wrap:wrap;">
-           <label class="cb cb--pill"><input type="radio" name="wpm-policy" data-wpm-policy value="regular" ${policy !== 'shift' ? 'checked' : ''}><span>통상근무</span></label>
-           <label class="cb cb--pill"><input type="radio" name="wpm-policy" data-wpm-policy value="shift" ${policy === 'shift' ? 'checked' : ''}><span>교대근무</span></label>
-         </div>`;
+    /* ② 교대근무 여부 — 통상/교대 택1 대신 '교대근무 해당' 단일 체크. 체크=교대(shift) / 해제=통상(regular). */
+    const policyContent = `
+      <label class="cb"><input type="checkbox" data-wpm-shift ${policy === 'shift' ? 'checked' : ''} ${inherit ? 'disabled' : ''}><span>교대근무에 해당</span></label>
+      <div class="t-muted" style="font-size:var(--fs-xs);margin-top:4px;">체크 시 주·야 교대 근무조를 사용할 수 있습니다.${inherit ? ' (상위 조직 설정 상속)' : ''}</div>`;
 
     /* ③ 사용 가능한 근무조 — 근무조 설정 그리드와 동일 컬럼(구분·출근·퇴근·총 근무시간·연장·심야·휴게).
        · 별도 설정 — 편집 테이블([사용] 체크)
@@ -1181,7 +1174,7 @@
     return `
       ${wpField('근무스케줄 관리자', '', managerArea, true)}
       ${parentName ? wpField('근무조 기준', '', basisContent) : ''}
-      ${wpField(`근무정책 ${REQ}`, '', policyContent)}
+      ${wpField('교대근무 여부', '', policyContent)}
       ${wpField('기본 근무조', '기본 근무조는 부서 관리에서 가능합니다.', defaultShiftContent)}
       ${wpField(`사용 가능한 근무조 ${REQ}`, '', codeTable + codeErr)}
       ${wpField('간식시간', '참고정보', snackContent)}
@@ -1328,11 +1321,11 @@
         return;
       }
       if (cfg.inherit) return;                 /* 상속 중이면 이하 편집 불가 */
-      /* 근무정책 — 통상/교대. 정책 변경 시 후보 밖 코드 정리 */
-      const pol = e.target.closest('[data-wpm-policy]');
+      /* 교대근무 여부 — 체크=교대(shift) / 해제=통상(regular). 변경 시 후보 밖 코드 정리 */
+      const pol = e.target.closest('[data-wpm-shift]');
       if (pol) {
         STATE.wpCodeErr = '';
-        cfg.policy = pol.value === 'shift' ? 'shift' : 'regular';
+        cfg.policy = pol.checked ? 'shift' : 'regular';
         const allow = new Set(codesForPolicy(cfg.policy).map(s => s.code));
         cfg.codes = (cfg.codes || []).filter(c => allow.has(c));
         if (deptMeta(name).defaultShift && cfg.codes.indexOf(deptMeta(name).defaultShift) < 0) deptMeta(name).defaultShift = '';

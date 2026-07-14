@@ -66,12 +66,11 @@ window.NAV_DATA = [
         /* 「퇴사 처리」 — 「퇴사 현황」 화면의 [+ 퇴사 처리] 모달로 완전 통합 (nav 항목 제거됨).
            데이터는 hr-resign-data.js 의 App.HRResign 이 단일 소스로 보존. */
       ]},
-      { label: '설정', icon: 'cog', items: [
-        { id: 'hr-position',          label: '직위·직책 설정',      page: 'page-hr-position' },
-        /* 「입사 서류 양식 설정」(page-hr-doctemplates) — 화면 제거됨. 서류 마스터 데이터는
-           hr-joindocs-data.js 의 App.JoinDocsRegistry 가 단일 소스로 보존. */
-        /* 「평가유형 설정」·「수습 평가 설정」 — 「평가 관리」 그룹의 각 평가 항목 바로 아래로 이동. */
-      ]},
+      /* 「설정」 그룹 제거 — 항목이 모두 타 위치로 이관되어 빈 그룹이 됨.
+         · 「직위·직책 설정」(page-hr-position) — 공통 코드에서 관리(nav 제거). 화면/데이터 코드는 보존.
+         · 「입사 서류 양식 설정」(page-hr-doctemplates) — 화면 제거됨. 서류 마스터 데이터는
+           hr-joindocs-data.js 의 App.JoinDocsRegistry 가 단일 소스로 보존.
+         · 「평가유형 설정」·「수습 평가 설정」 — 「평가 관리」 그룹의 각 평가 항목 바로 아래로 이동. */
     ],
   },
 
@@ -95,7 +94,7 @@ window.NAV_DATA = [
         /* 근무스케줄 배치 — 부서장이 부서원 월별 근무스케줄 배치(배정표). 근무스케줄 현황의 [근무스케줄 배치] 버튼으로 진입. */
         { id: 'att-shift',        label: '근무스케줄 배치',       page: 'page-att-shift', hidden: true },
       ]},
-      { label: '휴가 관리', icon: 'calendar', items: [
+      { label: '휴무 관리', icon: 'calendar', items: [
         /* 나의 연차현황 — 본인 연차 발생/사용/잔여 + 사용 이력 (본인 시점 전용). */
         { id: 'att-my-leave',   label: '나의 연차현황',   page: 'page-att-my-leave' },
         /* 부서별 연차현황 — 권한자 시점. 전체 / 임직원별 / 부서별 뷰. */
@@ -122,10 +121,8 @@ window.NAV_DATA = [
         { id: 'att-wr-set',        label: '업무보고 설정',       page: 'page-att-wr-settings' },
       ]},
       */
-      { label: '설정', icon: 'cog', items: [
-        /* 근태코드 설정 — 근태(ATT) · 휴가(HOL) 신청 사유 코드 마스터. */
-        { id: 'att-code', label: '근태코드 설정', page: 'page-att-code' },
-      ]},
+      /* 「설정」 그룹 제거 — 「근태코드 설정」(page-att-code)이 유일 항목이었으나
+         근태(ATT)·휴가(HOL) 신청 사유 코드는 시스템에서 관리(nav 제거). 화면/데이터 코드는 보존. */
     ],
   },
 

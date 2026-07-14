@@ -167,7 +167,7 @@
     return `<span class="shift-chip${appr ? ' shift-chip--appr' : ''}"${styleAttr} title="${esc(title)}">${inner}</span>`;
   }
   function personCell(emp) {
-    const sub = [emp.dept, emp.position].filter(Boolean).map(esc).join(' · ');
+    const sub = [emp.dept, emp.rank, emp.position].filter(Boolean).map(esc).join('·');   // 팀·직위·직책
     const ch = esc((emp.name || '').slice(0, 1));
     return `<div class="ssw-tbl__person"><span class="ssw-tbl__ava">${ch}</span>
       <div class="ssw-tbl__nm"><div class="ssw-tbl__nm-top"><span class="ssw-tbl__name">${esc(emp.name)}</span></div>${sub ? `<div class="ssw-tbl__nm-sub">${sub}</div>` : ''}</div></div>`;

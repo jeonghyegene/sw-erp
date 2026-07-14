@@ -43,12 +43,21 @@
   const DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
   function ymLabel(ym) { /* YY/MM (SWADPIA §1 연·월) */ const [y, m] = ym.split('-'); return `${y.slice(2)}/${pad2(Number(m))}`; }
   function dateLabel(ds) { /* YY/MM/DD (SWADPIA §1) */ if (!ds) return '-'; const [y, m, d] = ds.split('-'); return `${y.slice(2)}/${m}/${d}`; }
-  /* 성명 셀 — 임직원 관리 nameCellHTML 형식(아바타+이름). 부서는 별도 컬럼이 있어 inline 중복 표기 안 함. */
-  function nameCell(name) {
-    const nm = name || '';
+  /* 성명 셀 — 임직원 관리 nameCellHTML 형식: 아바타 + 이름 + 팀·직위·직책(muted inline).
+   *   팀·직위·직책을 이름 옆 회색 글씨로 붙여 표기(구두점 앞뒤 여백 없이). 별도 부서 컬럼은 두지 않는다.
+   *   opts.noDept — 표에 별도 부서 컬럼이 있는 경우 팀을 빼고 직위·직책만 표기(중복 방지). */
+  function nameCell(m, opts) {
+    const nm   = (m && m.name) || '';
+    const noDept = !!(opts && opts.noDept);
+    const parts = [noDept ? '' : (m && m.dept), m && m.rank, m && m.position].filter(Boolean).map(esc);  // 팀·직위·직책
+    const dot   = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);" aria-hidden="true">·</span>`;
+    const span  = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
+    /* 메타 spans 는 하나의 컨테이너로 감싼다 — 바깥 flex 의 gap 이 구두점 사이에 끼어드는 것 방지 */
+    const meta  = parts.length ? `<span style="display:inline-flex;align-items:center;min-width:0;">${parts.map(span).join(dot)}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:8px;min-width:0;">`
       + `<span class="ssw-tbl__ava" style="width:24px;height:24px;flex:0 0 auto;">${esc(nm.slice(0, 1))}</span>`
       + `<span style="font-weight:var(--fw-medium);white-space:nowrap;">${esc(nm)}</span>`
+      + meta
       + `</div>`;
   }
   function hashId(id) { let h = 0; const s = String(id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
@@ -89,7 +98,7 @@
     const A = App.AttStatus;
     if (A && typeof A.syncEmpList === 'function') { try { A.syncEmpList(); } catch (e) {} }
     if (A && A.EMP_LIST && A.EMP_LIST.length) return A.EMP_LIST.slice();
-    if (App.Employees && App.Employees.length) return App.Employees.map(e => ({ id: e.id, name: e.name, dept: e.dept, shift: e.shift || 'A' }));
+    if (App.Employees && App.Employees.length) return App.Employees.map(e => ({ id: e.id, name: e.name, dept: e.dept, rank: e.rank, position: e.position, shift: e.shift || 'A' }));
     return FALLBACK_EMPS.slice();
   }
   function shiftCodeForDate(emp, dateStr) {
@@ -112,7 +121,7 @@
       if (isOTShift(code)) days10++; else days8++;
     }
     const tickets = days8 * 1 + days10 * 2;
-    return { empId: emp.id, name: emp.name, dept: emp.dept, byShift, days8, days10, totalDays: days8 + days10, tickets, amount: tickets * MEAL_UNIT };
+    return { empId: emp.id, name: emp.name, dept: emp.dept, rank: emp.rank, position: emp.position, byShift, days8, days10, totalDays: days8 + days10, tickets, amount: tickets * MEAL_UNIT };
   }
   function firstOTCode(byShift) { return Object.keys(byShift).find(c => isOTShift(c)) || null; }
 
@@ -131,7 +140,7 @@
       let d = (seed % days) + 1;
       for (let k = 0; k < 7; k++) { const wd = dowOf(r.deductYm, d); if (wd !== 0 && wd !== 6) break; d = (d % days) + 1; }
       out.push({
-        empId: emp.id, name: emp.name, dept: emp.dept,
+        empId: emp.id, name: emp.name, dept: emp.dept, rank: emp.rank, position: emp.position,
         leaveDate: `${r.deductYm}-${pad2(d)}`, leaveType: '연차',
         shiftCode: code, prepaidAmt: amtOf(code), tickets: ticketsOf(code), deductAmt: amtOf(code),
       });
@@ -298,7 +307,7 @@
       let night = 0, holiday = 0;
       apps.forEach(a => { if (a.otKind === 'holiday') holiday++; else night++; });
       const otCnt = night + holiday;
-      out.push({ empId: emp.id, name: emp.name, dept: emp.dept, night, holiday, otCnt, tickets: otCnt, amount: otCnt * MEAL_UNIT });
+      out.push({ empId: emp.id, name: emp.name, dept: emp.dept, rank: emp.rank, position: emp.position, night, holiday, otCnt, tickets: otCnt, amount: otCnt * MEAL_UNIT });
     });
     out.sort((a, b) => (a.dept || '').localeCompare(b.dept || '') || (a.name || '').localeCompare(b.name || ''));
     return out;
@@ -628,7 +637,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${n - i}</td>
           <td style="white-space:nowrap;">${esc(a.empId)}</td>
-          <td style="white-space:nowrap;">${nameCell(a.name)}</td>
+          <td style="white-space:nowrap;">${nameCell(a, { noDept: true })}</td>
           <td style="white-space:nowrap;">${esc(a.dept || '-')}</td>
           <td style="text-align:right;">${a.night ? won(a.night) + '건' : '<span class="t-muted">0</span>'}</td>
           <td style="text-align:right;">${a.holiday ? won(a.holiday) + '건' : '<span class="t-muted">0</span>'}</td>
@@ -874,8 +883,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${n - i}</td>
           <td style="white-space:nowrap;">${esc(a.empId)}</td>
-          <td style="white-space:nowrap;">${nameCell(a.name)}</td>
-          <td style="white-space:nowrap;">${esc(a.dept || '-')}</td>
+          <td style="white-space:nowrap;">${nameCell(a)}</td>
           <td>${shiftCells || '<span class="t-muted">-</span>'}</td>
           <td style="text-align:right;">${won(a.days8)}일</td>
           <td style="text-align:right;color:${a.days10 ? 'var(--color-warning)' : 'var(--color-text-muted)'};">${won(a.days10)}일</td>
@@ -892,8 +900,7 @@
       <tr>
         <th style="width:50px;text-align:right;">No</th>
         <th style="width:90px;">사번</th>
-        <th style="width:90px;">이름</th>
-        <th style="width:110px;">부서</th>
+        <th style="width:180px;">이름</th>
         <th>근무조 구성 (근무일수)</th>
         <th style="width:90px;text-align:right;">기본근무</th>
         <th style="width:90px;text-align:right;">초과근무</th>
@@ -902,10 +909,10 @@
         <th style="width:110px;text-align:right;">전월 차감</th>
         <th style="width:130px;text-align:right;">실 지급액</th>
       </tr>`;
-    const body = rows || `<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--color-text-muted);">집계 대상 임직원이 없습니다.</td></tr>`;
+    const body = rows || `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--color-text-muted);">집계 대상 임직원이 없습니다.</td></tr>`;
     const foot = `
       <tr style="font-weight:var(--fw-bold);background:var(--color-surface-alt);">
-        <td colspan="5" style="text-align:right;">${STATE.selectedDeptId === 'C0' ? '전체 합계' : '부서 소계'}</td>
+        <td colspan="4" style="text-align:right;">${STATE.selectedDeptId === 'C0' ? '전체 합계' : '부서 소계'}</td>
         <td style="text-align:right;">${won(sumDays8)}일</td>
         <td style="text-align:right;">${won(sumDays10)}일</td>
         <td style="text-align:right;">${won(sumTk)}장</td>
@@ -923,8 +930,7 @@
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${ds.length - i}</td>
           <td style="white-space:nowrap;">${esc(d.empId)}</td>
-          <td style="white-space:nowrap;">${nameCell(d.name)}</td>
-          <td style="white-space:nowrap;">${esc(d.dept || '-')}</td>
+          <td style="white-space:nowrap;">${nameCell(d)}</td>
           <td style="text-align:center;white-space:nowrap;">${esc(dateLabel(d.leaveDate))}</td>
           <td style="text-align:center;"><span class="pill pill--info">${esc(d.leaveType)}</span></td>
           <td style="text-align:center;">${shiftPill(d.shiftCode, '')}</td>
@@ -938,18 +944,17 @@
       <tr>
         <th style="width:50px;text-align:right;">No</th>
         <th style="width:90px;">사번</th>
-        <th style="width:90px;">이름</th>
-        <th style="width:120px;">부서</th>
+        <th style="width:190px;">이름</th>
         <th style="width:120px;text-align:center;">연차 사용일</th>
         <th style="width:90px;text-align:center;">구분</th>
         <th style="width:120px;text-align:center;">예정 근무조</th>
         <th style="width:130px;text-align:right;">선지급 식권</th>
         <th style="width:130px;text-align:right;">차감 금액</th>
       </tr>`;
-    const body = rows || `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--color-text-muted);">전월 차감 대상이 없습니다.</td></tr>`;
+    const body = rows || `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--color-text-muted);">전월 차감 대상이 없습니다.</td></tr>`;
     const foot = ds.length ? `
       <tr style="font-weight:var(--fw-bold);background:var(--color-surface-alt);">
-        <td colspan="8" style="text-align:right;">차감 합계</td>
+        <td colspan="7" style="text-align:right;">차감 합계</td>
         <td style="text-align:right;color:var(--color-danger);">−${won(sumDed)}원</td>
       </tr>` : '';
     return gridShell(cap, thead, body, foot, 820);

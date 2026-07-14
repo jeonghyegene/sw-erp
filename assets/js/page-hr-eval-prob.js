@@ -265,21 +265,17 @@
     return `<span class="${cls}">${esc((emp.name || '?').charAt(0))}</span>`;
   }
   /* 성명 셀 — 임직원관리(page-hr-info-mgmt nameCellHTML) 와 동일 패턴.
-     사진 + 이름(브랜드 링크) + 부서 · 직책 inline(muted). 부서/직책 모두 빈값이면 메타 미노출. */
+     사진 + 이름(브랜드 링크) + 팀·직위·직책 inline(muted). 구두점 앞뒤 여백 없이. 빈 항목은 생략. */
   function nameCell(emp) {
-    const dept = emp.dept ? esc(emp.dept) : '';
-    const pos  = emp.position ? esc(emp.position) : '';
-    const dot  = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);padding:0 2px;" aria-hidden="true">·</span>`;
-    const meta = (v) => v
-      ? `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`
-      : '';
-    const sep = (dept && pos) ? dot : '';
+    const metaParts = [emp.dept, emp.rank, emp.position].filter(Boolean).map(esc);   // 팀·직위·직책
+    const dot  = `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);" aria-hidden="true">·</span>`;
+    const meta = (v) => `<span style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;">${v}</span>`;
     return `
       <div style="display:flex;align-items:center;gap:8px;min-width:0;">
         ${avatarHTML(emp, 'sm')}
         <a href="#" data-pep-card="${esc(emp.id)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);white-space:nowrap;">${esc(emp.name)}</a>
         <span style="display:inline-flex;align-items:center;gap:0;min-width:0;">
-          ${meta(dept)}${sep}${meta(pos)}
+          ${metaParts.map(meta).join(dot)}
         </span>
       </div>
     `;
@@ -1372,7 +1368,7 @@
     const empForCard = Object.assign({
       empType: 'regular',
       jobCat: 'office',
-      site: '본사',
+      site: '성수동',
       infoStatus: 'done',
     }, emp);
     App.HRInfoCard.open(empForCard);

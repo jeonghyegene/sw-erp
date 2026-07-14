@@ -33,6 +33,73 @@
     };
   }
 
+  /* ---------- App.xlsxDownload — 다중 시트 엑셀 다운로드 (외부 라이브러리 무의존) ----------
+   *  SpreadsheetML 2003 (Excel XML) 포맷으로 생성 → Excel 이 시트별로 그대로 연다.
+   *  CSV 로는 불가능한 (1) 시트 분할 (2) 표 상단 제목행 을 지원한다.
+   *
+   *  App.xlsxDownload(fileName, sheets, opts)
+   *    sheets : [{ name:'시트명', rows:[ row, ... ] }]
+   *    row    : 셀 배열 [v, v, …]  또는  { style:'title'|'hdr', cells:[v,…] }
+   *    cell   : 문자열/숫자  또는  { v, style }
+   *    opts   : { context } (다운로드 디버그 컨텍스트)
+   */
+  if (typeof App.xlsxDownload !== 'function') {
+    App.xlsxDownload = function (fileName, sheets, opts) {
+      opts = opts || {};
+      try {
+        const escXml = (s) => String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ');
+        /* 시트명 정리 — Excel 제약: 31자 이하, \ / ? * [ ] : 금지, 공백 시 'Sheet' */
+        const seenNames = {};
+        const sheetName = (nm) => {
+          let n = String(nm || 'Sheet').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31).trim() || 'Sheet';
+          if (seenNames[n]) { const b = n.slice(0, 28); let i = 2; while (seenNames[b + '_' + i]) i++; n = b + '_' + i; }
+          seenNames[n] = true;
+          return n;
+        };
+        const cellXml = (v, style) => {
+          let type, out;
+          if (typeof v === 'number' && isFinite(v)) { type = 'Number'; out = String(v); }
+          else { type = 'String'; out = escXml(v); }
+          const st = style ? ` ss:StyleID="${style}"` : '';
+          return `<Cell${st}><Data ss:Type="${type}">${out}</Data></Cell>`;
+        };
+        const rowXml = (row) => {
+          let cells, rowStyle;
+          if (row && !Array.isArray(row) && row.cells) { cells = row.cells; rowStyle = row.style; }
+          else { cells = row || []; }
+          const inner = cells.map(c => (c && typeof c === 'object' && 'v' in c)
+            ? cellXml(c.v, c.style || rowStyle) : cellXml(c, rowStyle)).join('');
+          return `<Row>${inner}</Row>`;
+        };
+        const wsXml = (sh) => {
+          const rows = (sh.rows || []).map(rowXml).join('');
+          return `<Worksheet ss:Name="${escXml(sheetName(sh.name))}"><Table>${rows}</Table></Worksheet>`;
+        };
+        const xml =
+          '<?xml version="1.0" encoding="UTF-8"?>\r\n' +
+          '<?mso-application progid="Excel.Sheet"?>\r\n' +
+          '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"' +
+          ' xmlns:o="urn:schemas-microsoft-com:office:office"' +
+          ' xmlns:x="urn:schemas-microsoft-com:office:excel"' +
+          ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+          '<Styles>' +
+          '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="13"/></Style>' +
+          '<Style ss:ID="hdr"><Font ss:Bold="1"/><Interior ss:Color="#EFEFEF" ss:Pattern="Solid"/></Style>' +
+          '</Styles>' +
+          (sheets || []).map(wsXml).join('') +
+          '</Workbook>';
+        const blob = new Blob(['﻿' + xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        return App.downloadFile(fileName, { blob, context: opts.context });
+      } catch (err) {
+        if (typeof App.flashToast === 'function') App.flashToast('다운로드에 실패했습니다.', 'danger');
+        return false;
+      }
+    };
+  }
+
   /* ---------- App.sweetAlert (erp-hr pages.js 이식) ---------- */
   if (typeof App.sweetAlert !== 'function') {
     const SWEET_ICONS = {

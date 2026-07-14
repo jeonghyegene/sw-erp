@@ -474,7 +474,7 @@
           if (member) {
             App.HRInfoCard.open(Object.assign({
               empType: member.empType || 'regular', jobCat: member.jobCat || 'office',
-              site: member.site || '본사', infoStatus: 'done',
+              site: member.site || '성수동', infoStatus: 'done',
             }, member));
             return;
           }
@@ -482,7 +482,7 @@
           if (!rec) { window.toast && window.toast('인사 정보를 찾을 수 없습니다.', 'info'); return; }
           App.HRInfoCard.open({
             id: rec.empId, name: rec.name, dept: rec.dept || '', position: rec.position || '', rank: '',
-            empType: 'regular', jobCat: 'office', site: '본사', infoStatus: 'done',
+            empType: 'regular', jobCat: 'office', site: '성수동', infoStatus: 'done',
           });
           return;
         }

@@ -365,21 +365,23 @@
             <tr class="is-clickable" data-myl-app-row="${esc(a.id)}">
               <td style="text-align:right;">${n - gi}</td>
               <td>${esc(a.no)}</td>
-              <td>${esc(a.codeLabel || codeLabel(a.code))}</td>
+              <td style="text-align:center;"><a class="link-code" href="javascript:;" data-att-doc-open="${esc(a.id)}" title="결재문서 보기">${esc(a.docNo || a.no)}</a></td>
+              <td style="text-align:center;">${esc((A.codeGroupLabel && A.codeGroupLabel(a.code)) || '')}</td>
+              <td>${esc((A.codeShortLabel && A.codeShortLabel(a.code)) || a.codeLabel || codeLabel(a.code))}</td>
               <td>${dateCol}</td>
               <td>${esc(a.reason)}</td>
               <td style="text-align:center;"><span class="pill pill--${stat.tone}">${esc(stat.label)}</span></td>
               <td>${a.status === 'rejected' ? esc(a.statusReason || '') : '<span class="t-muted">-</span>'}</td>
               <td>${esc(fmtDateTime(a.submittedAt))}</td>
               <td style="text-align:center;white-space:nowrap;">
-                <button class="btn btn--xs" type="button" data-att-doc-open="${esc(a.id)}">상세</button>
                 ${A.canWithdraw && A.canWithdraw(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-myl-withdraw="${esc(a.id)}" title="승인 전 신청 회수">회수</button>` : ''}
                 ${A.canCancel && A.canCancel(a) ? `<button class="btn btn--xs btn--soft-danger" type="button" data-myl-cancel="${esc(a.id)}" title="승인 후 취소 신청(전자결재)">취소</button>` : ''}
+                ${(!(A.canWithdraw && A.canWithdraw(a)) && !(A.canCancel && A.canCancel(a))) ? '<span class="t-muted">-</span>' : ''}
               </td>
             </tr>
           `;
         }).join('')
-      : `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
+      : `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--color-text-muted);">표시할 신청 내역이 없습니다.</td></tr>`;
 
     return `
       <div class="toolbar">
@@ -403,13 +405,15 @@
                 <tr>
                   <th style="width:56px;text-align:right;">No</th>
                   <th style="width:140px;">신청번호</th>
-                  <th style="width:170px;">종류</th>
+                  <th style="width:120px;text-align:center;">결재문서</th>
+                  <th style="width:90px;text-align:center;">구분</th>
+                  <th style="width:130px;">종류</th>
                   <th style="width:210px;">신청 일자</th>
                   <th>사유</th>
                   <th style="width:90px;text-align:center;">상태</th>
                   <th style="min-width:180px;">상태 사유</th>
                   <th style="width:140px;">상신 일시</th>
-                  <th style="width:64px;text-align:center;"></th>
+                  <th style="width:80px;text-align:center;"></th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>

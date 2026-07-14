@@ -32,13 +32,13 @@
   .topbar__title{font-size:18px;font-weight:700;margin-top:2px;}
 
   /* ── Stepper ── */
-  .stepper{display:flex;align-items:flex-start;gap:0;padding:16px 20px 4px;background:var(--surface);
+  .stepper{display:flex;align-items:flex-start;gap:0;padding:16px 12px 4px;background:var(--surface);
     border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
   .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;}
   .step__dot{width:30px;height:30px;border-radius:var(--r-pill);display:flex;align-items:center;justify-content:center;
     font-size:13px;font-weight:700;background:var(--surface-alt);color:var(--text-muted);
     border:2px solid var(--border);transition:.2s;z-index:2;}
-  .step__label{font-size:11.5px;color:var(--text-muted);font-weight:600;white-space:nowrap;transition:.2s;}
+  .step__label{font-size:11px;color:var(--text-muted);font-weight:600;white-space:nowrap;transition:.2s;}
   .step::before{content:"";position:absolute;top:15px;left:-50%;width:100%;height:2px;background:var(--border);z-index:1;}
   .step:first-child::before{display:none;}
   .step.is-active .step__dot{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 0 0 4px rgba(0,52,125,.12);}
@@ -60,6 +60,7 @@
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
     box-shadow:var(--sh-sm);margin-bottom:14px;overflow:hidden;}
   .card__body{padding:16px;}
+  .card__title{font-size:15px;font-weight:700;padding:14px 16px 0;display:flex;align-items:center;gap:8px;}
 
   /* ── Accordion section ── */
   .acc__head{display:flex;align-items:center;gap:10px;padding:15px 16px;cursor:pointer;user-select:none;}
@@ -91,6 +92,7 @@
   .field.is-invalid .field__err{display:block;}
   .field__ok{display:none;font-size:12px;color:var(--success);margin-top:5px;font-weight:600;}
   .field.is-valid .field__ok{display:block;}
+  .field__help{font-size:12px;color:var(--text-muted);margin-top:5px;}
 
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .inline{display:flex;gap:8px;align-items:stretch;}
@@ -101,7 +103,9 @@
   /* ── RRN ── */
   .rrn{display:flex;align-items:center;gap:8px;}
   .rrn .input{flex:1;text-align:center;letter-spacing:1px;}
+  .rrn .rrn__gender{flex:0 0 56px;width:56px;}
   .rrn__sep{color:var(--text-muted);font-weight:700;}
+  .rrn__mask{color:var(--text-muted);font-weight:700;letter-spacing:3px;flex:0 0 auto;}
 
   /* ── Buttons ── */
   .btn{font-family:inherit;font-size:15px;font-weight:600;border-radius:var(--r-sm);padding:11px 16px;
@@ -120,21 +124,6 @@
     display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;margin-top:4px;}
   .btn-add:active{background:#EEF1F6;}
 
-  /* ── File upload ── */
-  .file-up{display:flex;flex-direction:column;gap:8px;}
-  .file-up__btn{width:100%;border:1.5px dashed var(--border-strong);background:var(--surface-alt);
-    color:var(--brand);font-weight:600;font-size:14px;padding:14px;border-radius:var(--r-sm);cursor:pointer;
-    display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;}
-  .file-up__btn:active{background:#EEF1F6;}
-  .field.is-invalid .file-up__btn{border-color:var(--danger);}
-  .file-up__file{display:flex;align-items:center;gap:10px;padding:11px 12px;
-    background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;}
-  .file-up__name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-sub);}
-  .file-up__dl{color:var(--brand);font-weight:600;text-decoration:none;flex-shrink:0;}
-  .file-up__rm{border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:2px 4px;
-    font-size:14px;line-height:1;flex-shrink:0;}
-  .file-up__rm:active{color:var(--danger);}
-
   /* ── Repeatable entry ── */
   .entry{border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:12px;
     background:var(--surface-alt);position:relative;}
@@ -147,16 +136,66 @@
 
   /* ── Callout ── */
   .callout{display:flex;gap:10px;padding:14px;background:#EEF4FB;border:1px solid #D6E4F5;
-    border-radius:var(--r-sm);font-size:13px;color:var(--text-sub);line-height:1.55;}
+    border-radius:var(--r-sm);font-size:13px;color:var(--text-sub);line-height:1.55;margin-bottom:14px;}
+  .callout:last-child{margin-bottom:0;}
   .callout svg{flex-shrink:0;color:var(--brand);margin-top:1px;}
   .callout b{color:var(--brand);}
 
-  /* ── Sticky footer nav ── */
-  .footer{position:fixed;bottom:0;left:0;right:0;z-index:40;background:var(--surface);
-    border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
-  .footer__inner{max-width:560px;margin:0 auto;display:flex;gap:10px;}
-  .footer .btn{flex:1;padding:14px;font-size:16px;}
-  .footer__prev{flex:0 0 auto;min-width:96px;}
+  /* ── Contract terms list ── */
+  .terms{border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;}
+  .terms__row{display:flex;gap:12px;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--divider);}
+  .terms__row:last-child{border-bottom:none;}
+  .terms__row dt{flex:0 0 88px;color:var(--text-muted);font-weight:600;}
+  .terms__row dd{flex:1;min-width:0;color:var(--text);font-weight:500;}
+  .terms__row dd b{color:var(--brand);font-weight:700;}
+
+  /* ── Agreement checkbox ── */
+  .agree{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px solid var(--border-strong);
+    border-radius:var(--r-sm);cursor:pointer;background:var(--surface-alt);transition:.15s;margin-top:14px;}
+  .agree.is-checked{border-color:var(--brand);background:#EEF4FB;}
+  .agree.is-invalid{border-color:var(--danger);}
+  .agree input{margin-top:2px;width:18px;height:18px;accent-color:var(--brand);flex-shrink:0;}
+  .agree span{font-size:14px;color:var(--text-sub);line-height:1.5;}
+  .agree b{color:var(--text);font-weight:600;}
+
+  /* ── Signature pad ── */
+  .sign__pad-wrap{position:relative;border:1.5px dashed var(--border-strong);border-radius:var(--r-sm);
+    background:var(--surface-alt);overflow:hidden;}
+  .sign__pad{display:block;width:100%;height:180px;touch-action:none;cursor:crosshair;}
+  .sign__ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--text-muted);font-size:14px;pointer-events:none;text-align:center;line-height:1.5;}
+  .sign__tools{display:flex;gap:8px;margin-top:10px;}
+  .sign__tools .btn{flex:1;}
+
+  /* ── Contract parties (갑/을) ── */
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+  .party{border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 10px;text-align:center;background:var(--surface);}
+  .party__role{font-size:12px;font-weight:700;color:var(--text-muted);}
+  .party__name{font-size:15px;font-weight:700;margin:2px 0 10px;}
+  .party__mark{height:86px;display:flex;align-items:center;justify-content:center;}
+  .party__stat{font-size:12px;font-weight:700;margin-top:8px;}
+  .party__stat.is-done{color:var(--success);}
+  .party__stat.is-wait{color:var(--text-muted);}
+  .party__sign-img{max-height:82px;max-width:100%;}
+
+  /* ── Company seal ── */
+  .seal{width:74px;height:74px;border-radius:50%;border:2.5px solid var(--danger);color:var(--danger);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    font-weight:800;font-size:12px;line-height:1.2;transform:rotate(-8deg);opacity:.88;letter-spacing:.3px;}
+
+  /* ── Contract concluded banner ── */
+  .contract-done{display:none;align-items:center;gap:10px;padding:14px;margin-top:14px;
+    background:#E7F6EC;border:1px solid #BBE5C7;border-radius:var(--r-sm);color:var(--success);font-weight:700;font-size:14px;}
+  .contract-done.is-show{display:flex;}
+  .contract-done svg{flex-shrink:0;}
+  .link-reset{display:inline-block;margin-top:10px;font-size:13px;color:var(--brand);font-weight:600;
+    background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;}
+
+  /* ── "준비 중" placeholder box ── */
+  .prep{display:flex;align-items:center;gap:10px;padding:14px;border:1.5px dashed var(--border-strong);
+    border-radius:var(--r-sm);background:var(--surface-alt);color:var(--text-muted);font-size:13px;line-height:1.5;}
+  .prep__badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);
+    background:#FEF3E2;color:var(--accent);flex-shrink:0;}
 
   /* ── Done ── */
   .done{text-align:center;padding:40px 20px;}
@@ -166,10 +205,10 @@
   .done p{font-size:14px;color:var(--text-sub);line-height:1.6;}
   .done__summary{text-align:left;margin-top:24px;background:var(--surface);border:1px solid var(--border);
     border-radius:var(--r-md);overflow:hidden;}
-  .done__row{display:flex;justify-content:space-between;padding:13px 16px;font-size:14px;border-bottom:1px solid var(--divider);}
+  .done__row{display:flex;justify-content:space-between;gap:14px;padding:13px 16px;font-size:14px;border-bottom:1px solid var(--divider);}
   .done__row:last-child{border-bottom:none;}
-  .done__row span{color:var(--text-muted);}
-  .done__row b{color:var(--text);font-weight:600;}
+  .done__row span{color:var(--text-muted);flex-shrink:0;}
+  .done__row b{color:var(--text);font-weight:600;text-align:right;}
 
   /* ── Toast ── */
   .toast-wrap{position:fixed;left:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:1100;
@@ -180,8 +219,54 @@
   .toast--success{background:var(--success);}
   .toast--danger{background:var(--danger);}
 
+  /* ── Wage composition table ── */
+  .wtbl{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px;
+    border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;}
+  .wtbl th,.wtbl td{padding:9px 12px;border-bottom:1px solid var(--divider);text-align:left;color:var(--text);}
+  .wtbl thead th{background:var(--surface-alt);font-weight:700;font-size:12px;color:var(--text-sub);}
+  .wtbl tbody th{font-weight:500;color:var(--text-sub);width:34%;}
+  .wtbl td.amt{text-align:right;font-variant-numeric:tabular-nums;}
+  .wtbl tr:last-child th,.wtbl tr:last-child td{border-bottom:none;}
+  .wtbl tr.is-total th,.wtbl tr.is-total td{background:#EEF4FB;font-weight:700;color:var(--brand);}
+
+  /* ── Modal ── */
+  .modal-mask{position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:1000;
+    display:none;align-items:flex-end;justify-content:center;}
+  .modal-mask.is-open{display:flex;}
+  .modal{background:var(--surface);width:100%;max-width:560px;max-height:92vh;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;display:flex;flex-direction:column;
+    animation:slideup .28s ease;overflow:hidden;}
+  @keyframes slideup{from{transform:translateY(30px);opacity:.6;}to{transform:none;opacity:1;}}
+  .modal__head{display:flex;align-items:center;justify-content:space-between;
+    padding:16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .modal__head h3{font-size:16px;font-weight:700;}
+  .modal__close{border:none;background:transparent;font-size:20px;line-height:1;
+    color:var(--text-muted);cursor:pointer;padding:4px 6px;}
+  .modal__body{overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
+
+  /* ── Contract document (근로/임금 계약서 전문) ── */
+  .doc__sec{color:var(--text);}
+  .doc__sec + .doc__sec{margin-top:24px;border-top:8px solid var(--divider);padding-top:22px;}
+  .doc__title{text-align:center;font-size:20px;font-weight:700;letter-spacing:.25em;
+    padding-bottom:10px;border-bottom:2px solid var(--text);margin:0 0 14px;}
+  .doc__intro{font-size:13px;line-height:1.7;margin:0 0 10px;}
+  .doc__divider{text-align:center;letter-spacing:.3em;font-weight:600;margin:6px 0 14px;font-size:13px;}
+  .doc__art{font-size:14px;font-weight:700;margin:16px 0 4px;}
+  .doc__cl{font-size:13px;line-height:1.7;margin:0 0 4px;padding-left:10px;}
+  .doc__cl strong{font-weight:700;}
+  .doc__note{font-size:12px;line-height:1.6;color:var(--text-muted);margin:2px 0 8px;padding-left:18px;}
+  .doc__tbl{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:12.5px;}
+  .doc__tbl th,.doc__tbl td{border:1px solid var(--border);padding:6px 8px;text-align:left;
+    vertical-align:middle;line-height:1.5;color:var(--text);}
+  .doc__tbl th{background:var(--surface-alt);font-weight:600;white-space:nowrap;width:30%;}
+  .doc__tbl--center th,.doc__tbl--center td{text-align:center;width:auto;}
+  .doc__tbl--wage thead th{text-align:center;background:#EEF1F6;width:auto;}
+  .doc__tbl--wage tbody td:nth-child(2){text-align:right;white-space:nowrap;}
+  .doc__tbl--wage tr.is-total th,.doc__tbl--wage tr.is-total td{background:var(--surface-alt);font-weight:700;}
+  .doc__signdate{text-align:right;margin:16px 0 0;font-size:13px;letter-spacing:.05em;}
+
   @media (max-width:400px){
-    .step__label{font-size:10.5px;}
+    .step__label{font-size:10px;}
     .row2{grid-template-columns:1fr;}
   }
 </style>
@@ -197,31 +282,74 @@
 
   <!-- Stepper -->
   <nav class="stepper" id="stepper">
-    <div class="step is-active" data-step="1"><div class="step__dot">1</div><div class="step__label">계정 생성</div></div>
-    <div class="step" data-step="2"><div class="step__dot">2</div><div class="step__label">기본 정보</div></div>
-    <div class="step" data-step="3"><div class="step__dot">3</div><div class="step__label">지급 정보</div></div>
-    <div class="step" data-step="4"><div class="step__dot">4</div><div class="step__label">완료</div></div>
+    <div class="step is-active" data-step="1"><div class="step__dot">1</div><div class="step__label">계정</div></div>
+    <div class="step" data-step="2"><div class="step__dot">2</div><div class="step__label">근로계약</div></div>
+    <div class="step" data-step="3"><div class="step__dot">3</div><div class="step__label">입사정보</div></div>
+    <div class="step" data-step="4"><div class="step__dot">4</div><div class="step__label">추가정보</div></div>
+    <div class="step" data-step="5"><div class="step__dot">5</div><div class="step__label">완료</div></div>
   </nav>
 
-  <!-- ═══════════ STEP 1 · 계정 생성 ═══════════ -->
+  <!-- ═══════════ STEP 1 · ERP 계정 정보 ═══════════ -->
   <section class="page is-active" data-page="1">
     <div class="page__head">
-      <h2>계정 생성</h2>
-      <p>사내 메일로 사용할 아이디를 설정합니다.</p>
+      <h2>ERP 계정 정보</h2>
+      <p>본인 정보를 확인하고 ERP 로그인 아이디를 만듭니다.</p>
     </div>
 
+    <!-- 인적사항 확인 -->
     <div class="card"><div class="card__body">
-      <div class="field" id="f-id">
-        <label class="field__label">아이디 (사내 메일)<em>*</em></label>
-        <div class="inline">
-          <input class="input" type="text" id="in-id" placeholder="아이디" autocomplete="off" autocapitalize="none">
-          <span class="suffix">@swadpia.co.kr</span>
+      <div class="field">
+        <label class="field__label">성명</label>
+        <input class="input" type="text" id="in-name" value="홍길동" readonly>
+      </div>
+      <div class="field" id="f-rrn">
+        <label class="field__label">주민등록번호<em>*</em></label>
+        <div class="rrn">
+          <input class="input" type="tel" id="in-rrn1" placeholder="앞 6자리" maxlength="6" inputmode="numeric">
+          <span class="rrn__sep">–</span>
+          <input class="input rrn__gender" type="tel" id="in-rrn2" placeholder="성별" maxlength="1" inputmode="numeric">
+          <span class="rrn__mask">******</span>
         </div>
-        <button class="btn btn--ghost btn--sm btn--full" type="button" id="btn-check" style="margin-top:8px;">중복 확인</button>
-        <div class="field__err">아이디를 입력하고 중복 확인을 해주세요.</div>
-        <div class="field__ok">사용 가능한 아이디입니다.</div>
+        <div class="field__err">주민등록번호를 정확히 입력해 주세요.</div>
+      </div>
+      <div class="field" id="f-phone">
+        <label class="field__label">휴대전화<em>*</em></label>
+        <div class="inline">
+          <input class="input" type="tel" id="in-phone" value="01012345678" placeholder="'-' 없이 숫자만 입력" inputmode="numeric" autocomplete="off">
+          <button class="btn btn--ghost" type="button" id="btn-phone-check" style="flex:0 0 auto;">중복 확인</button>
+        </div>
+        <div class="field__err">휴대전화 번호를 입력하고 중복 확인을 해주세요.</div>
+        <div class="field__ok">사용 가능한 번호입니다.</div>
+        <div class="field__help">인사팀 등록 정보입니다. 확인 후 수정 가능합니다.</div>
+      </div>
+      <div class="field" id="f-email">
+        <label class="field__label">이메일<em>*</em></label>
+        <div class="inline">
+          <input class="input" type="email" id="in-email" value="hong.gildong@gmail.com" placeholder="example@email.com" autocapitalize="none" autocomplete="off">
+          <button class="btn btn--ghost" type="button" id="btn-email-check" style="flex:0 0 auto;">중복 확인</button>
+        </div>
+        <div class="field__err">이메일을 입력하고 중복 확인을 해주세요.</div>
+        <div class="field__ok">사용 가능한 이메일입니다.</div>
+        <div class="field__help">본인 개인 이메일입니다. (사내 메일과 별도)</div>
       </div>
     </div></div>
+
+    <!-- ERP 로그인 아이디 -->
+    <div class="card">
+      <div class="card__title">ERP 로그인 아이디</div>
+      <div class="card__body">
+        <div class="field" id="f-id">
+          <label class="field__label">아이디 (사내 메일)<em>*</em></label>
+          <div class="inline">
+            <input class="input" type="text" id="in-id" placeholder="아이디" autocomplete="off" autocapitalize="none">
+            <span class="suffix">@swadpia.co.kr</span>
+          </div>
+          <button class="btn btn--ghost btn--sm btn--full" type="button" id="btn-check" style="margin-top:8px;">중복 확인</button>
+          <div class="field__err">아이디를 입력하고 중복 확인을 해주세요.</div>
+          <div class="field__ok">사용 가능한 아이디입니다.</div>
+        </div>
+      </div>
+    </div>
 
     <div class="callout">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -229,35 +357,122 @@
     </div>
   </section>
 
-  <!-- ═══════════ STEP 2 · 기본 정보 ═══════════ -->
+  <!-- ═══════════ STEP 2 · 근로계약 · 임금계약 ═══════════ -->
   <section class="page" data-page="2">
     <div class="page__head">
-      <h2>기본 정보 입력</h2>
-      <p>신상정보는 필수, 그 외 항목은 선택입니다.</p>
+      <h2>근로계약 · 임금계약</h2>
+      <p>근로조건을 확인하고 전자서명으로 계약을 체결합니다.</p>
     </div>
 
-    <!-- 신상정보 (필수) -->
-    <div class="card acc is-open" data-acc>
-      <div class="acc__head" data-acc-toggle>
-        <h3>신상정보 <span class="tag tag--req">필수</span></h3>
-        <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    <!-- 근로계약 (근로조건) -->
+    <div class="card">
+      <div class="card__title">근로계약 · 근로조건</div>
+      <div class="card__body">
+        <dl class="terms">
+          <div class="terms__row"><dt>계약형태</dt><dd>정규직 <span style="color:var(--text-muted);">(기간의 정함 없는 근로계약)</span></dd></div>
+          <div class="terms__row"><dt>입사일</dt><dd>2026-07-14</dd></div>
+          <div class="terms__row"><dt>수습기간</dt><dd>3개월 (2026-07-14 ~ 2026-10-13)</dd></div>
+          <div class="terms__row"><dt>근무장소</dt><dd>성수동 (서울특별시 성동구 성수일로 80)</dd></div>
+          <div class="terms__row"><dt>담당업무</dt><dd>경영지원 / 사무직</dd></div>
+          <div class="terms__row"><dt>근무시간</dt><dd>09:00 ~ 18:00 <span style="color:var(--text-muted);">(휴게 12:00~13:00)</span></dd></div>
+          <div class="terms__row"><dt>근무일</dt><dd>주 5일 (월~금) · 소정근로 주 40시간</dd></div>
+        </dl>
       </div>
-      <div class="acc__body">
-        <div class="field" id="f-ename">
-          <label class="field__label">영문 이름</label>
-          <input class="input" type="text" id="in-ename" placeholder="예: Hong Gildong" autocapitalize="words">
+    </div>
+
+    <!-- 임금계약 (임금 구성) -->
+    <div class="card">
+      <div class="card__title">임금계약 · 임금 구성</div>
+      <div class="card__body">
+        <dl class="terms">
+          <div class="terms__row"><dt>임금형태</dt><dd>월급제 (연봉제)</dd></div>
+          <div class="terms__row"><dt>총 연봉</dt><dd>연 <b>36,000,000원</b></dd></div>
+          <div class="terms__row"><dt>급여지급일</dt><dd>매월 10일 <span style="color:var(--text-muted);">(휴일인 경우 직전 영업일)</span></dd></div>
+        </dl>
+        <table class="wtbl">
+          <thead><tr><th>항목</th><th style="text-align:right;">금액 (원)</th><th>산정식</th></tr></thead>
+          <tbody>
+            <tr><th>기본급</th><td class="amt">3,000,000</td><td style="color:var(--text-muted);"></td></tr>
+            <tr><th>연장근로수당</th><td class="amt">-</td><td style="color:var(--text-muted);">포괄임금</td></tr>
+            <tr><th>기타수당</th><td class="amt">-</td><td></td></tr>
+            <tr class="is-total"><th>월 임금 합계</th><td class="amt">3,000,000</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 계약서 전문 보기 -->
+    <button class="btn btn--ghost btn--full" type="button" id="btn-view-doc" style="margin-bottom:14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      근로 · 임금 계약서 전문 보기
+    </button>
+
+    <!-- 계약 동의 및 전자서명 -->
+    <div class="card">
+      <div class="card__title">계약 동의 및 전자서명</div>
+      <div class="card__body">
+        <!-- 계약 동의 -->
+        <label class="agree" id="agree-box" style="margin-top:0;margin-bottom:16px;">
+          <input type="checkbox" id="agree-chk">
+          <span><b>위 근로계약 및 임금계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
+        </label>
+
+        <div class="sign__pad-wrap">
+          <canvas class="sign__pad" id="sig-pad"></canvas>
+          <div class="sign__ph" id="sig-ph">아래 영역에 손가락 또는 마우스로<br>직접 서명해 주세요.</div>
         </div>
-        <div class="field" id="f-rrn">
-          <label class="field__label">주민등록번호<em>*</em></label>
-          <div class="rrn">
-            <input class="input" type="tel" id="in-rrn1" placeholder="앞 6자리" maxlength="6" inputmode="numeric">
-            <span class="rrn__sep">–</span>
-            <input class="input" type="password" id="in-rrn2" placeholder="뒤 7자리" maxlength="7" inputmode="numeric">
+        <div class="sign__tools">
+          <button class="btn btn--ghost btn--sm" type="button" id="btn-sig-clear">지우기</button>
+          <button class="btn btn--primary btn--sm" type="button" id="btn-sig-done">서명 완료 · 계약 체결</button>
+        </div>
+
+        <!-- 계약 당사자 -->
+        <div class="parties" style="margin-top:16px;">
+          <div class="party">
+            <div class="party__role">갑 (회사)</div>
+            <div class="party__name">성원애드피아</div>
+            <div class="party__mark">
+              <div class="seal"><span>성원</span><span>애드피아</span><span>代表印</span></div>
+            </div>
+            <div class="party__stat is-done">✓ 인감 날인 완료</div>
           </div>
-          <div class="field__err">주민등록번호를 정확히 입력해 주세요.</div>
+          <div class="party">
+            <div class="party__role">을 (근로자)</div>
+            <div class="party__name" id="party-el-name">홍길동</div>
+            <div class="party__mark" id="party-el-mark"></div>
+            <div class="party__stat is-wait" id="party-el-stat">서명 대기</div>
+          </div>
         </div>
+
+        <!-- 체결 완료 배너 -->
+        <div class="contract-done" id="contract-done">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <div>근로계약이 체결되었습니다.
+            <button class="link-reset" type="button" id="btn-sig-reset" style="margin-top:2px;">다시 서명하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>회사 인감은 <b>이미 날인 완료</b>되어 있습니다. 근로자 서명이 등록되면 <b>즉시 양측 서명이 완료되어 계약이 체결</b>됩니다.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ STEP 3 · 입사 정보 ═══════════ -->
+  <section class="page" data-page="3">
+    <div class="page__head">
+      <h2>입사 정보 <span class="tag tag--req" style="vertical-align:middle;">필수</span></h2>
+      <p>주소와 급여계좌를 입력합니다.</p>
+    </div>
+
+    <!-- 주소 -->
+    <div class="card">
+      <div class="card__title">주소</div>
+      <div class="card__body">
         <div class="field" id="f-addr">
-          <label class="field__label">주소<em>*</em></label>
+          <label class="field__label">거주지 주소<em>*</em></label>
           <div class="inline" style="margin-bottom:8px;">
             <input class="input" type="text" id="in-zip" placeholder="우편번호" readonly style="flex:0 0 120px;">
             <button class="btn btn--ghost" type="button" id="btn-zip">주소 검색</button>
@@ -267,6 +482,54 @@
           <div class="field__err">주소를 입력해 주세요.</div>
         </div>
       </div>
+    </div>
+
+    <!-- 급여계좌 -->
+    <div class="card">
+      <div class="card__title">급여계좌</div>
+      <div class="card__body">
+        <div class="field" id="f-bank">
+          <label class="field__label">은행<em>*</em></label>
+          <select class="select" id="in-bank">
+            <option value="">은행 선택</option>
+            <option>국민은행</option><option>신한은행</option><option>우리은행</option>
+            <option>하나은행</option><option>농협은행</option><option>기업은행</option>
+            <option>카카오뱅크</option><option>토스뱅크</option><option>새마을금고</option>
+            <option>SC제일은행</option><option>부산은행</option><option>대구은행</option>
+          </select>
+          <div class="field__err">은행을 선택해 주세요.</div>
+        </div>
+        <div class="field" id="f-acc">
+          <label class="field__label">계좌번호<em>*</em></label>
+          <input class="input" type="tel" id="in-acc" placeholder="'-' 없이 숫자만 입력" inputmode="numeric">
+          <div class="field__err">계좌번호를 입력해 주세요.</div>
+        </div>
+        <div class="field" id="f-holder">
+          <label class="field__label">예금주<em>*</em></label>
+          <input class="input" type="text" id="in-holder" placeholder="예금주명">
+          <div class="field__err">예금주를 입력해 주세요.</div>
+        </div>
+        <div class="field">
+          <label class="field__label">통장 사본</label>
+          <div class="prep">
+            <span class="prep__badge">준비 중</span>
+            <div>통장 사본 등 민감 서류는 <b>별도 시스템에서 안전하게 제출</b>합니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>급여는 <b>매월 10일</b>에 등록하신 계좌로 지급됩니다.<br>지급일이 주말·공휴일인 경우 직전 영업일에 지급됩니다.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ STEP 4 · 추가 정보 ═══════════ -->
+  <section class="page" data-page="4">
+    <div class="page__head">
+      <h2>추가 정보</h2>
+      <p>학력·경력, 자격·역량, 개인정보를 입력합니다. (선택)</p>
     </div>
 
     <!-- 학력·경력 (선택) -->
@@ -310,6 +573,12 @@
         <svg class="acc__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="acc__body">
+        <!-- 영문 이름 -->
+        <div class="field">
+          <label class="field__label">영문 이름</label>
+          <input class="input" type="text" id="in-ename" placeholder="예: Hong Gildong" autocapitalize="words">
+        </div>
+
         <!-- 장애 여부 -->
         <div class="field">
           <label class="field__label">장애 여부</label>
@@ -320,10 +589,10 @@
         </div>
         <div id="dis-detail" style="display:none;">
           <div class="row2">
-            <div class="field"><label class="field__label">장애 구분</label><input class="input" id="in-dis-type" placeholder="예: 지체장애"></div>
-            <div class="field"><label class="field__label">장애 등급</label><input class="input" id="in-dis-grade" placeholder="예: 5급"></div>
+            <div class="field"><label class="field__label" style="font-weight:500;color:var(--text-muted);">장애 구분</label><input class="input" id="in-dis-type" placeholder="예: 지체장애"></div>
+            <div class="field"><label class="field__label" style="font-weight:500;color:var(--text-muted);">장애 등급</label><input class="input" id="in-dis-grade" placeholder="예: 5급"></div>
           </div>
-          <div class="field"><label class="field__label">장애등록번호</label><input class="input" id="in-dis-no" placeholder="장애등록번호"></div>
+          <div class="field"><label class="field__label" style="font-weight:500;color:var(--text-muted);">장애등록번호</label><input class="input" id="in-dis-no" placeholder="장애등록번호"></div>
         </div>
 
         <!-- 신체 정보 -->
@@ -380,63 +649,14 @@
     </div>
   </section>
 
-  <!-- ═══════════ STEP 3 · 지급 정보 ═══════════ -->
-  <section class="page" data-page="3">
-    <div class="page__head">
-      <h2>지급 정보 입력 <span class="tag tag--req" style="vertical-align:middle;">필수</span></h2>
-      <p>급여를 받을 계좌를 입력합니다.</p>
-    </div>
-
-    <div class="card"><div class="card__body">
-      <div class="field" id="f-bank">
-        <label class="field__label">은행<em>*</em></label>
-        <select class="select" id="in-bank">
-          <option value="">은행 선택</option>
-          <option>국민은행</option><option>신한은행</option><option>우리은행</option>
-          <option>하나은행</option><option>농협은행</option><option>기업은행</option>
-          <option>카카오뱅크</option><option>토스뱅크</option><option>새마을금고</option>
-          <option>SC제일은행</option><option>부산은행</option><option>대구은행</option>
-        </select>
-        <div class="field__err">은행을 선택해 주세요.</div>
-      </div>
-      <div class="field" id="f-acc">
-        <label class="field__label">계좌번호<em>*</em></label>
-        <input class="input" type="tel" id="in-acc" placeholder="'-' 없이 숫자만 입력" inputmode="numeric">
-        <div class="field__err">계좌번호를 입력해 주세요.</div>
-      </div>
-      <div class="field" id="f-holder">
-        <label class="field__label">예금주<em>*</em></label>
-        <input class="input" type="text" id="in-holder" placeholder="예금주명">
-        <div class="field__err">예금주를 입력해 주세요.</div>
-      </div>
-      <div class="field" id="f-bankbook">
-        <label class="field__label">통장 사본<em>*</em></label>
-        <div class="file-up">
-          <input type="file" id="in-bankbook" accept="image/*,.pdf" hidden>
-          <button class="file-up__btn" type="button" id="btn-bankbook">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            통장 사본 업로드
-          </button>
-          <div id="bankbook-file"></div>
-        </div>
-        <div class="field__err">통장 사본을 업로드해 주세요.</div>
-      </div>
-    </div></div>
-
-    <div class="callout">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      <div>급여는 <b>매월 10일</b>에 등록하신 계좌로 지급됩니다. <br>지급일이 주말·공휴일인 경우 직전 영업일에 지급됩니다.</div>
-    </div>
-  </section>
-
-  <!-- ═══════════ STEP 4 · 완료 ═══════════ -->
-  <section class="page" data-page="4">
+  <!-- ═══════════ STEP 5 · 완료 ═══════════ -->
+  <section class="page" data-page="5">
     <div class="done">
       <div class="done__icon">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h2>정보 입력이 완료되었습니다</h2>
-      <p>등록하신 정보는 인사팀 확인 후<br>인사정보카드에 반영됩니다.</p>
+      <p>근로계약이 체결되었으며, 등록하신 정보는<br>인사팀 확인 후 인사정보카드에 반영됩니다.</p>
       <div class="done__summary" id="summary"></div>
     </div>
   </section>
@@ -451,37 +671,127 @@
   </div>
 </footer>
 
+<!-- 근로·임금 계약서 전문 모달 -->
+<div class="modal-mask" id="doc-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="doc-modal-title">
+    <div class="modal__head">
+      <h3 id="doc-modal-title">근로 · 임금 계약서</h3>
+      <button class="modal__close" type="button" id="doc-modal-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal__body">
+
+      <!-- ── 근로계약서 ── -->
+      <div class="doc__sec">
+        <h2 class="doc__title">정규직 근로계약서</h2>
+        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.</p>
+        <p class="doc__divider">■　　아　　래　　■</p>
+
+        <h3 class="doc__art">제1조 (근로계약기간)</h3>
+        <p class="doc__cl">① '을'의 근로계약기간은 2026-07-14 부터 <strong>기한의 정함이 없는 근로계약</strong>을 체결한 것으로 한다.</p>
+        <p class="doc__cl">② '을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
+        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
+
+        <h3 class="doc__art">제2조 (근무장소 및 직종)</h3>
+        <p class="doc__cl">① '을'의 근무장소 및 직종은 <strong>성수동 / 경영지원</strong> (으)로 한다.</p>
+        <p class="doc__cl">② '갑'은 업무상 필요에 따라 '을'의 근무장소 및 직종을 변경할 수 있으며, '을'은 정당한 이유없이 이를 거부할 수 없다.</p>
+
+        <h3 class="doc__art">제3조 (근로시간)</h3>
+        <p class="doc__cl">① 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.</p>
+        <p class="doc__cl">② '을'의 기본 근로시간 및 휴게시간은 다음과 같다.</p>
+        <table class="doc__tbl doc__tbl--center">
+          <thead><tr><th>교대조</th><th>시업시각</th><th>종업시각</th><th>휴게시간</th></tr></thead>
+          <tbody><tr><td>주간조</td><td>09:00</td><td>18:00</td><td>12:00 ~ 13:00</td></tr></tbody>
+        </table>
+        <p class="doc__cl">③ '갑'은 업무상 필요에 따라 근무시간을 조정할 수 있으며, '을'은 주 12시간 한도 내에서 시간외 근로를 할 수 있다.</p>
+
+        <h3 class="doc__art">제4조 (퇴직금)</h3>
+        <p class="doc__cl">① '을'의 계속근로연수가 1년 이상인 경우 퇴직시 계속근로연수 1년에 대하여 30일분의 평균임금을 퇴직금으로 지급한다.</p>
+        <p class="doc__cl">② '갑'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 '을'의 퇴직 후 14일 이내에 지급하도록 한다.</p>
+
+        <h3 class="doc__art">제5조 (휴일)</h3>
+        <p class="doc__cl">① 근로자의 날 및 주휴일을 유급휴일로 하며, 주휴일은 1주간 소정의 근로일을 개근한 경우 부여한다.</p>
+        <p class="doc__cl">② 매주 토요일은 무급휴일로 한다.</p>
+
+        <h3 class="doc__art">제6조 (연차휴가)</h3>
+        <p class="doc__cl">근로기준법이 정하는 바에 따라 연차유급휴가를 부여한다.</p>
+
+        <h3 class="doc__art">제7조 (근로계약의 해지)</h3>
+        <p class="doc__cl">① '갑'은 '을'이 업무수행능력이 현저히 부족하거나, 고의·중대한 과실로 회사에 손해를 입힌 때 등에는 근로계약기간 중이라도 해지할 수 있다.</p>
+        <p class="doc__cl">② '을'이 사직하고자 하는 경우 최소 30일 전에 사직의사를 '갑'에게 제출하여 업무 인수인계에 협조하여야 한다.</p>
+
+        <h3 class="doc__art">제8조 (준수사항)</h3>
+        <p class="doc__cl">'을'은 직무 중 지득한 '갑'의 영업 기밀 및 사업 관련 주요 정보를 제3자에게 누설하여서는 아니된다.</p>
+
+        <h3 class="doc__art">제9조 ~ 제11조 (계약의 변경 · 손해배상 · 기타)</h3>
+        <p class="doc__cl">본 계약에서 정하지 아니한 사항은 노동관계법령 및 취업규칙의 내용에 따른다. 본 계약서는 '갑'과 '을'이 날인한 후 각 1부씩 보관한다.</p>
+
+        <h3 class="doc__art">근로자 인적사항</h3>
+        <table class="doc__tbl">
+          <tr><th>성명</th><td>홍길동</td></tr>
+          <tr><th>소속</th><td>경영지원</td></tr>
+          <tr><th>직위 / 직책</th><td>사원 / -</td></tr>
+        </table>
+        <p class="doc__signdate">작성일: 2026-07-14</p>
+      </div>
+
+      <!-- ── 임금계약서 ── -->
+      <div class="doc__sec">
+        <h2 class="doc__title">임 금 계 약 서</h2>
+        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 임금계약을 체결한다.</p>
+        <p class="doc__divider">■　　아　　래　　■</p>
+
+        <h3 class="doc__art">제1조 (근로자 정보)</h3>
+        <table class="doc__tbl">
+          <tr><th>성명</th><td>홍길동</td></tr>
+          <tr><th>소속 / 직책</th><td>경영지원 / -</td></tr>
+          <tr><th>고용 구분</th><td>정규직</td></tr>
+        </table>
+
+        <h3 class="doc__art">제2조 (임금계약기간)</h3>
+        <p class="doc__cl">'을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
+        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
+
+        <h3 class="doc__art">제3조 (급여)</h3>
+        <p class="doc__cl">① '을'의 총연봉액은 <strong>36,000,000</strong> 원 이며, 이를 매월 지급한다.</p>
+        <p class="doc__cl">② '을'의 총월봉액은 <strong>3,000,000</strong> 원 이며, 월급여의 구성은 다음과 같다.</p>
+        <table class="doc__tbl doc__tbl--wage">
+          <thead><tr><th>항목</th><th>금액 (원)</th><th>산정식</th></tr></thead>
+          <tbody>
+            <tr><th>기본급</th><td>3,000,000</td><td></td></tr>
+            <tr><th>연장근로수당</th><td>-</td><td>포괄임금</td></tr>
+            <tr><th>기타수당</th><td>-</td><td></td></tr>
+            <tr class="is-total"><th>월임금합계</th><td>3,000,000</td><td></td></tr>
+          </tbody>
+        </table>
+        <p class="doc__cl">③ 급여는 매월 1일부터 말일까지를 산정기간으로 하여, 익월 10일(휴일인 경우 익일)에 '을' 본인명의의 계좌로 지급한다.</p>
+        <p class="doc__cl">④ 월 급여 지급시 근로소득세 및 건강보험료, 국민연금, 고용보험 등의 제세공과금을 원천징수한 후 지급한다.</p>
+
+        <h3 class="doc__art">제4조 (기타)</h3>
+        <p class="doc__cl">본 계약서에 명시되지 않은 사항은 근로계약서 및 회사의 임금 규정, 관계 법령에 따른다.</p>
+        <p class="doc__signdate">작성일: 2026-07-14</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toast-wrap"></div>
+
+<style>
+  /* footer는 shell 밖 fixed */
+  .footer{position:fixed;bottom:0;left:0;right:0;z-index:40;background:var(--surface);
+    border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
+  .footer__inner{max-width:560px;margin:0 auto;display:flex;gap:10px;}
+  .footer .btn{flex:1;padding:14px;font-size:16px;}
+  .footer__prev{flex:0 0 auto;min-width:96px;}
+</style>
 
 <script>
 (function(){
-  var TOTAL = 4, cur = 1, idOK = false, bankbookFile = null;
+  var TOTAL = 5, SUBMIT_STEP = 4, cur = 1;
+  var idOK = false, phoneOK = false, emailOK = false, contractDone = false;
   var $ = function(s,c){return (c||document).querySelector(s);};
   var $$ = function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
-
-  /* ── 고용구분 파라미터: 도급직이면 지급 정보(STEP 3) 생략 ──
-     URL 예) ?type=도급직  ?employ=도급  ?도급직  ?contract=1  */
-  var qs = new URLSearchParams(location.search);
-  function flagOn(key){
-    if(!qs.has(key)) return false;
-    var v = (qs.get(key)||'').trim().toLowerCase();
-    return !(v==='0'||v==='false'||v==='no'||v==='n');
-  }
-  var typeVal = (qs.get('type')||qs.get('employ')||qs.get('emp')||qs.get('empType')||'').trim();
-  var CONTRACT = flagOn('도급직') || flagOn('도급') || flagOn('contract')
-    || /도급/.test(typeVal) || /^contract$/i.test(typeVal);
-
-  // 활성 스텝 목록 (도급직은 3=지급정보 제외) · 제출 스텝(완료 직전)
-  var STEPS = CONTRACT ? [1,2,4] : [1,2,3,4];
-  var SUBMIT_STEP = CONTRACT ? 2 : 3;
-  function nextStep(n){ var i=STEPS.indexOf(n); return (i>-1 && i<STEPS.length-1) ? STEPS[i+1] : n; }
-  function prevStep(n){ var i=STEPS.indexOf(n); return i>0 ? STEPS[i-1] : n; }
-
-  if(CONTRACT){
-    // 스텝퍼에서 '지급 정보' 숨기고 '완료' 번호를 3 으로 재표기
-    var _s3 = $('.step[data-step="3"]'); if(_s3) _s3.style.display = 'none';
-    var _s4dot = $('.step[data-step="4"] .step__dot'); if(_s4dot) _s4dot.textContent = '3';
-  }
 
   /* ── Toast ── */
   function toast(msg, kind){
@@ -494,7 +804,7 @@
   }
 
   /* ── Field error helpers ── */
-  function setErr(id){ var f=$('#'+id); f.classList.add('is-invalid'); f.classList.remove('is-valid'); }
+  function setErr(id){ var f=$('#'+id); if(f){ f.classList.add('is-invalid'); f.classList.remove('is-valid'); } }
   function clearErr(id){ var f=$('#'+id); if(f) f.classList.remove('is-invalid'); }
   function clearAll(){ $$('.field.is-invalid').forEach(function(f){ f.classList.remove('is-invalid'); }); }
 
@@ -554,13 +864,13 @@
   }
 
   function renderEmpty(list){
+    if(!list) return;
     if(!list.querySelector('.entry')){
       if(!list.querySelector('.empty'))
         list.innerHTML = '<div class="empty">등록된 항목이 없습니다.</div>';
     } else {
       var e = list.querySelector('.empty'); if(e) e.remove();
     }
-    // renumber
     $$('.entry', list).forEach(function(en,i){ en.querySelector('.entry__no').textContent = (i+1); });
   }
 
@@ -570,7 +880,6 @@
     var wrap = document.createElement('div');
     wrap.className = 'entry';
     var body = tpl.fields.map(function(f){ return fieldHTML(f); });
-    // pair rows for compactness on 2-field alignment: keep single column for reliability on mobile
     wrap.innerHTML =
       '<div class="entry__head"><span class="entry__no"></span>'+
       '<button class="entry__del" type="button" data-del>✕ 삭제</button></div>'+
@@ -603,9 +912,8 @@
   });
   $('#btn-check').addEventListener('click', function(){
     var v = $('#in-id').value.trim().toLowerCase();
-    if(!v){ setErr('f-id'); return; }
+    if(!v){ setErr('f-id'); $('#f-id .field__err').textContent='아이디를 입력하고 중복 확인을 해주세요.'; return; }
     if(!/^[a-z0-9._-]{3,}$/.test(v)){ setErr('f-id'); $('#f-id .field__err').textContent='아이디는 영문·숫자 3자 이상으로 입력해 주세요.'; return; }
-    // mock: 이미 사용 중인 예시 아이디
     var taken = ['admin','hr','test','info','sungwon'];
     if(taken.indexOf(v) > -1){
       idOK = false; setErr('f-id'); $('#f-id').classList.remove('is-valid');
@@ -616,9 +924,137 @@
     }
   });
 
-  /* ── 주소 검색 (mock) ── */
+  /* ── STEP 1: 휴대전화 중복 확인 (mock) ── */
+  function onlyDigits(v){ return String(v||'').replace(/[^\d]/g,''); }
+  $('#in-phone').addEventListener('input', function(){
+    phoneOK = false; clearErr('f-phone'); $('#f-phone').classList.remove('is-valid');
+  });
+  $('#btn-phone-check').addEventListener('click', function(){
+    var v = onlyDigits($('#in-phone').value);
+    $('#in-phone').value = v;                          // '-' 제거 정규화
+    if(!/^01\d{8,9}$/.test(v)){
+      phoneOK=false; setErr('f-phone'); $('#f-phone').classList.remove('is-valid');
+      $('#f-phone .field__err').textContent='휴대전화 번호를 정확히 입력해 주세요.';
+      return;
+    }
+    var takenPhones = ['01011112222','01099998888'];   // mock: 이미 등록된 번호
+    if(takenPhones.indexOf(v) > -1){
+      phoneOK=false; setErr('f-phone'); $('#f-phone').classList.remove('is-valid');
+      $('#f-phone .field__err').textContent='이미 등록된 휴대전화 번호입니다.';
+    } else {
+      phoneOK=true; clearErr('f-phone'); $('#f-phone').classList.add('is-valid');
+      toast('사용 가능한 번호입니다.', 'success');
+    }
+  });
+
+  /* ── STEP 1: 이메일 중복 확인 (mock) ── */
+  $('#in-email').addEventListener('input', function(){
+    emailOK = false; clearErr('f-email'); $('#f-email').classList.remove('is-valid');
+  });
+  $('#btn-email-check').addEventListener('click', function(){
+    var v = $('#in-email').value.trim().toLowerCase();
+    $('#in-email').value = v;
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+      emailOK=false; setErr('f-email'); $('#f-email').classList.remove('is-valid');
+      $('#f-email .field__err').textContent='이메일 주소를 정확히 입력해 주세요.';
+      return;
+    }
+    var takenEmails = ['test@test.com','admin@gmail.com'];   // mock: 이미 등록된 이메일
+    if(takenEmails.indexOf(v) > -1){
+      emailOK=false; setErr('f-email'); $('#f-email').classList.remove('is-valid');
+      $('#f-email .field__err').textContent='이미 등록된 이메일입니다.';
+    } else {
+      emailOK=true; clearErr('f-email'); $('#f-email').classList.add('is-valid');
+      toast('사용 가능한 이메일입니다.', 'success');
+    }
+  });
+
+  /* ── STEP 2: 계약서 전문 모달 ── */
+  var docModal = $('#doc-modal');
+  function openDoc(){ docModal.classList.add('is-open'); document.body.style.overflow='hidden'; }
+  function closeDoc(){ docModal.classList.remove('is-open'); document.body.style.overflow=''; }
+  $('#btn-view-doc').addEventListener('click', openDoc);
+  $('#doc-modal-close').addEventListener('click', closeDoc);
+  docModal.addEventListener('click', function(e){ if(e.target===docModal) closeDoc(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && docModal.classList.contains('is-open')) closeDoc(); });
+
+  /* ── STEP 2: 계약 동의 + 전자서명 ── */
+  var agreeChk = $('#agree-chk'), agreeBox = $('#agree-box');
+  agreeChk.addEventListener('change', function(){
+    agreeBox.classList.toggle('is-checked', this.checked);
+    if(this.checked) agreeBox.classList.remove('is-invalid');
+  });
+
+  var sigCanvas = $('#sig-pad'), sigCtx = sigCanvas.getContext('2d');
+  var sigDrawn = false, drawing = false, lastPt = null;
+
+  function resizeSignature(){
+    if(!sigCanvas.clientWidth) return;               // hidden page → skip
+    var ratio = window.devicePixelRatio || 1;
+    var w = sigCanvas.clientWidth, h = sigCanvas.clientHeight;
+    sigCanvas.width = w * ratio; sigCanvas.height = h * ratio;
+    sigCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round';
+    sigCtx.strokeStyle = '#111827'; sigCtx.lineWidth = 2.2;
+  }
+  function clearSignature(){
+    sigCtx.save();
+    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    sigCtx.restore();
+    sigDrawn = false; $('#sig-ph').style.display = '';
+  }
+  function ptOf(e){ var r = sigCanvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+  sigCanvas.addEventListener('pointerdown', function(e){
+    if(contractDone) return;
+    drawing = true; lastPt = ptOf(e); $('#sig-ph').style.display='none';
+    try{ sigCanvas.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  });
+  sigCanvas.addEventListener('pointermove', function(e){
+    if(!drawing) return;
+    var p = ptOf(e);
+    sigCtx.beginPath(); sigCtx.moveTo(lastPt.x, lastPt.y); sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
+    lastPt = p; sigDrawn = true; e.preventDefault();
+  });
+  window.addEventListener('pointerup', function(){ drawing = false; });
+
+  $('#btn-sig-clear').addEventListener('click', function(){
+    if(contractDone) return;
+    clearSignature();
+  });
+
+  function concludeContract(){
+    if(!agreeChk.checked){
+      agreeBox.classList.add('is-invalid');
+      toast('먼저 근로조건에 동의해 주세요.', 'danger');
+      agreeBox.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    if(!sigDrawn){ toast('서명을 입력해 주세요.', 'danger'); return; }
+    var data = sigCanvas.toDataURL('image/png');
+    $('#party-el-mark').innerHTML = '<img class="party__sign-img" src="'+data+'" alt="근로자 서명">';
+    var stat = $('#party-el-stat'); stat.textContent = '✓ 서명 완료';
+    stat.classList.remove('is-wait'); stat.classList.add('is-done');
+    $('#contract-done').classList.add('is-show');
+    $('#btn-sig-done').disabled = true; $('#btn-sig-clear').disabled = true;
+    contractDone = true;
+    toast('근로계약이 체결되었습니다.', 'success');
+  }
+  $('#btn-sig-done').addEventListener('click', concludeContract);
+
+  $('#btn-sig-reset').addEventListener('click', function(){
+    contractDone = false;
+    clearSignature();
+    $('#party-el-mark').innerHTML = '';
+    var stat = $('#party-el-stat'); stat.textContent = '서명 대기';
+    stat.classList.remove('is-done'); stat.classList.add('is-wait');
+    $('#contract-done').classList.remove('is-show');
+    $('#btn-sig-done').disabled = false; $('#btn-sig-clear').disabled = false;
+  });
+
+  /* ── STEP 3: 주소 검색 (mock) ── */
   $('#btn-zip').addEventListener('click', function(){
-    // 실제 환경: Daum 우편번호 API 연동
     $('#in-zip').value = '04524';
     $('#in-addr1').value = '서울특별시 중구 세종대로 110';
     clearErr('f-addr');
@@ -626,58 +1062,34 @@
     toast('주소가 입력되었습니다. 상세 주소를 작성해 주세요.', 'success');
   });
 
-  /* ── 통장 사본 업로드 ── */
-  function downloadFile(file){
-    var url = URL.createObjectURL(file);
-    var a = document.createElement('a');
-    a.href = url; a.download = file.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-  }
-  function renderBankbook(){
-    var box = $('#bankbook-file');
-    if(!bankbookFile){ box.innerHTML = ''; return; }
-    box.innerHTML =
-      '<div class="file-up__file">'+
-      '<span class="file-up__name">'+bankbookFile.name+'</span>'+
-      '<a href="javascript:;" class="file-up__dl" data-dl>다운로드 ↓</a>'+
-      '<button class="file-up__rm" type="button" data-rm>✕</button>'+
-      '</div>';
-  }
-  $('#btn-bankbook').addEventListener('click', function(){ $('#in-bankbook').click(); });
-  $('#in-bankbook').addEventListener('change', function(){
-    bankbookFile = this.files && this.files[0] ? this.files[0] : null;
-    renderBankbook();
-    if(bankbookFile){ clearErr('f-bankbook'); toast('통장 사본이 첨부되었습니다.', 'success'); }
-  });
-  $('#bankbook-file').addEventListener('click', function(ev){
-    if(ev.target.closest('[data-dl]')){ if(bankbookFile) downloadFile(bankbookFile); return; }
-    if(ev.target.closest('[data-rm]')){
-      bankbookFile = null; $('#in-bankbook').value = ''; renderBankbook();
-    }
-  });
-
   /* ── validation per step ── */
+  function validPhone(v){ return /^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(v.replace(/\s/g,'')); }
+  function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
   function validateStep(n){
     clearAll();
     var ok = true;
     if(n===1){
+      var r1=$('#in-rrn1').value, r2=$('#in-rrn2').value;
+      if(!/^\d{6}$/.test(r1) || !/^\d{1}$/.test(r2)){ setErr('f-rrn'); ok=false; }
+      if(!phoneOK){ setErr('f-phone'); if($('#in-phone').value.trim()) $('#f-phone .field__err').textContent='휴대전화 중복 확인을 해주세요.'; ok=false; }
+      if(!emailOK){ setErr('f-email'); if($('#in-email').value.trim()) $('#f-email .field__err').textContent='이메일 중복 확인을 해주세요.'; ok=false; }
       if(!idOK){ setErr('f-id'); if($('#in-id').value.trim()) $('#f-id .field__err').textContent='중복 확인을 해주세요.'; ok=false; }
     }
     if(n===2){
-      var r1=$('#in-rrn1').value, r2=$('#in-rrn2').value;
-      if(!/^\d{6}$/.test(r1) || !/^\d{7}$/.test(r2)){ setErr('f-rrn'); ok=false; }
-      if(!$('#in-zip').value || !$('#in-addr2').value.trim()){ setErr('f-addr'); ok=false; }
-      if(!ok){ // ensure 신상정보 accordion open so user sees errors
-        var acc = $('.acc'); if(acc && !acc.classList.contains('is-open')) acc.classList.add('is-open');
+      if(!contractDone){
+        if(!agreeChk.checked){ agreeBox.classList.add('is-invalid'); toast('근로조건에 동의해 주세요.', 'danger'); }
+        else toast('서명 완료 후 계약을 체결해 주세요.', 'danger');
+        return false;
       }
     }
     if(n===3){
+      if(!$('#in-zip').value || !$('#in-addr2').value.trim()){ setErr('f-addr'); ok=false; }
       if(!$('#in-bank').value){ setErr('f-bank'); ok=false; }
       if(!$('#in-acc').value.trim()){ setErr('f-acc'); ok=false; }
       if(!$('#in-holder').value.trim()){ setErr('f-holder'); ok=false; }
-      if(!bankbookFile){ setErr('f-bankbook'); ok=false; }
     }
+    // n===4: 모두 선택 항목 → 검증 없음
     if(!ok) toast('입력 내용을 확인해 주세요.', 'danger');
     return ok;
   }
@@ -686,16 +1098,15 @@
   function buildSummary(){
     function cnt(t){ return $$('.entry', $('[data-list="'+t+'"]')).length; }
     var rows = [
+      ['성명', $('#in-name').value.trim() || '-'],
       ['사내 메일', ($('#in-id').value.trim().toLowerCase()||'-') + '@swadpia.co.kr'],
-      ['영문 이름', $('#in-ename').value.trim() || '-'],
+      ['휴대전화', $('#in-phone').value.trim() || '-'],
+      ['근로·임금 계약', contractDone ? '체결 완료' : '미체결'],
+      ['급여 계좌', ($('#in-bank').value||'-')+' '+($('#in-acc').value.trim()||'')],
       ['학력·경력', cnt('edu')+'건 · '+cnt('career')+'건'],
       ['자격·어학', cnt('license')+'건 · '+cnt('lang')+'건'],
       ['가족 사항', cnt('family')+'건']
     ];
-    if(!CONTRACT){  // 도급직은 지급 정보 미수집
-      rows.push(['지급 계좌', ($('#in-bank').value||'-')+' '+($('#in-acc').value.trim()||'')]);
-      rows.push(['통장 사본', bankbookFile ? bankbookFile.name : '-']);
-    }
     $('#summary').innerHTML = rows.map(function(r){
       return '<div class="done__row"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>';
     }).join('');
@@ -714,24 +1125,26 @@
     var next = $('#btn-next');
     if(n===TOTAL){ $('#footer').style.display='none'; }
     else { $('#footer').style.display=''; next.textContent = (n===SUBMIT_STEP) ? '제출' : '다음'; }
+    if(n===2){ requestAnimationFrame(resizeSignature); }   // 서명 패드는 표시된 뒤 크기 확정
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
   $('#btn-next').addEventListener('click', function(){
     if(!validateStep(cur)) return;
     if(cur===SUBMIT_STEP){ buildSummary(); goto(TOTAL); toast('제출이 완료되었습니다.', 'success'); return; }
-    goto(nextStep(cur));
+    goto(cur+1);
   });
-  $('#btn-prev').addEventListener('click', function(){ if(cur>1) goto(prevStep(cur)); });
+  $('#btn-prev').addEventListener('click', function(){ if(cur>1) goto(cur-1); });
 
-  // clear individual errors on input
-  ['in-rrn1','in-rrn2','in-addr2','in-bank','in-acc','in-holder'].forEach(function(id){
-    var el=$('#'+id); if(!el) return;
-    el.addEventListener('input', function(){
-      var map={'in-rrn1':'f-rrn','in-rrn2':'f-rrn','in-addr2':'f-addr','in-bank':'f-bank','in-acc':'f-acc','in-holder':'f-holder'};
-      clearErr(map[id]);
-    });
-    if(el.tagName==='SELECT') el.addEventListener('change', function(){ clearErr('f-bank'); });
+  window.addEventListener('resize', function(){ if(cur===2) resizeSignature(); });
+
+  // clear individual errors on input (전화·이메일은 별도 중복확인 핸들러에서 처리)
+  [['in-rrn1','f-rrn'],['in-rrn2','f-rrn'],
+   ['in-addr2','f-addr'],['in-bank','f-bank'],['in-acc','f-acc'],['in-holder','f-holder']
+  ].forEach(function(pair){
+    var el=$('#'+pair[0]); if(!el) return;
+    var ev = (el.tagName==='SELECT') ? 'change' : 'input';
+    el.addEventListener(ev, function(){ clearErr(pair[1]); });
   });
 })();
 </script>
