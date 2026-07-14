@@ -5803,15 +5803,6 @@
     return !!(window.App && App.JoinDocs && typeof App.JoinDocs.masterDocs === 'function'
       && typeof App.JoinDocs.getKept === 'function');
   }
-  function myDocStatus(empId, d) {
-    const sig = App.JoinDocs.getSignature(empId, d.key);
-    if (sig) {
-      if (App.JoinDocs.needsResign && App.JoinDocs.needsResign(empId, d.key)) return { state: 'resign', sig };
-      return { state: 'signed', sig };
-    }
-    if (App.JoinDocs.isKept(empId, d.key)) return { state: 'kept', sig: null };
-    return { state: 'none', sig: null };
-  }
   function renderTabDocsSelfService(emp, readonly) {
     if (!joinDocsReady()) {
       return sectionShellHTML({ key:'docs', level:1, title:'회사 서류', visibility:'public',
@@ -5867,168 +5858,6 @@
     });
 
     return uploadSection;
-  }
-
-  /* ===== 서류 자료실 모달 — 전체 서류 열람 + 보관/서명/미리보기 ===== */
-  function renderMyInfoLibraryBody(emp) {
-    const master = App.JoinDocs.masterDocs().filter(d => docApplicableToEmp(d, emp));
-    const thStyle = 'font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface-alt);position:sticky;top:0;';
-    const tdBase  = 'font-size:13px;color:var(--color-text);padding:11px 12px;';
-    const rows = master.map((d, i) => {
-      const isLast = i === master.length - 1;
-      const td = tdBase + (isLast ? '' : 'border-bottom:1px solid var(--color-divider);');
-      const st = myDocStatus(emp.id, d);
-      let statusPill, actBtn;
-      if (st.state === 'signed') {
-        statusPill = '<span class="pill pill--success" style="font-size:11px;">서명완료</span>';
-        actBtn = `<button class="btn btn--xs" type="button" data-empi-doc-preview="doc:${esc(d.key)}" data-empi-doc-name="${esc(d.name)}" data-empi-doc-signed="1">미리보기</button>`;
-      } else if (st.state === 'resign') {
-        statusPill = '<span class="pill pill--warning" style="font-size:11px;">재서명 필요</span>';
-        actBtn = `<button class="btn btn--xs btn--primary" type="button" data-myinfo-doc-sign="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">재서명</button>`;
-      } else if (st.state === 'kept') {
-        statusPill = '<span class="pill" style="font-size:11px;">보관됨 · 미서명</span>';
-        actBtn = `<button class="btn btn--xs btn--primary" type="button" data-myinfo-doc-sign="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">서명하기</button>`;
-      } else {
-        statusPill = '<span class="pill pill--soft-gray" style="font-size:11px;">미보관</span>';
-        actBtn = `<button class="btn btn--xs" type="button" data-myinfo-doc-keep="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">보관하기</button>`;
-      }
-      return `<tr>
-        <td style="${td}text-align:center;color:var(--color-text-muted);">${i + 1}</td>
-        <td style="${td}font-weight:var(--fw-medium);">${esc(d.name)}</td>
-        <td style="${td}text-align:center;color:var(--color-text-muted);">${esc(d.activeVersion || '-')}</td>
-        <td style="${td}text-align:center;">${statusPill}</td>
-        <td style="${td}text-align:center;">${actBtn}</td>
-      </tr>`;
-    }).join('');
-    return master.length ? `<div class="empi-tblwrap"><table class="empi-tbl empi-tbl--data" style="width:100%;border-collapse:collapse;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:6px;overflow:hidden;">
-      <thead><tr>
-        <th style="${thStyle}width:40px;text-align:center;">No</th>
-        <th style="${thStyle}">서류명</th>
-        <th style="${thStyle}width:80px;text-align:center;">버전</th>
-        <th style="${thStyle}width:130px;text-align:center;">상태</th>
-        <th style="${thStyle}width:110px;text-align:center;">보관·서명</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>` : emptyBox('열람 가능한 입사 서류가 없습니다.');
-  }
-  function injectMyInfoLibraryModal() {
-    if (document.getElementById('modal-myinfo-lib')) return;
-    const html = `
-<div class="modal-backdrop" id="modal-myinfo-lib" data-modal-id="myinfo-lib" style="z-index:1190;">
-  <div class="modal modal--lg" style="display:flex;flex-direction:column;max-height:88vh;">
-    <div class="modal__header">
-      <div class="modal__title">서류 자료실</div>
-      <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal__body" style="flex:1;min-height:0;overflow:auto;background:var(--color-surface-alt);" data-myinfo-lib-body></div>
-    <div class="modal__footer">
-      <button class="btn" type="button" data-modal-close>닫기</button>
-    </div>
-  </div>
-</div>`;
-    const wrap = document.createElement('div');
-    wrap.innerHTML = html.trim();
-    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
-    bindMyInfoLibraryModal();
-  }
-  function bindMyInfoLibraryModal() {
-    const modal = document.getElementById('modal-myinfo-lib');
-    if (!modal || modal.dataset.bound === '1') return;
-    modal.dataset.bound = '1';
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-modal-close]')) { closeModal('modal-myinfo-lib'); return; }
-      const emp = CARD_STATE.emp; if (!emp) return;
-      /* 보관하기 */
-      const keepBtn = e.target.closest('[data-myinfo-doc-keep]');
-      if (keepBtn) {
-        App.JoinDocs.keepDoc(emp.id, keepBtn.dataset.myinfoDocKeep);
-        refreshMyInfoLibrary();   // 라이브러리 재렌더
-        renderCardBody();         // 내 정보 입사 서류 목록 재렌더
-        window.toast && window.toast(`'${keepBtn.dataset.myinfoDocName}' 보관됨 — 입사 서류 목록에서 서명하세요.`, 'success');
-        return;
-      }
-      /* 서명하기 (라이브러리에서 바로) */
-      const signBtn = e.target.closest('[data-myinfo-doc-sign]');
-      if (signBtn) { openMyInfoSignModal(signBtn.dataset.myinfoDocSign, signBtn.dataset.myinfoDocName); return; }
-      /* 미리보기 */
-      const pvBtn = e.target.closest('[data-empi-doc-preview]');
-      if (pvBtn) {
-        const [type, key] = pvBtn.dataset.empiDocPreview.split(':');
-        openDocPreviewModal(emp, type || 'doc', key, { name: pvBtn.dataset.empiDocName || '', signed: true });
-        return;
-      }
-    });
-  }
-  function refreshMyInfoLibrary() {
-    const modal = document.getElementById('modal-myinfo-lib');
-    if (!modal || !modal.classList.contains('is-open')) return;
-    const emp = CARD_STATE.emp; if (!emp) return;
-    modal.querySelector('[data-myinfo-lib-body]').innerHTML = renderMyInfoLibraryBody(emp);
-  }
-  function openMyInfoLibraryModal() {
-    const emp = CARD_STATE.emp; if (!emp || !joinDocsReady()) return;
-    injectMyInfoLibraryModal();
-    const modal = document.getElementById('modal-myinfo-lib');
-    modal.querySelector('[data-myinfo-lib-body]').innerHTML = renderMyInfoLibraryBody(emp);
-    openModal('modal-myinfo-lib');
-  }
-
-  /* ===== 서명 이력 모달 — 재서명 전 이전 버전 서명본까지 보존·조회 ===== */
-  function injectMyInfoSigHistModal() {
-    if (document.getElementById('modal-myinfo-sighist')) return;
-    const html = `
-<div class="modal-backdrop" id="modal-myinfo-sighist" data-modal-id="myinfo-sighist" style="z-index:1195;">
-  <div class="modal modal--md">
-    <div class="modal__header">
-      <div class="modal__title" data-sighist-title>서명 이력</div>
-      <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal__body" style="background:var(--color-surface-alt);" data-sighist-body></div>
-    <div class="modal__footer"><button class="btn" type="button" data-modal-close>닫기</button></div>
-  </div>
-</div>`;
-    const wrap = document.createElement('div');
-    wrap.innerHTML = html.trim();
-    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
-    const modal = document.getElementById('modal-myinfo-sighist');
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-modal-close]')) { closeModal('modal-myinfo-sighist'); return; }
-      const pv = e.target.closest('[data-sighist-pv]');
-      if (pv) {
-        const emp = CARD_STATE.emp; if (!emp) return;
-        openDocPreviewModal(emp, 'doc', CARD_STATE._sighistKey, {
-          name: CARD_STATE._sighistName, signed: true,
-          version: pv.dataset.sighistPv, signedAt: pv.dataset.sighistAt,
-        });
-        return;
-      }
-    });
-  }
-  function openMyInfoSigHistModal(docKey, docName) {
-    const emp = CARD_STATE.emp; if (!emp || !joinDocsReady()) return;
-    injectMyInfoSigHistModal();
-    const modal = document.getElementById('modal-myinfo-sighist');
-    CARD_STATE._sighistKey = docKey;
-    CARD_STATE._sighistName = docName || '서류';
-    modal.querySelector('[data-sighist-title]').textContent = `${CARD_STATE._sighistName} 서명 이력`;
-    const hist = App.JoinDocs.getSignatureHistory(emp.id, docKey);
-    const thStyle = 'font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-muted);text-align:left;padding:9px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface-alt);';
-    const tdBase  = 'font-size:13px;color:var(--color-text);padding:10px 12px;border-bottom:1px solid var(--color-divider);';
-    const rows = hist.slice().reverse().map((h, i) => {
-      const latest = i === 0;
-      return `<tr>
-        <td style="${tdBase}">${esc(h.version || '-')}${latest ? ' <span class="pill pill--soft-blue" style="font-size:10px;">현행</span>' : ''}</td>
-        <td style="${tdBase}">${esc(h.signedAt || '-')}</td>
-        <td style="${tdBase}text-align:center;"><button class="btn btn--xs" type="button" data-sighist-pv="${esc(h.version || '')}" data-sighist-at="${esc(h.signedAt || '')}">미리보기</button></td>
-      </tr>`;
-    }).join('');
-    modal.querySelector('[data-sighist-body]').innerHTML = hist.length
-      ? `<table style="width:100%;border-collapse:collapse;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:6px;overflow:hidden;">
-           <thead><tr><th style="${thStyle}width:120px;">버전</th><th style="${thStyle}">서명일시</th><th style="${thStyle}width:90px;text-align:center;">서명본</th></tr></thead>
-           <tbody>${rows}</tbody>
-         </table>`
-      : emptyBox('서명 이력이 없습니다.');
-    openModal('modal-myinfo-sighist');
   }
 
   /* ===== 본인 제출 서류 업로드 모달 — 주민등록등본·원천징수영수증 등 ===== */
@@ -6213,7 +6042,6 @@
         }
         closeModal('modal-myinfo-sign');
         renderCardBody();        // 입사 서류 탭 재렌더 (상태 → 서명완료)
-        refreshMyInfoLibrary();  // 라이브러리 모달이 열려 있으면 함께 갱신
         window.toast && window.toast(`'${CARD_STATE._signDocName}' 전자 서명이 완료되었습니다.`, 'success');
         return;
       }
@@ -6861,17 +6689,6 @@
         } else {
           proceedWage();
         }
-        return;
-      }
-      /* 내 정보 입사 서류 — 라이브러리 모달 열기 */
-      if (e.target.closest('[data-myinfo-lib-open]')) {
-        openMyInfoLibraryModal();
-        return;
-      }
-      /* 입사 서류 — 서명 이력 보기 */
-      const sigHistBtn = e.target.closest('[data-myinfo-sighist]');
-      if (sigHistBtn) {
-        openMyInfoSigHistModal(sigHistBtn.dataset.myinfoSighist, sigHistBtn.dataset.myinfoDocName);
         return;
       }
       /* 본인 제출 서류 — 업로드 모달 열기 */

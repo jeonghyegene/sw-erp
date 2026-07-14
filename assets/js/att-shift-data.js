@@ -392,6 +392,8 @@
     const row1GT = 'grid-template-columns:110px 1fr;';
     const REQ = '<span style="color:var(--color-danger);">*</span>';
     const hasB2 = !!(f.breakStart2 && f.breakEnd2);
+    /* 출근~퇴근 전체 시간이 4시간 미만이면 휴게시간 행 자체를 숨긴다 (휴게 없음). */
+    const showBreak = diffMin(f.start, f.end) >= 240;
     const deptsRow = depts
       ? `
         <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
@@ -444,10 +446,10 @@
           <div class="fm-tbl__label">퇴근 ${REQ}</div>
           <div class="fm-tbl__value" style="gap:8px;align-items:center;">${endCell}</div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
+        ${showBreak ? `<div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
           <div class="fm-tbl__label">휴게시간</div>
           <div class="fm-tbl__value"${(!locked && hasB2) ? ' style="flex-direction:column;align-items:stretch;gap:6px;"' : ''}>${breakBlock}</div>
-        </div>
+        </div>` : ''}
         <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
           <div class="fm-tbl__label">근무시간 요약</div>
           <div class="fm-tbl__value">
@@ -470,7 +472,8 @@
     const errs = STATE.editErrors || {};
     body.innerHTML = editorFormHTML(STATE.form, false)
       + colorSectionHTML(STATE.form, false)
-      + (errs.dup ? `<div class="field-error" style="margin:10px 0 0;">${esc(errs.dup)}</div>` : '');
+      + (errs.dup ? `<div class="field-error" style="margin:10px 0 0;">${esc(errs.dup)}</div>` : '')
+      + (errs.break ? `<div class="field-error" style="margin:10px 0 0;">${esc(errs.break)}</div>` : '');
     foot.innerHTML = `
       <span style="flex:1;"></span>
       <button class="btn" type="button" data-shift-cancel>취소</button>
@@ -571,6 +574,7 @@
       ${locked ? lockedNoticeHTML(fl) : ''}
       ${src && src.pending ? pendingNoticeHTML(src.pending) : ''}
       <div>${editorFormHTML(f, locked, usingDeptsOf(f.code))}</div>
+      ${(STATE.editErrors && STATE.editErrors.break) ? `<div class="field-error" style="margin:10px 0 0;">${esc(STATE.editErrors.break)}</div>` : ''}
       ${colorSectionHTML(f, true, src ? src.color : 'gray')}
       <div style="display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--color-divider);">
         ${footerActions}
@@ -612,6 +616,13 @@
   function onEditSaveClick() {
     const f = STATE.form;
     if (!validateBasics(f)) return;
+    /* 휴게 편집이 가능한(잠기지 않은) 근무조만 휴게 정책 검증 — 잠긴 코드는 명칭 등만 반영 */
+    if (codeFlags(STATE.editingCode).canEdit) {
+      STATE.editErrors = STATE.editErrors || {};
+      STATE.editErrors.break = '';
+      const brkErr = validateBreakPolicy(f);
+      if (brkErr) { STATE.editErrors.break = brkErr; renderEditView(); return; }
+    }
     recompute(f);
     applyEdit(null);
   }
@@ -759,7 +770,17 @@
     if (labelEl) labelEl.addEventListener('input', () => { f.label = labelEl.value; });
     const bindTime = (idp, key) => {
       const h = root.querySelector('#' + idp + '-h'), m = root.querySelector('#' + idp + '-m');
-      const upd = () => { if (h && m) { f[key] = `${h.value}:${m.value}`; updateDur(root); } };
+      const upd = () => {
+        if (!h || !m) return;
+        f[key] = `${h.value}:${m.value}`;
+        /* 출·퇴근 변경 — 4시간 미만이면 휴게 값 제거(행 숨김), 4시간 이상 복귀 시 휴게행 재노출 위해 전체 재렌더 */
+        if (key === 'start' || key === 'end') {
+          if (diffMin(f.start, f.end) < 240) { f.breakStart = ''; f.breakEnd = ''; f.breakStart2 = ''; f.breakEnd2 = ''; }
+          rerender();
+          return;
+        }
+        updateDur(root);
+      };
       if (h) h.addEventListener('change', upd);
       if (m) m.addEventListener('change', upd);
     };
@@ -791,6 +812,24 @@
     return true;
   }
 
+  /* 휴게시간 정책 — 출근~퇴근 '전체 시간'(휴게 포함 span) 기준 휴게 합계 검증.
+     · 전체 4시간 미만  : 휴게시간 없음 (폼에서 행 자체 숨김) → 검증 대상 아님
+     · 전체 4~8시간     : 휴게 합계 = 30분 (미만·초과 모두 경고)
+     · 전체 8시간 이상  : 휴게 합계 = 60분(1시간) (미만·초과 모두 경고)
+     반환: 위반 시 안내 문자열, 정상이면 ''. diffMin 은 야간(자정 넘김) 근무조도 처리. */
+  function validateBreakPolicy(f) {
+    const totalMin = diffMin(f.start, f.end);
+    let bmin = 0;
+    if (f.breakStart && f.breakEnd)   bmin += diffMin(f.breakStart, f.breakEnd);
+    if (f.breakStart2 && f.breakEnd2) bmin += diffMin(f.breakStart2, f.breakEnd2);
+    if (totalMin < 240) return '';   /* 4시간 미만 — 휴게 없음 */
+    if (totalMin < 480) {            /* 4시간 이상 8시간 미만 — 정확히 30분 */
+      return bmin !== 30 ? `출근~퇴근 전체 시간이 4시간 이상 8시간 미만이면 휴게시간은 30분이어야 합니다. (현재 ${bmin}분)` : '';
+    }
+    /* 8시간 이상 — 정확히 1시간(60분) */
+    return bmin !== 60 ? `출근~퇴근 전체 시간이 8시간 이상이면 휴게시간은 1시간이어야 합니다. (현재 ${bmin}분)` : '';
+  }
+
   /* 변경 이력 기록 — 삭제/미사용/재개 (전자결재 승인 결과). 대상코드·유형·사유·변경자·변경일시·승인자.
      (근무조 추가는 자유·미기록 — 전자결재 대상 아님) */
   function logCodeChange(code, label, type, reason, approver) {
@@ -814,6 +853,10 @@
     /* 동일 기준(출·퇴근·휴게 전부 일치) 중복 방지 — 기준이 다르면(휴게만 달라도) 신규 허용 */
     const dup = STATE.shifts.find(s => sameCriteria(s, f));
     if (dup) { STATE.editErrors.dup = `동일한 출·퇴근·휴게 기준의 근무조 ${dup.code}(${dup.label || dup.code})가 이미 있습니다. 기존 근무조를 사용하세요.`; renderAddModal(); return; }
+    /* 휴게시간 정책 검증 — 위반 시 인라인 안내 후 등록 중단 */
+    STATE.editErrors.break = '';
+    const brkErr = validateBreakPolicy(f);
+    if (brkErr) { STATE.editErrors.break = brkErr; renderAddModal(); return; }
     recompute(f);
     f.code = channelCode(f);   /* 최종 채번 확정 (WT+D/N+일련번호) */
     f.active = true;
