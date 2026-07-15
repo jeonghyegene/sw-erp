@@ -29,10 +29,11 @@
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
 
-  /* 근무정책 설정 탭 — 부서별 근무정책 설정(조직도 상속) / 근무조 설정(마스터·자동 채번) */
+  /* 근무정책 설정 탭 — 부서별 근무정책 설정(조직도 상속) / 근무조 설정(마스터·자동 채번) / 휴일 관리(공휴일·회사 지정 휴무일) */
   const TABS = [
-    { key: 'dept',  label: '부서별 근무정책 설정' },
-    { key: 'shift', label: '근무조 설정' },
+    { key: 'dept',    label: '부서별 근무정책 설정' },
+    { key: 'shift',   label: '근무조 설정' },
+    { key: 'holiday', label: '휴일 관리' },
   ];
   const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
   /* wpTab — 근무정책 설정 활성 탭. */
@@ -50,6 +51,34 @@
     wpEditDept: null,
     /* 근무조 설정 탭 — 수정 중인 근무조(있으면 그리드 대신 인-페이지 수정 화면 표시) */
     wpShiftEditCode: null,
+    /* ===== 휴일 관리 탭 =====
+       · holView — 'month'(월간 캘린더) | 'year'(연간 그리드)
+       · holYm   — 조회 기준 'YYYY-MM'. 연간 뷰는 이 값의 연도를 사용.
+       · holidays — 회사 휴일 목록. 하루 1건.
+         { id, date:'YYYY-MM-DD', name, source:'public'(공휴일)|'company'(회사지정), memo, status:'approved'|'pending' }
+         근로그룹의 통상 휴일구분(토/일)은 여기서 관리하지 않음(주말은 캘린더 음영으로만 표시).
+
+       ===== 휴일 승인(전자결재) 정책 ★ =====
+       1) [적용] → 변경분(추가·수정)을 「휴일 관리 변경」 전자결재로 상신하면, 해당 휴일은 즉시 확정되지 않고
+          '승인대기(status:pending)' 상태로 캘린더에 표시된다. 승인대기 휴일은 아직 효력이 없어
+          근무일(소정근로일) 산정에 반영하지 않는다 → App.AttHolidays.isHoliday() 는 'approved' 만 true.
+       2) 결재 승인 시점에 'pending' → 'approved' 로 전환되어 정식 휴일로 효력이 발생한다.
+       3) 지난 날짜 반려(void) 정책 — 상신 후 승인이 나기 전에 해당 휴일의 날짜가 이미 지나버리면,
+          (승인이 늦게 나더라도) 그 날짜는 휴일로 인정하지 않고 반려(void)한다. 이미 지난 근태·급여는
+          확정되어 소급 적용하지 않기 때문 → "승인 시점에 날짜가 지났으면 = 승인 나도 휴일 아님(빠꾸)".
+          판정 헬퍼: holIsVoided(h) (승인대기 + 날짜 경과). 승인 처리(결재자 측)는 본 화면 밖에서 수행되며,
+          여기서는 승인대기 표시 + 반려 대상 시각화 + 정책만 관리한다.
+       4) 삭제는 상신 즉시 목록에서 제거(반영)한다. 재지정은 새 요청으로 상신한다. */
+    holView: 'month',
+    holYm: NOW_DATE.slice(0, 7),
+    holEditId: null,   /* 휴일 등록/수정 모달에서 편집 중인 휴일 id(신규는 null) */
+    /* 편집 모드 — false=조회(읽기전용), true=편집(추가/수정/삭제는 holDraft 에 임시 반영, [적용] 시 전자결재 상신) */
+    holEditMode: false,
+    holDraft: null,    /* 편집 중 작업 사본. [적용]→상신 후 변경분 pending 커밋, [취소]→폐기 */
+    holidays: [
+      { id: 'HOL-260615', date: '2026-06-15', name: '창립기념일', source: 'company', memo: '회사 창립 기념일', status: 'approved' },
+      { id: 'HOL-261015', date: '2026-10-15', name: '체육대회',   source: 'company', memo: '전사 체육대회',    status: 'approved' },
+    ],
     /* 부서별 근무조 설정 — 부서별 구성. lazy: { deptName: { inherit, policy:'regular'|'shift', codes:[근무조] } }
        · inherit=true → 상위 조직과 동일 기준(상속, 기본). false → 이 부서만의 별도 기준(예외).
        · policy — 근무정책(통상 'regular' / 교대 'shift'). codes — 연결된 근무조(복수). 기본 근무조는 deptMeta.defaultShift.
@@ -917,9 +946,446 @@
     });
   }
 
+  /* =========================================================
+   * 휴일 관리 탭 — 공휴일·회사 지정 휴무일을 캘린더로 조회/등록
+   *   · 월간(att-cal) / 연간(lp-year 그리드) 뷰 토글
+   *   · 하루 1건. 휴일(공휴일·회사지정) = 근무일(소정근로일) 아님
+   *   · [공휴일 적용] — 해당 연도 법정공휴일 일괄 등록(중복 날짜 제외)
+   *   ※ 근로그룹 통상 휴일구분(토/일)은 여기서 관리하지 않음(주말은 음영 표시만)
+   * ========================================================= */
+  const HOL_MONTH_LABELS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+  /* 양력 고정 공휴일 — 매년 동일 */
+  const HOL_SOLAR = [
+    ['01-01', '신정'], ['03-01', '삼일절'], ['05-01', '근로자의날'], ['05-05', '어린이날'],
+    ['06-06', '현충일'], ['08-15', '광복절'], ['10-03', '개천절'], ['10-09', '한글날'], ['12-25', '성탄절'],
+  ];
+  /* 음력 기반 공휴일(설날·부처님오신날·추석) — 연도별 사전. 미등재 연도는 양력 공휴일만 적용. */
+  const HOL_LUNAR = {
+    2025: [['2025-01-28', '설날 연휴'], ['2025-01-29', '설날'], ['2025-01-30', '설날 연휴'], ['2025-05-05', '부처님오신날'], ['2025-10-06', '추석 연휴'], ['2025-10-07', '추석'], ['2025-10-08', '추석 연휴']],
+    2026: [['2026-02-16', '설날 연휴'], ['2026-02-17', '설날'], ['2026-02-18', '설날 연휴'], ['2026-05-24', '부처님오신날'], ['2026-09-24', '추석 연휴'], ['2026-09-25', '추석'], ['2026-09-26', '추석 연휴']],
+    2027: [['2027-02-06', '설날 연휴'], ['2027-02-07', '설날'], ['2027-02-08', '설날 연휴'], ['2027-05-13', '부처님오신날'], ['2027-09-14', '추석 연휴'], ['2027-09-15', '추석'], ['2027-09-16', '추석 연휴']],
+  };
+  function krPublicHolidays(year) {
+    const out = HOL_SOLAR.map(([md, nm]) => ({ date: year + '-' + md, name: nm }));
+    (HOL_LUNAR[year] || []).forEach(([d, nm]) => out.push({ date: d, name: nm }));
+    return out;
+  }
+
+  /* holStore — 렌더/변경이 참조하는 활성 목록. 편집 모드면 작업 사본(holDraft), 아니면 커밋본(STATE.holidays). */
+  function holStore() { return STATE.holEditMode ? STATE.holDraft : STATE.holidays; }
+  /* 지난 날짜 — 오늘 이전(오늘 포함 X)은 소급 지정 불가. 근태/급여가 이미 확정된 기간이라 공휴일 불러오기·휴무일 설정 차단. */
+  function isPastDate(ds) { return ds < NOW_DATE; }
+  function holDaysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+  function holidayById(id) { return holStore().find(h => h.id === id) || null; }
+  function holidayOn(dateStr) { return holStore().find(h => h.date === dateStr) || null; }
+  function newHolId(date) {
+    /* HOL-YYMMDD 기본. 편집으로 id 와 날짜가 어긋난 경우 대비해 중복이면 접미사(-2, -3 …) 부여. */
+    const base = 'HOL-' + String(date).replace(/-/g, '').slice(2);
+    let id = base, n = 1;
+    while (holStore().some(h => h.id === id)) id = base + '-' + (++n);
+    return id;
+  }
+  function holCount() {
+    const arr = holStore();
+    if (STATE.holView === 'year') return arr.filter(h => h.date.slice(0, 4) === STATE.holYm.slice(0, 4)).length;
+    return arr.filter(h => h.date.slice(0, 7) === STATE.holYm).length;
+  }
+  function rerenderHoliday() {
+    const pageEl = document.getElementById('page-att-work-policy');
+    if (pageEl && pageEl.dataset.wpShellMounted && STATE.wpTab === 'holiday') renderWpAll(pageEl);
+  }
+  /* ----- 편집 모드 전환/저장 ----- */
+  function holNorm(arr) {
+    return arr.map(h => `${h.date}|${h.name}|${h.source}|${h.memo || ''}`).sort().join('~');
+  }
+  function holDraftDirty() {
+    return !!STATE.holDraft && holNorm(STATE.holDraft) !== holNorm(STATE.holidays);
+  }
+  function enterHolEdit() {
+    STATE.holEditMode = true;
+    STATE.holDraft = STATE.holidays.map(h => Object.assign({}, h));   /* 작업 사본 */
+    rerenderHoliday();
+  }
+  /* 승인대기 여부 / 반려(void) 판정 — 위 「휴일 승인 정책」 참조.
+     holIsPending: 상신 후 결재 미완료(효력 없음). holIsVoided: 승인대기인데 날짜가 이미 지남 → 승인 나도 휴일 아님. */
+  function holIsPending(h) { return !!(h && h.status === 'pending'); }
+  function holIsVoided(h) { return holIsPending(h) && isPastDate(h.date); }
+
+  /* 상신 반영 — 전자결재 「휴일 관리 변경」 승인 요청을 접수한 뒤 호출.
+     변경분(추가·수정)은 즉시 확정하지 않고 '승인대기(pending)'로 표시. (확정 전환·지난 날짜 반려는 결재 승인 시점 처리) */
+  function commitHolEdit() {
+    const prevById = STATE.holidays.reduce((m, h) => (m[h.id] = h, m), {});
+    STATE.holidays = (STATE.holDraft || []).map(h => {
+      const prev = prevById[h.id];
+      const changed = !prev || prev.date !== h.date || prev.name !== h.name || (prev.memo || '') !== (h.memo || '');
+      /* 추가·수정된 건 → 승인대기. 변경 없는 건 기존 상태 유지. */
+      return Object.assign({}, h, { status: changed ? 'pending' : (h.status || 'approved') });
+    });
+    STATE.holDraft = null;
+    STATE.holEditMode = false;
+    rerenderHoliday();
+  }
+  /* 커밋 전 변경 요약 — 전자결재 본문/제목에 노출 (추가·수정·삭제) */
+  function holDiffSummary() {
+    const committed = STATE.holidays, draft = STATE.holDraft || [];
+    const idMap = arr => arr.reduce((m, h) => (m[h.id] = h, m), {});
+    const cM = idMap(committed), dM = idMap(draft);
+    const added = draft.filter(h => !cM[h.id]);
+    const deleted = committed.filter(h => !dM[h.id]);
+    const modified = draft.filter(h => cM[h.id] && (cM[h.id].date !== h.date || cM[h.id].name !== h.name || (cM[h.id].memo || '') !== (h.memo || '')))
+      .map(h => ({ before: cM[h.id], after: h }));
+    const cap = (list) => list.length > 10 ? list.slice(0, 10).concat([`외 ${list.length - 10}건`]) : list;
+    const lines = [];
+    if (added.length)    lines.push(`· 추가 ${added.length}건: ${cap(added.map(h => `${h.name}(${h.date})`)).join(', ')}`);
+    if (modified.length) lines.push(`· 수정 ${modified.length}건: ${cap(modified.map(m => `${m.after.name}(${m.before.date === m.after.date ? m.after.date : m.before.date + '→' + m.after.date})`)).join(', ')}`);
+    if (deleted.length)  lines.push(`· 삭제 ${deleted.length}건: ${cap(deleted.map(h => `${h.name}(${h.date})`)).join(', ')}`);
+    return { added, modified, deleted, text: lines.join('\n') };
+  }
+  /* [적용] — 변경분을 「휴일 관리 변경」 문서로 시스템 전자결재 상신. 승인 요청 접수 후 커밋. */
+  function applyHolEdit() {
+    if (!holDraftDirty()) {   /* 변경 없음 → 승인 불필요, 편집만 종료 */
+      STATE.holDraft = null; STATE.holEditMode = false;
+      window.toast && window.toast('변경 사항이 없어 편집을 종료했습니다.', 'info');
+      rerenderHoliday();
+      return;
+    }
+    const year = STATE.holYm.slice(0, 4);
+    const diff = holDiffSummary();
+    if (window.App && typeof App.openSystemApprovalModal === 'function') {
+      App.openSystemApprovalModal({
+        docName: '휴일 관리 변경',
+        titlePrefix: '휴일 관리 변경',
+        codeLabel: '분류',
+        nameLabel: '대상',
+        matCode: '휴일 관리',
+        matName: `${year}년`,
+        customReasons: ['휴일 지정 변경', '법정공휴일 반영', '회사 지정 휴무일 변경', '기타'],
+        defaultReason: '휴일 지정 변경',
+        title: `휴일 관리 변경 승인 요청 — ${year}년 (추가 ${diff.added.length} · 수정 ${diff.modified.length} · 삭제 ${diff.deleted.length})`,
+        content: diff.text,
+        payload: { kind: 'holiday-change', year: year },
+        onSubmit: commitHolEdit,   /* 상신 접수 시 변경 반영(mock — 실서비스는 결재 승인 콜백에서 반영) */
+      });
+    } else {
+      commitHolEdit();   /* 결재 모듈 미연결 — 즉시 반영 */
+      window.toast && window.toast('휴일 설정이 저장되었습니다.', 'success');
+    }
+  }
+  function cancelHolEdit() {
+    const dirty = holDraftDirty();
+    STATE.holDraft = null;
+    STATE.holEditMode = false;
+    window.toast && window.toast(dirty ? '변경 사항을 취소했습니다.' : '편집을 종료했습니다.', 'info');
+    rerenderHoliday();
+  }
+  function moveHol(dir) {
+    if (STATE.holView === 'year') {
+      STATE.holYm = (+STATE.holYm.slice(0, 4) + dir) + '-' + STATE.holYm.slice(5, 7);
+    } else {
+      const d = new Date(+STATE.holYm.slice(0, 4), +STATE.holYm.slice(5, 7) - 1 + dir, 1);
+      STATE.holYm = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+    }
+  }
+
+  /* ----- 툴바 ----- */
+  function renderHolToolbar() {
+    const year = +STATE.holYm.slice(0, 4);
+    const isYear = STATE.holView === 'year';
+    const picker = isYear
+      ? `<span class="att-tb__title" style="font-size:var(--fs-lg);font-weight:var(--fw-bold);">${year}년</span>`
+      : App.YmPicker.html({ name: 'hol', ym: STATE.holYm, todayYm: NOW_DATE.slice(0, 7), labelStyle: 'font-size:var(--fs-lg);' });
+    const scope = isYear ? `${year}년` : `${year}년 ${+STATE.holYm.slice(5, 7)}월`;
+    const plus = (window.Icons && window.Icons.plus) || '+';
+    /* 우측 액션 — 조회 모드: [편집] 하나. 편집 모드: 불러오기·추가 + [취소]/[적용]. */
+    const right = STATE.holEditMode
+      ? `
+          <button class="btn btn--sm" type="button" data-hol-apply-public>공휴일 불러오기</button>
+          <button class="btn btn--sm" type="button" data-hol-add>${plus} 휴일 추가</button>
+          <span class="hol-tb__divider"></span>
+          <button class="btn btn--sm" type="button" data-hol-cancel>취소</button>
+          <button class="btn btn--sm btn--primary" type="button" data-hol-save>적용${holDraftDirty() ? ' <span style="color:var(--color-brand-accent);">•</span>' : ''}</button>`
+      : `<button class="btn btn--sm btn--primary" type="button" data-hol-edit>${(window.Icons && window.Icons.edit) || '✎'} 편집</button>`;
+    return `
+      <div class="toolbar">
+        <div class="toolbar__left" style="gap:10px;">
+          ${picker}
+          <div class="att-tb__nav">
+            <button type="button" data-hol-prev aria-label="이전">‹</button>
+            <button type="button" data-hol-today>오늘</button>
+            <button type="button" data-hol-next aria-label="다음">›</button>
+          </div>
+          <span class="toolbar__count">${esc(scope)} 휴일 <strong>${holCount()}</strong>건</span>
+        </div>
+        <div class="toolbar__right" style="gap:8px;">
+          <div class="att-tb__views">
+            <button type="button" data-hol-view="month" class="${isYear ? '' : 'is-active'}">월간</button>
+            <button type="button" data-hol-view="year" class="${isYear ? 'is-active' : ''}">연간</button>
+          </div>
+          ${right}
+        </div>
+      </div>`;
+  }
+
+  function holChipHTML(h, editable) {
+    const pending = holIsPending(h), voided = holIsVoided(h);
+    const stateTip = voided ? ' · 반려(기간 경과)' : pending ? ' · 승인대기' : '';
+    const tip = `${h.name}${h.source === 'public' ? ' · 공휴일' : ''}${stateTip}${h.memo ? ' · ' + h.memo : ''}`;
+    const cls = 'hol-chip' + (voided ? ' hol-chip--voided' : pending ? ' hol-chip--pending' : '');
+    const wait = voided ? '<span class="hol-chip__wait hol-chip__wait--void">반려</span>'
+      : pending ? '<span class="hol-chip__wait">승인대기</span>' : '';
+    const tag = editable ? 'button' : 'span';
+    const attr = editable ? ` type="button" data-hol-chip="${esc(h.id)}"` : ' style="cursor:default;"';
+    return `<${tag} class="${cls}"${attr} title="${esc(tip)}">${wait}<span class="hol-chip__name">${esc(h.name)}</span></${tag}>`;
+  }
+
+  /* ----- 월간 캘린더 ----- */
+  function renderHolMonth() {
+    const y = +STATE.holYm.slice(0, 4), m = +STATE.holYm.slice(5, 7);
+    const days = holDaysInMonth(y, m);
+    const lead = new Date(y, m - 1, 1).getDay();
+    const editable = STATE.holEditMode;
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push('<div class="att-cal__cell att-cal__cell--blank"></div>');
+    for (let d = 1; d <= days; d++) {
+      const ds = `${y}-${pad2(m)}-${pad2(d)}`;
+      const wd = new Date(y, m - 1, d).getDay();
+      const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
+      const today = ds === NOW_DATE ? 'is-today' : '';
+      const past = isPastDate(ds);
+      const h = holidayOn(ds);
+      const canEdit = editable && !past;   /* 지난 날짜는 편집 모드라도 추가·수정 불가(읽기 전용) */
+      const lockedNow = editable && past;
+      cells.push(`
+        <div class="att-cal__cell ${canEdit ? 'att-cal__cell--addable' : ''} ${lockedNow ? 'att-cal__cell--locked' : ''} ${wdCls} ${today} ${h ? 'att-cal__cell--hol' : ''}" ${canEdit ? `data-hol-cell="${ds}"` : ''}>
+          <div class="att-cal__day-row"><span class="att-cal__day">${d}</span>${lockedNow ? '<span class="hol-lock" title="지난 날짜 — 수정할 수 없습니다">🔒</span>' : ''}</div>
+          ${h ? holChipHTML(h, canEdit) : (canEdit ? '<span class="att-cal__add">+ 휴일</span>' : '')}
+        </div>`);
+    }
+    const trail = (7 - ((lead + days) % 7)) % 7;
+    for (let i = 0; i < trail; i++) cells.push('<div class="att-cal__cell att-cal__cell--blank"></div>');
+    return `
+      <div class="att-cal">
+        <div class="att-cal__weekdays">
+          ${WEEKDAYS.map((w, i) => `<div class="att-cal__wd ${i === 0 ? 'is-sun' : ''} ${i === 6 ? 'is-sat' : ''}">${w}</div>`).join('')}
+        </div>
+        <div class="att-cal__grid">${cells.join('')}</div>
+      </div>`;
+  }
+
+  /* ----- 연간 그리드 (가로 1~12월 / 세로 1~31일) ----- */
+  function renderHolYear() {
+    const year = +STATE.holYm.slice(0, 4);
+    const editable = STATE.holEditMode;
+    const head = `<th class="lp-year__daycol">일</th>` + HOL_MONTH_LABELS.map(ml => `<th>${ml}</th>`).join('');
+    let rows = '';
+    for (let d = 1; d <= 31; d++) {
+      let tds = `<th class="lp-year__daycol">${d}</th>`;
+      for (let m = 1; m <= 12; m++) {
+        if (d > holDaysInMonth(year, m)) { tds += '<td class="lp-year__cell lp-year__cell--na"></td>'; continue; }
+        const ds = `${year}-${pad2(m)}-${pad2(d)}`;
+        const wd = new Date(year, m - 1, d).getDay();
+        const weCls = wd === 0 ? ' lp-year__cell--sun' : wd === 6 ? ' lp-year__cell--sat' : '';
+        const todayCls = ds === NOW_DATE ? ' is-today' : '';
+        const todayTag = ds === NOW_DATE ? '<span class="lp-year__today">오늘</span>' : '';
+        const past = isPastDate(ds);
+        const canEdit = editable && !past;   /* 지난 날짜는 편집 모드라도 추가·수정 불가 */
+        const locked = editable && past;
+        const lockCls = locked ? ' lp-year__cell--locked' : '';
+        const lockIco = locked ? '<span class="lp-year__lock" title="지난 날짜 — 수정할 수 없습니다">🔒</span>' : '';
+        const h = holidayOn(ds);
+        if (!h) { tds += `<td class="lp-year__cell${weCls}${todayCls}${lockCls}" ${canEdit ? `data-hol-cell="${ds}" style="cursor:pointer;"` : ''}>${todayTag}${lockIco}</td>`; continue; }
+        const pending = holIsPending(h), voided = holIsVoided(h);
+        const holStateCls = voided ? ' lp-year__cell--holvoid' : pending ? ' lp-year__cell--holpending' : '';
+        const stateTip = voided ? ' · 반려(기간 경과)' : pending ? ' · 승인대기' : '';
+        tds += `<td class="lp-year__cell lp-year__cell--hol${holStateCls}${todayCls}${lockCls}" ${canEdit ? `data-hol-chip="${esc(h.id)}"` : 'style="cursor:default;"'} title="${esc(h.name)}${stateTip}${locked ? ' · 수정 불가' : ''}">${todayTag}<span class="lp-year__holnm">${locked ? '🔒 ' : ''}${esc(h.name)}</span></td>`;
+      }
+      rows += `<tr>${tds}</tr>`;
+    }
+    return `
+      <div class="lp-year">
+        <table class="lp-year__tbl">
+          <thead><tr>${head}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderHoliday() {
+    const isYear = STATE.holView === 'year';
+    const body = isYear ? renderHolYear() : renderHolMonth();
+    const editbar = STATE.holEditMode
+      ? `<div class="hol-editbar">✎ <span>편집 중입니다. 휴일을 추가·수정·삭제한 뒤 우측 상단 <strong>[적용]</strong>을 누르면 <strong>전자결재 승인 요청</strong>으로 상신됩니다.</span></div>`
+      : '';
+    /* 구조: 툴바(고정) + 편집배너(고정) + hol-body(유일한 스크롤 영역).
+       월간은 여백 유지, 연간은 여백/라운드 제거로 그리드가 본문을 꽉 채움. */
+    return `${renderHolToolbar()}${editbar}
+      <div class="hol-body${isYear ? ' hol-body--year' : ''}" style="flex:1;min-height:0;overflow:auto;">
+        ${body}
+      </div>`;
+  }
+
+  /* ----- 공휴일 일괄 적용 ----- */
+  function applyPublicHolidays() {
+    const year = +STATE.holYm.slice(0, 4);
+    const store = holStore();
+    const pubs = krPublicHolidays(year);
+    let added = 0, dup = 0, past = 0;
+    pubs.forEach(p => {
+      if (isPastDate(p.date)) { past++; return; }               /* 지난 날짜는 소급 불러오기 제외 */
+      if (store.some(h => h.date === p.date)) { dup++; return; }
+      store.push({ id: newHolId(p.date), date: p.date, name: p.name, source: 'public', memo: '법정공휴일(자동 등록)' });
+      added++;
+    });
+    let msg = `${year}년 공휴일 ${added}건을 불러왔습니다. [적용] 시 저장됩니다.`;
+    const ex = [];
+    if (dup) ex.push(`이미 등록 ${dup}건`);
+    if (past) ex.push(`지난 날짜 ${past}건`);
+    if (ex.length) msg += ` (${ex.join(' · ')} 제외)`;
+    window.toast && window.toast(msg, 'info');
+    if (!HOL_LUNAR[year]) window.toast && window.toast(`${year}년 음력 공휴일(설날·추석·부처님오신날)은 데이터가 없어 양력 공휴일만 불러왔습니다.`, 'warning');
+    rerenderHoliday();
+  }
+
+  /* ----- 휴일 등록/수정 모달 ----- */
+  function ensureHolModal() {
+    if (document.getElementById('hol-modal')) return;
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop';
+    el.id = 'hol-modal';
+    el.style.zIndex = '1200';
+    el.innerHTML = `
+      <div class="modal" style="width:94vw;max-width:520px;max-height:88vh;display:flex;flex-direction:column;">
+        <div class="modal__header">
+          <div class="modal__title" data-holm-title>휴일 추가</div>
+          <button class="modal__close" type="button" data-holm-close aria-label="닫기">✕</button>
+        </div>
+        <div class="modal__body" data-holm-body style="flex:1;min-height:0;overflow:auto;padding:18px 20px;"></div>
+        <div class="offcanvas__footer offcanvas__footer--between" style="padding:12px 20px;border-top:1px solid var(--color-divider);">
+          <span class="t-muted" style="font-size:var(--fs-xs);">하루에 한 개의 휴일만 등록할 수 있습니다.</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn--sm btn--soft-danger" type="button" data-holm-del style="display:none;">삭제</button>
+            <button class="btn btn--sm" type="button" data-holm-close>취소</button>
+            <button class="btn btn--sm btn--primary" type="button" data-holm-save>등록</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    bindHolModal();
+  }
+  function renderHolModalBody() {
+    const editing = STATE.holEditId ? holidayById(STATE.holEditId) : null;
+    const date = editing ? editing.date : (STATE.holAddDate || NOW_DATE);
+    const name = editing ? editing.name : '';
+    const memo = editing ? editing.memo : '';
+    const isPublic = !!(editing && editing.source === 'public');
+    return `
+      <div class="fm-tbl fm-tbl--form">
+        <div class="fm-tbl__row fm-tbl__row--1">
+          <div class="fm-tbl__label">휴일명 <em style="color:var(--color-danger);">*</em></div>
+          <div class="fm-tbl__value"><input class="input" type="text" data-hol-name maxlength="40" value="${esc(name)}" placeholder="예: 창립기념일"></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1">
+          <div class="fm-tbl__label">일자 <em style="color:var(--color-danger);">*</em></div>
+          <div class="fm-tbl__value"><input class="input" type="date" data-hol-date value="${esc(date)}" min="${NOW_DATE}" style="max-width:200px;"></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1">
+          <div class="fm-tbl__label">비고</div>
+          <div class="fm-tbl__value"><textarea class="input" data-hol-memo rows="2" style="height:56px;min-height:56px;resize:vertical;" placeholder="메모(선택)">${esc(memo)}</textarea></div>
+        </div>
+        ${isPublic ? '<div class="fm-tbl__row fm-tbl__row--1"><div class="fm-tbl__label">종류</div><div class="fm-tbl__value"><span class="pill pill--info">법정공휴일</span></div></div>' : ''}
+      </div>`;
+  }
+  function openHolModal(opts) {
+    ensureHolModal();
+    opts = opts || {};
+    STATE.holEditId = opts.id || null;
+    STATE.holAddDate = opts.date || null;
+    const m = document.getElementById('hol-modal');
+    const editing = STATE.holEditId ? holidayById(STATE.holEditId) : null;
+    m.querySelector('[data-holm-title]').textContent = editing ? '휴일 수정' : '휴일 추가';
+    m.querySelector('[data-holm-body]').innerHTML = renderHolModalBody();
+    m.querySelector('[data-holm-del]').style.display = editing ? '' : 'none';
+    m.querySelector('[data-holm-save]').textContent = editing ? '수정' : '등록';
+    App.Forms && App.Forms.applyOnInput && App.Forms.applyOnInput(m);
+    m.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeHolModal() {
+    const m = document.getElementById('hol-modal');
+    if (m) m.classList.remove('is-open');
+    if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
+  }
+  function saveHoliday() {
+    const m = document.getElementById('hol-modal');
+    const nameEl = m.querySelector('[data-hol-name]');
+    const dateEl = m.querySelector('[data-hol-date]');
+    const memoEl = m.querySelector('[data-hol-memo]');
+    App.Forms && App.Forms.clearAll && App.Forms.clearAll(m);
+    const name = (nameEl.value || '').trim();
+    const date = (dateEl.value || '').trim();
+    let ok = true;
+    if (!name) { App.Forms.setFieldError(nameEl, '휴일명을 입력해 주세요.'); ok = false; }
+    if (!date) { App.Forms.setFieldError(dateEl, '일자를 선택해 주세요.'); ok = false; }
+    if (date && isPastDate(date)) { App.Forms.setFieldError(dateEl, '지난 날짜에는 휴일을 설정할 수 없습니다. 오늘 이후 날짜를 선택해 주세요.'); ok = false; }
+    if (date && !isPastDate(date)) {
+      const dup = holStore().find(h => h.date === date && h.id !== STATE.holEditId);
+      if (dup) { App.Forms.setFieldError(dateEl, `${date} 에는 이미 「${dup.name}」 휴일이 등록되어 있습니다. 하루에 한 개만 등록할 수 있습니다.`); ok = false; }
+    }
+    if (!ok) return;
+    const memo = (memoEl.value || '').trim();
+    if (STATE.holEditId) {
+      const h = holidayById(STATE.holEditId);
+      if (h) { h.date = date; h.name = name; h.memo = memo; }
+      window.toast && window.toast(`「${name}」 휴일을 수정했습니다. [적용] 시 저장됩니다.`, 'info');
+    } else {
+      holStore().push({ id: newHolId(date), date: date, name: name, source: 'company', memo: memo });
+      window.toast && window.toast(`「${name}」 휴일을 추가했습니다. [적용] 시 저장됩니다.`, 'info');
+    }
+    STATE.holYm = date.slice(0, 7);   /* 등록/수정한 달이 보이도록 조회 월 이동 */
+    closeHolModal();
+    rerenderHoliday();
+  }
+  function deleteHoliday() {
+    const h = holidayById(STATE.holEditId);
+    if (!h) { closeHolModal(); return; }
+    const store = holStore();
+    const idx = store.findIndex(x => x.id === h.id);
+    if (idx >= 0) store.splice(idx, 1);   /* holDraft 를 제자리 변경(참조 유지) */
+    window.toast && window.toast(`「${h.name}」 휴일을 삭제했습니다. [적용] 시 저장됩니다.`, 'info');
+    closeHolModal();
+    rerenderHoliday();
+  }
+  function bindHolModal() {
+    const m = document.getElementById('hol-modal');
+    if (!m || m.dataset.bound) return;
+    m.dataset.bound = '1';
+    m.addEventListener('click', e => {
+      if (e.target === m || e.target.closest('[data-holm-close]')) { closeHolModal(); return; }
+      if (e.target.closest('[data-holm-save]')) { saveHoliday(); return; }
+      if (e.target.closest('[data-holm-del]')) { deleteHoliday(); return; }
+    });
+  }
+
+  /* ----- 공유 API — 휴일(근무일/급여 산정에서 참조) ----- */
+  App.AttHolidays = {
+    /* year 지정 시 해당 연도만, 없으면 전체. 날짜 오름차순. */
+    list(year) {
+      const arr = year ? STATE.holidays.filter(h => h.date.slice(0, 4) === String(year)) : STATE.holidays.slice();
+      return arr.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    },
+    get(dateStr) { return holidayOn(dateStr); },
+    /* 휴일 여부 — 승인(approved)된 휴일만 효력. 승인대기/반려는 근무일(소정근로일) 산정에 미반영. */
+    isHoliday(dateStr) { const h = holidayOn(dateStr); return !!(h && h.status !== 'pending'); },
+    /* 승인대기(전자결재 결과 미확정) 여부 */
+    isPending(dateStr) { return holIsPending(holidayOn(dateStr)); },
+    /* 반려(void) 여부 — 승인대기인 채로 날짜가 지남 → 승인 나도 휴일 아님(위 휴일 승인 정책 3항) */
+    isVoided(dateStr) { return holIsVoided(holidayOn(dateStr)); },
+  };
+
   /* ============ 근무정책 설정 (page-att-work-policy) ============ */
   function renderWpBody() {
     if (STATE.wpTab === 'shift') return renderShift();
+    if (STATE.wpTab === 'holiday') return renderHoliday();
     return renderDept();
   }
   function renderWpHead() {
@@ -954,6 +1420,32 @@
     pageEl.addEventListener('click', e => {
       const tab = e.target.closest('[data-wp-tab]');
       if (tab) { STATE.wpTab = tab.dataset.wpTab; renderWpAll(pageEl); return; }
+
+      /* ===== 휴일 관리 탭 ===== */
+      const hv = e.target.closest('[data-hol-view]');
+      if (hv) { STATE.holView = hv.dataset.holView; renderWpAll(pageEl); return; }
+      if (e.target.closest('[data-hol-prev]')) { moveHol(-1); renderWpAll(pageEl); return; }
+      if (e.target.closest('[data-hol-next]')) { moveHol(1); renderWpAll(pageEl); return; }
+      if (e.target.closest('[data-hol-today]')) { STATE.holYm = NOW_DATE.slice(0, 7); renderWpAll(pageEl); return; }
+      /* 편집 모드 전환/저장 */
+      if (e.target.closest('[data-hol-edit]')) { enterHolEdit(); return; }
+      if (e.target.closest('[data-hol-save]')) { applyHolEdit(); return; }
+      if (e.target.closest('[data-hol-cancel]')) { cancelHolEdit(); return; }
+      if (e.target.closest('[data-hol-apply-public]')) { applyPublicHolidays(); return; }
+      if (e.target.closest('[data-hol-add]')) {
+        const ym = STATE.holView === 'year' ? (STATE.holYm.slice(0, 4) + '-01') : STATE.holYm;
+        const cand = ym === NOW_DATE.slice(0, 7) ? NOW_DATE : ym + '-01';
+        openHolModal({ date: isPastDate(cand) ? NOW_DATE : cand });   /* 지난 달을 보고 있으면 오늘로 기본값 */
+        return;
+      }
+      const hchip = e.target.closest('[data-hol-chip]');
+      if (hchip) { openHolModal({ id: hchip.dataset.holChip }); return; }
+      const hcell = e.target.closest('[data-hol-cell]');
+      if (hcell) {
+        const h = holidayOn(hcell.dataset.holCell);
+        if (h) openHolModal({ id: h.id }); else openHolModal({ date: hcell.dataset.holCell });
+        return;
+      }
 
       /* 근무조 마스터 — 추가 / 편집 (모달 재사용) */
       if (e.target.closest('[data-shift-act="add"]')) { App.AttShifts && App.AttShifts.openEditor && App.AttShifts.openEditor(null); return; }
@@ -990,6 +1482,10 @@
         if (STATE.workType[key]) STATE.workType[key][field] = (field === 'weekoff') ? wt.value : (Number(wt.value) || 0);
         return;
       }
+    });
+    /* 휴일 관리 — 연/월 피커(App.YmPicker) 월 선택 */
+    pageEl.addEventListener('ympick:change', e => {
+      if (e.detail && e.detail.name === 'hol') { STATE.holYm = e.detail.ym; renderWpAll(pageEl); }
     });
   }
   /* =========================================================

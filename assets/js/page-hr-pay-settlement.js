@@ -24,7 +24,7 @@
  *   .search / .toolbar / .tbl / .pill / .pagination / .page-bar / .steps-h
  *   .form-field / .input / .select / .cb / .fm-tbl
  *   .dd.dd--row + .btn--kebab — 행 더보기 메뉴
- *   .modal — 정산 복제 (#modal-prs-copy), 지급항목 추가 (#modal-prs-additem)
+ *   .modal — 지급항목 추가 (#modal-prs-additem)
  * ========================================================= */
 (function () {
   const App = (window.App = window.App || {});
@@ -588,7 +588,6 @@
     selectedIds: new Set(),
     editingId: null,
     form: null,
-    copySrcId: null,
   };
 
   /* ============ 필터 ============ */
@@ -737,8 +736,6 @@
       if (link) { e.preventDefault(); const tr = link.closest('[data-prs-row]'); if (tr) openDetail(tr.dataset.prsRow); return; }
       const open = e.target.closest('[data-prs-row-open]');
       if (open) { openDetail(open.dataset.prsRowOpen); return; }
-      const copy = e.target.closest('[data-prs-row-copy]');
-      if (copy) { openCopyModal(copy.dataset.prsRowCopy); return; }
       const del = e.target.closest('[data-prs-row-delete]');
       if (del) { doDeleteOne(del.dataset.prsRowDelete); return; }
     });
@@ -857,50 +854,6 @@
     STATE.selectedIds.delete(id);
     applyFilter(); renderTable();
     window.toast && window.toast('1건 삭제 완료', 'success');
-  }
-
-  /* ============ 정산 복제 (모달) ============ */
-  function openCopyModal(id) {
-    const r = STATE.rounds.find(x => x.id === id); if (!r) return;
-    STATE.copySrcId = id;
-    $('#prs-copy-src').textContent  = `${r.name} (${r.id})`;
-    $('#prs-copy-name').value       = `${r.name} (복사)`;
-    $('#prs-copy-month').value      = r.accruedMonth || '';
-    $('#prs-copy-paydate').value    = '';
-    $('#prs-copy-target-from').value = '';
-    $('#prs-copy-target-to').value   = '';
-    openModal('modal-prs-copy');
-  }
-  function confirmCopy() {
-    const src = STATE.rounds.find(x => x.id === STATE.copySrcId); if (!src) return;
-    const name = $('#prs-copy-name').value.trim();
-    if (!name) { window.toast && window.toast('새 정산명을 입력하세요.', 'warning'); return; }
-    const accruedMonth = $('#prs-copy-month').value      || src.accruedMonth;
-    const payDate      = $('#prs-copy-paydate').value    || '';
-    const targetFrom   = $('#prs-copy-target-from').value || src.targetFrom;
-    const targetTo     = $('#prs-copy-target-to').value   || src.targetTo;
-    const newId = nextSettleId(STATE.rounds, accruedMonth);
-
-    STATE.rounds.unshift({
-      id: newId, name,
-      settlementType: src.settlementType || 'regular',
-      accruedMonth, payDate,
-      targetFrom, targetTo,
-      otFrom: src.otFrom, otTo: src.otTo,
-      description: src.description || '',
-      status: 'pending',
-      stage:  0,
-      targetCount: 0,
-      payItemCodes: (src.payItemCodes || DEFAULT_PAY_ITEM_CODES).slice(),
-      targetFilter: Object.assign({}, src.targetFilter || defaultTargetFilter()),
-      targetEmpIds: null,
-      ledger: null,
-      createdBy: HR_NAME,
-      createdAt: TODAY,
-    });
-    closeModal('modal-prs-copy');
-    applyFilter(); renderTable();
-    window.toast && window.toast(`${name} 정산이 생성되었습니다. (${newId})`, 'success');
   }
 
   /* =========================================================
@@ -2895,24 +2848,6 @@
         if (t === 'excel-down-ylw') window.toast && window.toast('영림원 ERP 업로드용 엑셀 다운로드 (mock) — 영림원 계정/항목 코드 매핑 양식으로 변환됩니다.', 'info');
         return;
       }
-      /* 시간외수당 계산식 설정 모달 — 기존 modal-ps-ot (급여 기준 설정 페이지 모달) 재사용.
-         페이지 한 번도 진입 안 했어도 동작하도록 App.HRPaySettings.openOtModal() 으로 위임. */
-      const otBtn = e.target.closest('[data-prs-ot-settings]');
-      if (otBtn) {
-        if (window.App && App.HRPaySettings && typeof App.HRPaySettings.openOtModal === 'function') {
-          App.HRPaySettings.openOtModal();
-        } else {
-          /* fallback — 모달 DOM 이 index.html 에 있다면 직접 오픈 */
-          const m = document.getElementById('modal-ps-ot');
-          if (m) {
-            m.classList.add('is-open');
-            document.body.style.overflow = 'hidden';
-          } else {
-            window.toast && window.toast('시간외수당 계산식 설정 모달을 불러올 수 없습니다.', 'danger');
-          }
-        }
-        return;
-      }
     });
 
     /* input — 검색 + 급여대장 셀 금액 */
@@ -4626,13 +4561,6 @@
     if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
   }
   function bindModals() {
-    const copyM = document.getElementById('modal-prs-copy');
-    if (copyM) {
-      copyM.addEventListener('click', (e) => { if (e.target === copyM) closeModal('modal-prs-copy'); });
-      const okBtn = copyM.querySelector('[data-prs-copy-confirm]');
-      if (okBtn) okBtn.addEventListener('click', confirmCopy);
-      copyM.querySelectorAll('[data-prs-modal-close]').forEach(b => b.addEventListener('click', () => closeModal('modal-prs-copy')));
-    }
     const cfgM = document.getElementById('modal-prs-config');
     if (cfgM) {
       cfgM.addEventListener('click', (e) => { if (e.target === cfgM) closeModal('modal-prs-config'); });

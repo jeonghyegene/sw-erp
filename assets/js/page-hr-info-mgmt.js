@@ -671,12 +671,6 @@
     /* 입사자 관리 2 — 화면 모드 (페이지 전환) */
     view: 'list',             // 'list' | 'detail'
     detailEmpId: null,        // 상세 페이지에서 보고 있는 사원 id
-    /* 상세 페이지 내부 탭 (Drawer 와 동일 키 재사용) */
-    drawerEmpId: null,
-    drawerTab: 'public',
-    drawerEditMode: false,
-    drawerDirty: false,
-    drawerPatch: {},
     currentRole: 'manager',   // 인사팀장 — 데모 기본값
     /* 조직도 트리 — 좌측 패널 (page-hr-employee 와 동일 정책) */
     selectedDeptId: 'C0',     // 트리에서 선택된 부서 id ('C0' = 전체)
@@ -876,32 +870,6 @@
   function isDocsAllSigned(r) {
     const sent = r.docsSent || 0;
     return sent > 0 && (r.docSigned || 0) >= sent;
-  }
-
-  /* 행 액션 — 입사자 관리 2 는 목록 화면에서 [이메일 발송 / 재발송] 만 노출.
-   *   계약/서류 진행, 정규직 전환 등 다른 액션은 [상세] 페이지에서 처리.
-   *
-   *   재발송 노출 조건: 이메일은 발송됐지만 입사자가 인사정보 등록을 끝내지 않은 상태
-   *     - mailSent : 메일 발송, 입사자가 아직 계정 등록 안 함
-   *     - idDone   : 계정 등록은 했지만 정보 미입력
-   *   인사정보 등록완료(infoDone) 이후엔 이메일의 목적이 끝났으므로 재발송 의미 없음 → '-' */
-  function rowActionsHTML(r) {
-    /* 인사정보 관리 — 기능 컬럼: 「이메일 발송」 + 「문자 발송」.
-     *   · 이메일: 계정 미등록(MILESTONES.idDone === false) + 발송 가능(registered / 메일발송) 행만.
-     *     계정등록완료 행은 이메일의 목적(계정 설정 안내)이 끝났으므로 노출 안 함.
-     *   · 문자  : 휴대전화 번호가 등록된 행이면 계정 상태와 무관하게 노출.
-     *   · 퇴직 행은 둘 다 의미 없음 → '-'. */
-    if (r.status === 'retired') {
-      return `<span style="color:var(--color-text-muted);">-</span>`;
-    }
-    const btns = [];
-    /* 이메일 발송 버튼 제거 — 액션 컬럼은 문자 발송만 노출 */
-    if ((r.phone || '').trim()) {
-      btns.push(`<button class="btn btn--xs" type="button" data-row-act="sms-send">문자 발송</button>`);
-    }
-    if (!btns.length) return `<span style="color:var(--color-text-muted);">-</span>`;
-    /* 이메일 발송 · 문자 발송 — 한 줄에 나란히(줄바꿈 없이) */
-    return `<div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;white-space:nowrap;">${btns.join('')}</div>`;
   }
 
   /* ============ 새 컬럼 헬퍼 — 인사정보 관리 ============
@@ -1535,12 +1503,6 @@
           doApproveAccount(emp);
         } else if (act === 'reject') {
           doRejectAccount(emp);
-        } else if (act === 'sms-send') {
-          if (!(emp.phone || '').trim()) {
-            window.toast && window.toast('등록된 휴대전화 번호가 없습니다.', 'warning');
-            return;
-          }
-          openSmsModal([emp]);
         }
         return;
       }
@@ -2173,28 +2135,17 @@
    *   휴대전화 번호가 등록된 선택 행만 대상으로 한다. */
   const SMS_TEMPLATES = {
     'info-request': `안녕하세요 {name}님, (주)성원애드피아입니다.\n입사 인사정보 등록 안내드립니다.\n아래 링크에서 본인 정보를 입력해 주세요.\n{link}`,
-    'welcome':      `{name}님, (주)성원애드피아 입사를 환영합니다.\n입사일 관련 안내는 담당자가 별도로 연락드릴 예정입니다.`,
-    'notice':       `안녕하세요 {name}님, 인사팀입니다.\n전달드릴 안내 사항이 있어 연락드립니다.`,
   };
-  function doSmsSend() {
-    const sel = getSelectedRows().filter(r => (r.phone || '').trim());
-    if (!sel.length) {
-      window.toast && window.toast('휴대전화 번호가 등록된 대상이 없습니다.', 'warning');
-      return;
-    }
-    openSmsModal(sel);
-  }
-  function openSmsModal(targets) {
+  function openSmsModal(targets, ctx) {
     injectSmsModal();
     bindSmsModal();
     STATE._smsTargets = targets;
+    STATE._smsCtx = ctx || null;   // { onSend, onCancel } — 임직원 등록 흐름에서 전달(선택)
     const t = document.getElementById('empi-sms-target');
     if (t) t.textContent = targets.length === 1
       ? `${displayName(targets[0])} (${targets[0].phone})`
       : `${displayName(targets[0])} 외 ${targets.length - 1}명`;
-    const tplSel = document.getElementById('empi-sms-template');
     const body   = document.getElementById('empi-sms-body');
-    if (tplSel) tplSel.value = 'info-request';
     if (body)   body.value = SMS_TEMPLATES['info-request'];
     updateSmsCounter();
     openModal('modal-empi-sms');
@@ -2220,14 +2171,6 @@
         <div>
           <label style="display:block;font-size:var(--fs-sm);margin-bottom:6px;color:var(--color-text);">수신자</label>
           <div id="empi-sms-target" class="input" style="width:100%;background:var(--color-surface-alt);display:flex;align-items:center;">—</div>
-        </div>
-        <div>
-          <label style="display:block;font-size:var(--fs-sm);margin-bottom:6px;color:var(--color-text);">메시지 템플릿</label>
-          <select class="select" id="empi-sms-template" style="width:100%;">
-            <option value="info-request">인사정보 등록 안내</option>
-            <option value="welcome">입사 환영 안내</option>
-            <option value="notice">일반 안내</option>
-          </select>
         </div>
         <div>
           <label style="display:block;font-size:var(--fs-sm);margin-bottom:6px;color:var(--color-text);">메시지 내용</label>
@@ -2263,7 +2206,14 @@
     if (!modal || modal.dataset.bound === '1') return;
     modal.dataset.bound = '1';
     modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.closest('[data-modal-close]')) { closeModal('modal-empi-sms'); return; }
+      if (e.target === modal || e.target.closest('[data-modal-close]')) {
+        closeModal('modal-empi-sms');
+        /* 임직원 등록 흐름 — 취소 시 확정하지 않고 직전 화면으로 복귀(계약직: 계약 미리보기 / 도급직: 등록 상세) */
+        const ctx = STATE._smsCtx;
+        STATE._smsCtx = null;
+        if (ctx && ctx.onCancel) ctx.onCancel();
+        return;
+      }
       const chip = e.target.closest('[data-empi-sms-var]');
       if (chip) {
         const body = modal.querySelector('#empi-sms-body');
@@ -2277,11 +2227,6 @@
         return;
       }
     });
-    const tplSel = modal.querySelector('#empi-sms-template');
-    if (tplSel) tplSel.addEventListener('change', () => {
-      const body = modal.querySelector('#empi-sms-body');
-      if (body) { body.value = SMS_TEMPLATES[tplSel.value] || ''; updateSmsCounter(); }
-    });
     const body = modal.querySelector('#empi-sms-body');
     if (body) body.addEventListener('input', updateSmsCounter);
     modal.querySelector('[data-empi-sms-submit]').addEventListener('click', () => {
@@ -2291,10 +2236,17 @@
         if (window.App && App.Forms) App.Forms.setFieldError(modal.querySelector('#empi-sms-body'), '메시지 내용을 입력해 주세요.');
         return;
       }
-      STATE.selectedIds.clear();
-      renderTable();
+      const ctx = STATE._smsCtx;
       closeModal('modal-empi-sms');
-      window.toast && window.toast(`문자 발송 완료 — ${sel.length}건`, 'success');
+      if (ctx && ctx.onSend) {
+        /* 임직원 등록 흐름 — 등록/계약 확정은 콜백(commitCreate)이 담당(완료 토스트 포함) */
+        STATE._smsCtx = null;
+        ctx.onSend();
+      } else {
+        STATE.selectedIds.clear();
+        renderTable();
+        window.toast && window.toast(`문자 발송 완료 — ${sel.length}건`, 'success');
+      }
     });
   }
 
@@ -7075,9 +7027,8 @@
     let breakEnd2   = emp.breakEnd2     || '';
     let shiftCode   = emp.shiftCode     || '';
     let shiftLabel  = emp.shiftLabel    || '';
-    /* 부서에 연결된 근무조 목록(미설정이면 전사 기본으로 대체). 2개 이상이면 '근무조 선택' 버튼 노출. */
+    /* 부서에 연결된 근무조 목록(미설정이면 전사 기본으로 대체). */
     const deptCodes = deptShiftCodes(emp.dept);
-    const multiCode = deptCodes.length >= 2;
     /* 근무조 확정 — 미선택 or 현재 코드가 부서 허용 밖이면 부서 기본 근무조(없으면 첫 코드)로 채운다.
        "선택된 근무조 없음" 상태는 만들지 않는다(전사/부서 기본 근무조가 항상 존재). */
     if (!shiftCode || deptCodes.indexOf(shiftCode) < 0) {
@@ -8724,12 +8675,6 @@
       });
     }
 
-    /* 근무조 선택 버튼 — App.AttShifts.list() 마스터를 보여주고 선택 시 근무·휴게시간 자동 채움 */
-    const shiftPickBtn = modal.querySelector('[data-empi-ce-shift-pick]');
-    if (shiftPickBtn) {
-      shiftPickBtn.addEventListener('click', () => openShiftPickModal());
-    }
-
     /* 사용자가 다시 입력/선택하면 해당 필드 인라인 오류 자동 클리어 */
     const errMap = {
       'data-empi-ce-contract-start': 'period',
@@ -8762,15 +8707,10 @@
     });
   }
 
-  /* ============ 근무조 선택 모달 (modal-empi-shift-pick) ============
-   *   App.AttShifts.list() 마스터를 카드 리스트로 노출.
-   *   행 클릭 시 인사정보카드 편집 모달의 근무시간/휴게시간 hidden inputs 채움 + 표시 텍스트 갱신.
-   *
-   *   호출 흐름:
-   *     [근무조 선택] 버튼 → openShiftPickModal() → modal-empi-shift-pick 오픈
-   *     → 카드 클릭 → applyShiftPick(shift) → modal-empi-card-edit 의 hidden inputs/표시 갱신 + 모달 close */
-  /* 부서에 연결된 근무조 목록. 미설정(빈 목록)이면 전사 기본 근무조로 대체.
-     길이 ≥2 → '근무조 선택' 버튼 노출(택1), ≤1 → 자동 확정(버튼 숨김). */
+  /* ============ 부서 근무조 자동 채움 (인사정보카드 편집 모달) ============
+   *   근무형태/근무조/근무시간/휴게시간은 부서 근무정책에서 자동 파생되어 hidden inputs 로만 보존된다.
+   *   (근무조 수동 선택 UI 는 제거됨 — 부서 근무정책 자동 파생만 사용) */
+  /* 부서에 연결된 근무조 목록. 미설정(빈 목록)이면 전사 기본 근무조로 대체. */
   function deptShiftCodes(dept) {
     const pol = (window.App && App.AttWorkPolicy && App.AttWorkPolicy.deptPolicy)
       ? App.AttWorkPolicy.deptPolicy(dept) : null;
@@ -8782,16 +8722,13 @@
     return codes;
   }
 
-  /* 부서 근무조 자동 적용 — 부서 변경 시 근무조를 부서 기본 근무조(없으면 첫 코드)로 채우고,
-     '근무조 선택' 버튼은 근무조가 2개 이상일 때만 노출한다. "선택된 근무조 없음" 상태는 만들지 않는다. */
+  /* 부서 근무조 자동 적용 — 부서 변경 시 근무조를 부서 기본 근무조(없으면 첫 코드)로 채운다.
+     "선택된 근무조 없음" 상태는 만들지 않는다. */
   function applyDeptShiftAuto(modal) {
     if (!modal) return;
     const deptSel = modal.querySelector('[data-empi-ce-dept]');
     const dept = deptSel ? deptSel.value : '';
     const codes = deptShiftCodes(dept);
-    const multiCode = codes.length >= 2;
-    const pickBtn = modal.querySelector('[data-empi-ce-shift-pick]');
-    if (pickBtn) pickBtn.style.display = multiCode ? '' : 'none';
     /* 채울 근무조 — 부서 기본 근무조(사용 코드 내) 우선, 없으면 첫 코드 */
     const dft = (window.App && App.AttWorkPolicy && App.AttWorkPolicy.deptDefaultShift)
       ? App.AttWorkPolicy.deptDefaultShift(dept) : '';
@@ -8799,7 +8736,6 @@
     const s = code && window.App && App.AttShifts && App.AttShifts.get ? App.AttShifts.get(code) : null;
     if (s) {
       setEmpShiftFields(modal, s);
-      if (pickBtn) pickBtn.textContent = '근무조 변경';
     } else {
       /* 근무조가 전혀 없는 극단 케이스 — 표시만 비움(경고는 두지 않음) */
       const setVal = (sel, v) => { const el = modal.querySelector(sel); if (el) el.value = v || ''; };
@@ -8838,95 +8774,6 @@
     }
     const errSlot = modal.querySelector('[data-empi-ce-err="shift"]');
     if (errSlot) { errSlot.textContent = ''; errSlot.hidden = true; }
-  }
-
-  function openShiftPickModal() {
-    let list = (window.App && App.AttShifts && App.AttShifts.list)
-      ? App.AttShifts.list() : [];
-    /* 부서에 연결된 근무조로 제한 — 그 부서에서 고를 수 있는 근무조만 노출.
-       부서는 계약 모달에서 (아직 저장 전) 선택될 수 있으므로 모달의 현재 select 값 우선. */
-    const emp = CARD_STATE.emp;
-    const editModal = document.getElementById('modal-empi-card-edit');
-    const selDept = editModal ? ((editModal.querySelector('[data-empi-ce-dept]') || {}).value || '') : '';
-    const deptName = selDept || (emp && emp.dept) || '';
-    const codes = deptShiftCodes(deptName);
-    if (codes.length) {
-      const allow = new Set(codes);
-      const filtered = list.filter(s => allow.has(s.code));
-      if (filtered.length) list = filtered;
-    }
-    const host = document.getElementById('empi-shift-pick-list');
-    if (!host) return;
-    /* 사용자 정의 표 — 근무조 / 출근 / 퇴근 / 근무시간 / 휴게1 / 휴게2 / 선택 버튼 */
-    if (!list.length) {
-      host.innerHTML = `<p style="color:var(--color-text-muted);text-align:center;padding:24px 0;">등록된 근무조가 없습니다. [근태 > 근무스케줄 현황] 에서 등록 후 다시 시도하세요.</p>`;
-    } else {
-      const br1 = (s) => (s.breakStart && s.breakEnd) ? `${esc(s.breakStart)}~${esc(s.breakEnd)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      const br2 = (s) => (s.breakStart2 && s.breakEnd2) ? `${esc(s.breakStart2)}~${esc(s.breakEnd2)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      host.innerHTML = `
-        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table class="tbl tbl--hover tbl--striped" style="width:100%;min-width:640px;border-collapse:collapse;">
-          <thead>
-            <tr>
-              <th style="width:80px;text-align:center;">근무조</th>
-              <th style="width:80px;text-align:center;">출근</th>
-              <th style="width:80px;text-align:center;">퇴근</th>
-              <th style="width:80px;text-align:center;">근무시간</th>
-              <th style="text-align:center;">휴게시간1</th>
-              <th style="text-align:center;">휴게시간2</th>
-              <th style="width:80px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map(s => `
-              <tr data-empi-shift-pick-row="${esc(s.code)}" style="cursor:pointer;">
-                <td style="text-align:center;font-weight:var(--fw-bold);color:var(--color-brand-primary);">${esc(s.code)}</td>
-                <td style="text-align:center;">${esc(s.start)}</td>
-                <td style="text-align:center;">${esc(s.end)}</td>
-                <td style="text-align:center;">${esc(s.workHours || '-')}</td>
-                <td style="text-align:center;">${br1(s)}</td>
-                <td style="text-align:center;">${br2(s)}</td>
-                <td style="text-align:center;">
-                  <button type="button" class="btn btn--xs btn--primary" data-empi-shift-pick-confirm="${esc(s.code)}">선택</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        </div>
-      `;
-    }
-    /* 행/버튼 클릭 위임 — 1회만 바인딩 */
-    if (!host.dataset.bound) {
-      host.dataset.bound = '1';
-      host.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-empi-shift-pick-confirm]')
-                 || e.target.closest('[data-empi-shift-pick-row]');
-        if (!btn) return;
-        const code = btn.dataset.empiShiftPickConfirm || btn.dataset.empiShiftPickRow;
-        const shift = (window.App && App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
-        if (!shift) return;
-        applyShiftPick(shift);
-      });
-    }
-    /* 근로 계약 정보 설정(card-edit, z 1150) 위로. .modal-backdrop--over-oc 의 z-index:1100!important 를
-       이기려면 inline 도 !important 로 지정해야 함. */
-    const sm = document.getElementById('modal-empi-shift-pick');
-    if (sm) sm.style.setProperty('z-index', '1450', 'important');
-    openModal('modal-empi-shift-pick');
-  }
-
-  /* 선택된 근무조를 인사정보카드 편집 모달의 필드에 반영
-     hidden inputs (readCardEditPatch 가 읽음) + 표시 텍스트 + 인라인 오류 클리어.
-     휴게시간 2개일 경우 둘 다 반영. */
-  function applyShiftPick(shift) {
-    const modal = document.getElementById('modal-empi-card-edit');
-    if (!modal || !shift) return;
-    setEmpShiftFields(modal, shift);
-    const pickBtn = modal.querySelector('[data-empi-ce-shift-pick]');
-    if (pickBtn) pickBtn.textContent = '근무조 변경';
-    closeModal('modal-empi-shift-pick');
-    window.toast && window.toast(`${shift.code}조 — 근무·휴게시간 자동 채움`, 'success');
   }
 
   /* 폼에서 새 값 읽기 — section 별 patch 객체 생성 */
@@ -10305,7 +10152,13 @@
       _pendingCreate = { row, isOut, empId, joinVal, laborEndForPush, laborIndef };
 
       if (isOut) {
-        commitCreate();   // 도급직 — 근로/임금 계약 없음 → 즉시 등록
+        /* 도급직 — 근로/임금 계약 없음. 계약 미리보기 없이 인사정보 등록 안내 문자(SMS) 발송 후 확정. */
+        const newRow = _pendingCreate && _pendingCreate.row;
+        if (!newRow) { commitCreate(); return; }   // 폴백 — 대상 없으면 즉시 확정
+        openSmsModal([newRow], {
+          onSend: () => commitCreate(),   // 문자 발송 완료 → 등록 확정
+          /* onCancel 없음 — 취소 시 등록 상세 화면에 그대로 머무름(미확정) */
+        });
       } else {
         openContractPreview();   // 근로계약서·임금계약서 미리보기 → [서명 요청 발송] 로 확정
       }
@@ -10384,7 +10237,20 @@
       const tab = e.target.closest('[data-empi-ctrpv-tab]');
       if (tab) { setContractPreviewTab(tab.dataset.empiCtrpvTab); return; }
       if (e.target.closest('[data-empi-ctrpv-close]') || e.target === modal) { closeModal('modal-empi-ctr-preview'); return; }
-      if (e.target.closest('[data-empi-ctrpv-send]')) { commitCreate(); closeModal('modal-empi-ctr-preview'); return; }
+      if (e.target.closest('[data-empi-ctrpv-send]')) {
+        /* 아직 등록/계약 발송을 확정하지 않는다 — 인사정보 등록 안내 문자(SMS)까지 보내야 최종 확정.
+           신규 직원 행을 대상으로 SMS 발송 모달을 띄운다. */
+        const newRow = _pendingCreate && _pendingCreate.row;
+        if (!newRow) { commitCreate(); closeModal('modal-empi-ctr-preview'); return; }   // 폴백 — 대상 없으면 즉시 확정
+        closeModal('modal-empi-ctr-preview');
+        openSmsModal([newRow], {
+          /* 문자 발송 완료 → 등록 + 근로·임금 계약 서명 요청 확정 */
+          onSend:   () => commitCreate(),
+          /* 취소 → 아무것도 확정하지 않고 직전 계약 미리보기로 복귀 */
+          onCancel: () => openContractPreview(),
+        });
+        return;
+      }
     });
   }
   function setContractPreviewTab(kind) {
@@ -10443,7 +10309,7 @@
     renderTable();
     closeCreateDetail();
     window.toast && window.toast(
-      isOut ? `등록 완료 — 사번 ${empId}` : `등록 완료 — 사번 ${empId} · 근로·임금 계약서 서명 요청 발송`,
+      isOut ? `등록 완료 — 사번 ${empId} · 인사정보 등록 안내 문자 발송` : `등록 완료 — 사번 ${empId} · 근로·임금 계약서 서명 요청 및 인사정보 등록 안내 문자 발송`,
       'success');
   }
 
@@ -10725,9 +10591,6 @@
       font-size: var(--fs-sm);
     ">${esc(msg)}</div>`;
   }
-  /* 후방호환 — 기존 infoEmpty 호출처 */
-  function infoEmpty() { return emptyBox(); }
-
   /* read 모드 셀 값 — 빈 값은 muted '-' */
   function readVal(v) {
     if (v === '' || v == null) return `<span style="color:var(--color-text-muted);">-</span>`;
@@ -10795,319 +10658,6 @@
       <label class="form-label">${esc(label)}</label>
       <input class="input input--full" type="${type}" data-empi-field="${esc(name)}" value="${esc(v)}" />
     </div>`;
-  }
-
-  /* 공개정보 신상사항 — read/edit 통합 (.fm-tbl--compact 구조 유지)
-   *   editing 일 때 각 셀의 .fm-tbl__value 안에 input/select 가 직접 들어감 */
-  function renderPublicGrid(emp, editing) {
-    const empTypeText = empTypeLabel(emp).replace(/<[^>]+>/g, '');
-    const genderText = emp.gender === 'M' ? '남' : (emp.gender === 'F' ? '여' : '');
-    /* e(편집옵션) — editing 모드일 때만 활성, 아니면 read */
-    const e = (opts) => editing ? opts : null;
-    /* 아이디 — 본인이 설정하는 값이라 HR 수정 불가, 아이디설정완료 이상에서만 표시 */
-    const idRow = emp.userId ? fmRowOf([fmCell('아이디', emp.userId)]) : '';
-    /* 수습 — 정규직 한정 (계약직/일용직에는 해당 없음) */
-    const probRow = emp.empType === 'regular'
-      ? fmRowOf([fmCell('수습', renderProbationValue(emp))])
-      : '';
-
-    /* select 옵션 — 고용 형태/성별은 코드↔라벨 매핑이므로 {value,label} 객체 배열 */
-    const empTypeOptions = Object.keys(EMP_TYPE_LABEL).map(k => ({ value: k, label: EMP_TYPE_LABEL[k] }));
-    const genderOptions  = [{ value: 'M', label: '남' }, { value: 'F', label: '여' }];
-
-    /* 사번(시스템 식별자)·아이디(본인 설정) 외 신상사항 전 필드는 인사담당자 수정 가능.
-     *   부서/직무/직위/직책/고용 형태(CRITICAL_FIELDS)는 저장 시 승인 모달로 라우팅(인사팀장 결재). */
-
-    /* 성명(한글) — 편집 시 성/이름 분리 입력. 좁은 Drawer 폭을 고려해 전용 행으로 분리. */
-    const nameBlock = editing
-      ? fmRowOf([fmCell('사번', emp.id)]) +
-        `<div class="fm-tbl__row fm-tbl__row--1">
-           <div class="fm-tbl__label">성명(한글)</div>
-           <div class="fm-tbl__value" style="padding-top:6px;padding-bottom:6px;">
-             <div style="display:flex;gap:6px;">
-               <input class="input" type="text" data-empi-field="fname" value="${esc(emp.fname || '')}" placeholder="성" style="width:90px;" />
-               <input class="input" type="text" data-empi-field="gname" value="${esc(emp.gname || '')}" placeholder="이름" style="flex:1;" />
-             </div>
-           </div>
-         </div>`
-      : fmRowOf([fmCell('사번', emp.id), fmCell('성명(한글)', displayName(emp))]);
-
-    return `
-      <div class="fm-tbl fm-tbl--compact">
-        ${nameBlock}
-        ${idRow}
-        ${fmRowOf([fmCell('성명(영문)', emp.ename, e({ name:'ename' })), fmCell('성별', editing ? emp.gender : genderText, e({ name:'gender', options: genderOptions }))])}
-        ${fmRowOf([fmCell('생년월일', emp.birth, e({ name:'birth', type:'date' })), fmCell('입사일', emp.joinDate, e({ name:'joinDate', type:'date' }))])}
-        ${fmRowOf([fmCell('부서', emp.dept, e({ name:'dept', options: MASTER.depts.filter(Boolean) })), fmCell('직무', emp.job, e({ name:'job', options: MASTER.jobs.filter(Boolean) }))])}
-        ${fmRowOf([fmCell('직위', emp.rank, e({ name:'rank', options: MASTER.ranks.filter(Boolean) })), fmCell('직책', emp.position, e({ name:'position', options: MASTER.positions.filter(Boolean) }))])}
-        ${fmRowOf([fmCell('고용 형태', editing ? emp.empType : empTypeText, e({ name:'empType', options: empTypeOptions }))])}
-        ${probRow}
-        ${fmRowOf([fmCell('연락처', emp.phone, e({ name:'phone' })), fmCell('E-Mail', emp.email, e({ name:'email', type:'email' }))])}
-        ${fmRowOf([fmCell('사업장', emp.site, e({ name:'site', options: MASTER.sites }))])}
-        ${fmRowOf([fmCell('주소', emp.address || '<span style="color:var(--color-text-muted);">미등록</span>', e({ name:'address' }))])}
-      </div>
-    `;
-  }
-
-  /** 수습 적용 여부 + 기간을 한 셀에 표시 — fmCell 은 '<'로 시작하면 HTML 그대로 사용 */
-  function renderProbationValue(emp) {
-    if (!emp.probation) {
-      return '<span style="color:var(--color-text-muted);">미적용</span>';
-    }
-    const hasPeriod = emp.probationStart && emp.probationEnd;
-    const period = hasPeriod
-      ? ` <span style="color:var(--color-text-muted);font-size:var(--fs-sm);">${esc(emp.probationStart)} ~ ${esc(emp.probationEnd)}</span>`
-      : '';
-    return `<span class="pill pill--success">적용</span>${period}`;
-  }
-
-  function renderPublicPanel(emp) {
-    const canEdit = emp.status !== 'retired';
-    const editing = STATE.drawerEditMode && canEdit;
-    const personalGrid = renderPublicGrid(emp, editing);
-    const done = emp.infoStatus === 'done';
-    const m = done ? personalMock(emp) : null;
-    const confirmedOrRetired = ['completed','contractExpired','retired'].includes(emp.status);
-
-    const careerHTML = (done && m.career.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>회사명</th><th>기간</th><th>최종직위</th><th>담당업무</th></tr></thead>
-        <tbody>
-          ${m.career.map(c => `<tr><td>${esc(c.회사명)}</td><td>${esc(c.기간)}</td><td>${esc(c.최종직위)}</td><td>${esc(c.담당업무)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : infoEmpty();
-
-    const appointHTML = confirmedOrRetired ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>부서명</th><th>기간</th><th>최종직위</th><th>담당업무</th></tr></thead>
-        <tbody><tr><td>${esc(emp.dept || '-')}</td><td>${esc(dispYmd(emp.joinDate))} ~ 현재</td><td>${esc(emp.rank || '-')}</td><td>${esc(emp.job || '-')}</td></tr></tbody>
-      </table>
-    ` : emptyBox('입사 확정 후 데이터가 연동됩니다.');
-
-    const disabilityHTML = done
-      ? `<div class="fm-tbl fm-tbl--compact">${fmRow([['장애여부','해당없음'],['장애등급','-']])}${fmRow([['장애등록번호','-'],['등록일자','-']])}</div>`
-      : emptyBox();
-
-    const linkedEmpty = emptyBox('입사 확정 후 데이터가 연동됩니다.');
-
-    /* 연동 섹션들 — confirmed/retired 에서만 mock 데이터 표시 */
-    /* 경조사 컬럼: 발생일 | 경조내용 | 경조금 | 화환비 | 비고 — 금액 셀은 white-space:nowrap 으로 줄바꿈 방지 */
-    const kyungjoHTML = (confirmedOrRetired && m && m.kyungjo.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:110px;">발생일</th><th>경조내용</th><th style="width:130px;text-align:right;white-space:nowrap;">경조금</th><th style="width:120px;text-align:right;white-space:nowrap;">화환비</th><th>비고</th></tr></thead>
-        <tbody>${m.kyungjo.map(k => `<tr><td>${esc(k.일자)}</td><td>${esc(k.구분)}</td><td style="text-align:right;white-space:nowrap;">${esc(k.지원 || '-')}</td><td style="text-align:right;white-space:nowrap;">${esc(k.화환비 || '-')}</td><td>${esc(k.비고 || '-')}</td></tr>`).join('')}</tbody>
-      </table>
-    ` : (confirmedOrRetired ? emptyBox('등록된 경조 기록이 없습니다.') : linkedEmpty);
-
-    /* 포상 컬럼: 종류 | 통보일 | 사유 | 결과 */
-    const posangHTML = (confirmedOrRetired && m && m.포상.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:120px;">종류</th><th style="width:110px;">통보일</th><th>사유</th><th style="width:140px;">결과</th></tr></thead>
-        <tbody>${m.포상.map(p => `<tr><td>${esc(p.포상명)}</td><td>${esc(p.일자)}</td><td>${esc(p.사유)}</td><td>${esc(p.결과 || p.비고 || '-')}</td></tr>`).join('')}</tbody>
-      </table>
-    ` : (confirmedOrRetired ? emptyBox('등록된 포상 기록이 없습니다.') : linkedEmpty);
-
-    /* 평가 컬럼: 연도 | 점수 | 등급 */
-    const evalHTML = (confirmedOrRetired && m) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:120px;">연도</th><th style="width:120px;text-align:right;">점수</th><th>등급</th></tr></thead>
-        <tbody>${m.eval.map(v => `<tr><td>${esc(v.평가연도)}</td><td style="text-align:right;">${esc(v.점수 || '-')}</td><td><span class="pill pill--soft-blue">${esc(v.등급)}</span></td></tr>`).join('')}</tbody>
-      </table>
-    ` : linkedEmpty;
-
-    /* 근태: 섹션 헤더 우측에 YY/MM select + 귀속연도 YY (한 줄, vertical 가운데, 왼쪽 여백) */
-    const attendYear = (m && m.attend && m.attend.year) || (emp.joinDate || '').slice(0,4) || '2026';
-    const attendActions = (confirmedOrRetired && m) ? `
-      <div style="display:inline-flex;align-items:center;gap:8px;margin-left:12px;">
-        <select class="select select--sm" style="width:120px;flex-shrink:0;">
-          <option>${esc(attendYear)}/01</option><option>${esc(attendYear)}/02</option><option>${esc(attendYear)}/03</option><option>${esc(attendYear)}/04</option><option selected>${esc(attendYear)}/05</option>
-        </select>
-        <small style="color:var(--color-text-muted);font-size:var(--fs-xs);white-space:nowrap;line-height:1;">귀속연도 ${esc(attendYear)}</small>
-      </div>
-    ` : '';
-    const attendHTML = (confirmedOrRetired && m) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:90px;">월별</th><th style="width:120px;text-align:right;">지각(분)</th><th style="width:120px;text-align:right;">조퇴(분)</th><th style="width:120px;text-align:right;">결근(일)</th></tr></thead>
-        <tbody>
-          ${(m.attend.monthly || [
-            { 월: attendYear + '/04', 지각: 0,  조퇴: 0,  결근: 0 },
-            { 월: attendYear + '/05', 지각: 15, 조퇴: 0,  결근: 0 },
-          ]).map(row => `<tr><td>${esc(row.월)}</td><td style="text-align:right;">${esc(row.지각)}</td><td style="text-align:right;">${esc(row.조퇴)}</td><td style="text-align:right;">${esc(row.결근)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : linkedEmpty;
-
-    /* 연차: 해당연도 | 발생일 | 발생연차 | 사용연차 | 최종연차 | 비고 */
-    const leaveHTML = (confirmedOrRetired && m) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:90px;">해당연도</th><th style="width:110px;">발생일</th><th style="width:100px;text-align:right;">발생연차</th><th style="width:100px;text-align:right;">사용연차</th><th style="width:100px;text-align:right;">최종연차</th><th>비고</th></tr></thead>
-        <tbody>
-          ${(m.leave.rows || [
-            { 해당연도: '2025', 발생일: '2025-01-01', 발생: m.leave.총연차, 사용: m.leave.사용, 최종: m.leave.잔여, 비고: '-' },
-          ]).map(row => `<tr><td>${esc(row.해당연도)}</td><td>${esc(row.발생일)}</td><td style="text-align:right;">${esc(row.발생)}일</td><td style="text-align:right;">${esc(row.사용)}일</td><td style="text-align:right;">${esc(row.최종)}일</td><td>${esc(row.비고 || '-')}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : linkedEmpty;
-
-    return `
-      ${infoSection('신상사항', personalGrid)}
-      ${infoSection('경력사항', careerHTML)}
-      ${infoSection('발령사항', appointHTML)}
-      ${infoSection('장애여부', disabilityHTML)}
-      ${infoSection('경조', kyungjoHTML)}
-      ${infoSection('포상·징계', posangHTML)}
-      ${infoSection('평가', evalHTML)}
-      ${infoSection('근태', attendHTML, attendActions ? { actions: attendActions } : null)}
-      ${infoSection('연차', leaveHTML)}
-    `;
-  }
-
-  function renderPrivatePanel(emp) {
-    /* 민감정보 — read-only. 공개정보 탭에 이미 있는 사번/성명/성별은 중복 제거, 주민등록번호만 남김
-     * 정책 (안내 문구는 표시하지 않음): 본 탭은 인사팀원·인사팀장·대표이사만 접근, 주민등록번호 마스킹 표시 */
-    /* 주민등록번호 — 항상 마스킹 (앞 6자리 + 성별 1자리만, 뒷자리 노출 불가) */
-    const ssn = emp.ssn ? (emp.ssn.slice(0, 8) + '●●●●●●') : '';
-    return `
-      ${infoSection('민감정보', `
-        <div class="fm-tbl fm-tbl--compact">
-          ${fmRowOf([fmCell('주민등록번호', ssn)])}
-        </div>
-      `)}
-
-      ${renderPersonalSections(emp)}
-
-      ${renderLinkedSections(emp)}
-    `;
-  }
-
-  /* 연동 섹션들 (비공개 탭) — 임금변동·급상여·퇴직연금·퇴직사항 각각 분리
-   *   confirmed/retired 면 mock 데이터, 아니면 emptyBox */
-  function renderLinkedSections(emp) {
-    const confirmedOrRetired = ['completed','contractExpired','retired'].includes(emp.status);
-    const retired = emp.status === 'retired';
-    const m = confirmedOrRetired ? personalMock(emp) : null;
-    const linkedEmpty = emptyBox('입사 확정 후 데이터가 연동됩니다.');
-
-    const wageHTML = (m && m.wageChange.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>변경일</th><th>항목</th><th>변경 전</th><th>변경 후</th><th>사유</th></tr></thead>
-        <tbody>${m.wageChange.map(w => `<tr><td>${esc(w.변경일)}</td><td>${esc(w.항목)}</td><td style="text-align:right;">${esc(w.변경전)}</td><td style="text-align:right;">${esc(w.변경후)}</td><td>${esc(w.사유)}</td></tr>`).join('')}</tbody>
-      </table>
-    ` : linkedEmpty;
-
-    const payHTML = (m && m.payouts.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>지급월</th><th>기본급</th><th>직무수당</th><th>식대</th><th>상여</th><th>합계</th></tr></thead>
-        <tbody>${m.payouts.map(p => `<tr>
-          <td>${esc(p.지급월)}</td>
-          <td style="text-align:right;">${esc(p.기본급)}</td>
-          <td style="text-align:right;">${esc(p.직무수당)}</td>
-          <td style="text-align:right;">${esc(p.식대)}</td>
-          <td style="text-align:right;">${esc(p.상여)}</td>
-          <td style="text-align:right;font-weight:var(--fw-semibold);">${esc(p.합계)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-    ` : linkedEmpty;
-
-    const pensionHTML = (m && m.pension) ? `
-      <div class="fm-tbl fm-tbl--compact">
-        ${fmRow([['가입일', m.pension.가입일], ['중도정산일', m.pension.중도정산일]])}
-        ${fmRow([['총누계액', m.pension.총누계액 + ' 원'], ['-', '-']])}
-      </div>
-    ` : linkedEmpty;
-
-    const retireHTML = retired
-      ? `<div class="fm-tbl fm-tbl--compact">${fmRow([['퇴직일', m.retire.퇴직일], ['퇴직사유', m.retire.퇴직사유]])}</div>`
-      : emptyBox('퇴직 처리 후 표시됩니다.');
-
-    return `
-      ${infoSection('임금변동', wageHTML)}
-      ${infoSection('급상여',   payHTML)}
-      ${infoSection('퇴직연금', pensionHTML)}
-      ${infoSection('퇴직사항', retireHTML)}
-    `;
-  }
-
-  /* 입사자 작성 6개 섹션 — 신체 / 병역 / 가족 / 학력 / 자격 / 어학
-   *   infoDone 이상이면 mock 채워 표시, 그 이전엔 섹션별 '아직 제출된 정보가 없습니다' */
-  function renderPersonalSections(emp) {
-    const done = emp.infoStatus === 'done';
-    const m = done ? personalMock(emp) : null;
-
-    // 신체사항 (.fm-tbl--compact)
-    const bodyHTML = done ? `
-      <div class="fm-tbl fm-tbl--compact">
-        ${fmRow([['신장', m.body.신장], ['체중', m.body.체중]])}
-        ${fmRow([['혈액형', m.body.혈액형], ['시력', m.body.시력]])}
-        ${fmRow([['색맹', m.body.색맹], ['보훈여부', m.body.보훈여부]])}
-      </div>
-    ` : infoEmpty();
-
-    // 병역사항 (.fm-tbl--compact)
-    const militaryHTML = done ? `
-      <div class="fm-tbl fm-tbl--compact">
-        ${fmRow([['병역구분', m.military.병역구분], ['군별', m.military.군별]])}
-        ${fmRow([['계급', m.military.계급], ['병역기간', m.military.병역기간]])}
-      </div>
-    ` : infoEmpty();
-
-    // 가족사항 (.tbl tbl--striped)
-    const familyHTML = (done && m.family.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:80px;">관계</th><th>성명</th><th>생년월일</th><th>직업</th></tr></thead>
-        <tbody>
-          ${m.family.map(f => `<tr><td>${esc(f.관계)}</td><td>${esc(f.성명)}</td><td>${esc(f.생년월일)}</td><td>${esc(f.직업)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : infoEmpty();
-
-    // 학력사항 (.tbl tbl--striped)
-    const eduHTML = (done && m.education.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>학교</th><th>전공</th><th>기간</th><th style="width:80px;">졸업여부</th></tr></thead>
-        <tbody>
-          ${m.education.map(e => `<tr><td>${esc(e.학교)}</td><td>${esc(e.전공)}</td><td>${esc(e.기간)}</td><td>${esc(e.졸업여부)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : infoEmpty();
-
-    // 자격사항 (.tbl tbl--striped)
-    const certsHTML = (done && m.certs.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th>자격증</th><th>발급기관</th><th>취득일</th></tr></thead>
-        <tbody>
-          ${m.certs.map(c => `<tr><td>${esc(c.자격증)}</td><td>${esc(c.발급기관)}</td><td>${esc(c.취득일)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : (done ? emptyBox('등록된 자격이 없습니다.') : emptyBox());
-
-    // 어학사항 (.tbl tbl--striped)
-    const langsHTML = (done && m.langs.length) ? `
-      <table class="tbl tbl--striped">
-        <thead><tr><th style="width:80px;">언어</th><th>시험</th><th>점수</th><th>취득일</th></tr></thead>
-        <tbody>
-          ${m.langs.map(l => `<tr><td>${esc(l.언어)}</td><td>${esc(l.시험)}</td><td>${esc(l.점수)}</td><td>${esc(l.취득일)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    ` : (done ? emptyBox('등록된 어학 정보가 없습니다.') : emptyBox());
-
-    return [
-      infoSection('신체사항', bodyHTML),
-      infoSection('병역사항', militaryHTML),
-      infoSection('가족사항', familyHTML),
-      infoSection('학력사항', eduHTML),
-      infoSection('자격사항', certsHTML),
-      infoSection('어학사항', langsHTML),
-    ].join('');
-  }
-
-  /* OC drawer 의 계약·서류 탭 — 외부 호출 (인사 관리/조직 관리) 케이스. read-only.
-   *   미리보기만 가능, 발송/재발송/작성 액션 없음. */
-  function renderDocsPanel(emp) {
-    /* OC drawer 의 계약·서류 탭 — 외부 호출(인사 관리/입사 서류 관리 등)에서도
-     * 작성/발송/재발송/미리보기 액션이 모두 활성화되도록 readOnly 플래그를 끔. */
-    return renderContractDocsPanel(emp);
   }
 
   /* ============ 이력 패널 — 입사자 관리 detail 전용 (Drawer 미노출) ============
@@ -11489,39 +11039,6 @@
     return renderContractDocsPanel(emp, { section: 'docs' });
   }
 
-  /* host 인자: 입사자 관리 2 의 detail pane body (없으면 Drawer offcanvas body 사용)
-   *   → 같은 패널 마크업을 페이지 전환 / Drawer 양쪽에서 동일 핸들러로 처리 */
-  function bindDrawerEdits(emp, host) {
-    const body = host || $('#oc-empi-card-body');
-    if (!body) return;
-    body.addEventListener('input', (e) => {
-      const el = e.target.closest('[data-empi-field]');
-      if (!el) return;
-      const key = el.dataset.empiField;
-      STATE.drawerPatch[key] = el.value;
-      STATE.drawerDirty = true;
-      const saveBtn = $('[data-empi-drawer-save]');
-      const submitBtn = $('[data-empi-drawer-submit]');
-      if (saveBtn) saveBtn.disabled = false;
-      if (submitBtn) submitBtn.disabled = false;
-    });
-    body.addEventListener('change', (e) => {
-      const el = e.target.closest('[data-empi-field]');
-      if (!el) return;
-      const key = el.dataset.empiField;
-      STATE.drawerPatch[key] = el.value;
-      STATE.drawerDirty = true;
-      const saveBtn = $('[data-empi-drawer-save]');
-      const submitBtn = $('[data-empi-drawer-submit]');
-      if (saveBtn) saveBtn.disabled = false;
-      if (submitBtn) submitBtn.disabled = false;
-    });
-
-    /* 서류·계약 행 액션 click 핸들러는 v2 Drawer 에서도 동일하게 동작해야 하므로
-     *   별도 함수로 분리 + App.HRInfoMgmtCard 로 노출. */
-    bindDocsClicks(emp, body);
-  }
-
   /* 계약·서류 패널 안의 행 단위 액션 click 핸들러 (delegated)
    *   - 서류 [발송] / [재발송] / [미리보기] / [삭제]
    *   - 계약서 [작성·발송] (계약 페이지 editor 이동) / [미리보기] (modal) */
@@ -11695,229 +11212,6 @@
     App.Nav.selectItem('hr-contract', '계약', 'page-hr-contract');
   }
 
-  function bindDrawerFooter(emp) {
-    const editBtn = $('[data-empi-drawer-edit]');
-    const cancelBtn = $('[data-empi-drawer-cancel]');
-    const saveBtn = $('[data-empi-drawer-save]');
-    const submitBtn = $('[data-empi-drawer-submit]');
-
-    if (editBtn) {
-      editBtn.addEventListener('click', () => {
-        STATE.drawerEditMode = true;
-        STATE.drawerDirty = false;
-        STATE.drawerPatch = {};
-        refreshActiveCardView();
-      });
-    }
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        STATE.drawerEditMode = false;
-        STATE.drawerDirty = false;
-        STATE.drawerPatch = {};
-        refreshActiveCardView();
-      });
-    }
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        const { critical, general } = splitCriticalPatch(STATE.drawerPatch);
-        const hasCritical = Object.keys(critical).length > 0;
-        const commitGeneral = () => {
-          commitPatch(emp, general);
-        };
-        const finalizeImmediate = () => {
-          STATE.drawerDirty = false;
-          STATE.drawerPatch = {};
-          STATE.drawerEditMode = false;
-          /* 외부 호출 케이스: 호출 페이지 콜백만 실행 (입사자 관리 그리드는 갱신 안 함) */
-          if (STATE.drawerExternal) {
-            if (STATE.drawerOnSave) STATE.drawerOnSave(emp);
-          } else {
-            applyFilter();
-            renderTable();
-          }
-          refreshActiveCardView();
-        };
-        if (!hasCritical) {
-          commitGeneral();
-          finalizeImmediate();
-          window.toast && window.toast('인사정보 저장 완료', 'success');
-          return;
-        }
-        /* 핵심 5개 변경 — 일반 항목은 즉시 반영, 핵심은 승인 모달로 라우팅 */
-        openApprovalModal(emp, critical,
-          /* onApprove */ () => {
-            commitGeneral();
-            finalizeImmediate();
-            const n = Object.keys(critical).length;
-            window.toast && window.toast(
-              `${n}개 항목 승인 요청 완료 — 인사팀장 결재 후 반영됩니다.`,
-              'info', 4500
-            );
-          },
-          /* onCancel — 편집 모드/패치 유지: 사용자가 다시 [저장] 누를 수 있음 */
-          () => {}
-        );
-      });
-    }
-    if (submitBtn) {
-      submitBtn.addEventListener('click', () => {
-        const totalChanges = Object.keys(STATE.drawerPatch).length;
-        if (!totalChanges) return;
-        const { critical, general } = splitCriticalPatch(STATE.drawerPatch);
-        const hasCritical = Object.keys(critical).length > 0;
-
-        /* 핵심 5개 변경 — 신규 승인 모달 우선 라우팅
-         *   일반 항목은 즉시 반영, 핵심은 승인 모달로. */
-        if (hasCritical) {
-          openApprovalModal(emp, critical,
-            /* onApprove */ () => {
-              commitPatch(emp, general);
-              STATE.drawerPatch = {};
-              STATE.drawerDirty = false;
-              STATE.drawerEditMode = false;
-              if (STATE.drawerExternal) {
-                if (STATE.drawerOnSave) STATE.drawerOnSave(emp);
-              } else {
-                applyFilter();
-                renderTable();
-              }
-              refreshActiveCardView();
-              const n = Object.keys(critical).length;
-              window.toast && window.toast(
-                `${n}개 항목 승인 요청 완료 — 인사팀장 결재 후 반영됩니다.`,
-                'info', 4500
-              );
-            },
-            /* onCancel — 편집 모드/패치 유지 */
-            () => {}
-          );
-          return;
-        }
-
-        /* 일반 항목만 — 기존 [수정 상신] sweet 시뮬레이션 유지 */
-        STATE.drawerEditMode = false;
-        closeAllOC();
-        window.toast && window.toast(
-          `수정 상신 완료 — ${totalChanges}개 항목 · 인사팀장 승인 후 자동 반영됩니다.`,
-          'info', 4500
-        );
-        setTimeout(() => {
-          window.sweet && window.sweet({
-            icon: 'confirm',
-            title: '[데모] 결재 승인 시뮬레이션',
-            text: '실제 환경에서는 인사팀장이 결재 모듈에서 승인합니다. 데모를 위해 즉시 반영하시겠습니까?',
-            cancelText: '대기 유지', confirmText: '즉시 반영',
-            onConfirm: () => {
-              commitPatch(emp, STATE.drawerPatch);
-              STATE.drawerPatch = {};
-              if (STATE.drawerExternal) {
-                if (STATE.drawerOnSave) STATE.drawerOnSave(emp);
-              } else {
-                applyFilter();
-                renderTable();
-              }
-              window.toast && window.toast('수정 반영 완료', 'success');
-            },
-          });
-        }, 800);
-      });
-    }
-  }
-
-  /* ============ 인사정보 변경 승인 요청 모달 ============
-   *   부서·직무·직위·직책·고용 형태 변경 시 인사팀장(부서장) 결재 후 반영.
-   *   [승인 요청] 클릭 시 변경 사항은 보류 — drawerPatch 의 핵심 5키만 폐기,
-   *   일반 항목은 즉시 반영, 토스트로 안내. */
-  const CRITICAL_FIELDS = {
-    dept:     '부서',
-    job:      '직무',
-    rank:     '직위',
-    position: '직책',
-    empType:  '고용 형태',
-  };
-  /* 패치를 emp 에 반영 — 성/이름 수정 시 표시용 통합 name 도 함께 동기화.
-   *   (그리드·헤더 등은 emp.name / displayName 을 사용하므로 fname/gname 만 바꾸면 불일치 발생) */
-  function commitPatch(emp, patch) {
-    Object.keys(patch || {}).forEach(k => { emp[k] = patch[k]; });
-    if (patch && ('fname' in patch || 'gname' in patch)) {
-      emp.name = displayName(emp);
-    }
-  }
-  /* drawerPatch 를 핵심/일반으로 분리 — 객체 두 개 반환 */
-  function splitCriticalPatch(patch) {
-    const critical = {}, general = {};
-    Object.keys(patch || {}).forEach(k => {
-      if (Object.prototype.hasOwnProperty.call(CRITICAL_FIELDS, k)) critical[k] = patch[k];
-      else general[k] = patch[k];
-    });
-    return { critical, general };
-  }
-  /* 항목별 표시값 포맷 — empType 같은 enum 코드는 한글 라벨로 표시 */
-  function formatFieldValue(key, value) {
-    if (value === '' || value == null) return '-';
-    if (key === 'empType') return EMP_TYPE_LABEL[value] || value;
-    return String(value);
-  }
-
-  /* 승인 모달 열기 — emp 대상, criticalPatch 항목으로 비교 테이블 렌더,
-   *   [승인 요청] 시 onApprove 콜백, [취소]/X 시 onCancel 콜백 호출 */
-  function openApprovalModal(emp, criticalPatch, onApprove, onCancel) {
-    const modal = document.getElementById('modal-empi-approval');
-    if (!modal) return;
-    modal.querySelector('[data-empi-approval-target]').textContent =
-      `${displayName(emp)} (${emp.id})`;
-    const rows = Object.keys(criticalPatch).map(k => {
-      const before = formatFieldValue(k, emp[k]);
-      const after  = formatFieldValue(k, criticalPatch[k]);
-      return `<tr>
-        <td>${esc(CRITICAL_FIELDS[k])}</td>
-        <td><span style="color:var(--color-text-muted);">${esc(before)}</span></td>
-        <td><strong>${esc(after)}</strong></td>
-      </tr>`;
-    }).join('');
-    modal.querySelector('[data-empi-approval-changes]').innerHTML = rows;
-    const reasonEl = modal.querySelector('#empi-approval-reason');
-    if (reasonEl) reasonEl.value = '';
-    const submitBtn = modal.querySelector('[data-empi-approval-submit]');
-    if (submitBtn) submitBtn.disabled = true;
-    STATE._approval = { emp, criticalPatch, onApprove, onCancel };
-    openModal('modal-empi-approval');
-  }
-
-  function bindApprovalModal() {
-    const modal = document.getElementById('modal-empi-approval');
-    if (!modal) return;
-    const reasonEl = modal.querySelector('#empi-approval-reason');
-    const submitBtn = modal.querySelector('[data-empi-approval-submit]');
-    /* 사유 입력 필수 — 한 글자라도 있으면 활성화 */
-    if (reasonEl && submitBtn) {
-      reasonEl.addEventListener('input', () => {
-        submitBtn.disabled = !reasonEl.value.trim();
-      });
-    }
-    if (submitBtn) {
-      submitBtn.addEventListener('click', () => {
-        const ctx = STATE._approval; if (!ctx) return;
-        const reason = (reasonEl && reasonEl.value.trim()) || '';
-        if (!reason) return;
-        closeModal('modal-empi-approval');
-        STATE._approval = null;
-        if (typeof ctx.onApprove === 'function') ctx.onApprove(reason);
-      });
-    }
-    /* ✕ / 취소 / 배경 클릭 시 — 모달 닫기 + onCancel 콜백 호출.
-     *   전역 data-modal-close 핸들러가 없으므로 closeModal 로 직접 닫아야 한다. */
-    modal.addEventListener('click', (e) => {
-      const closer = e.target.closest('[data-modal-close]');
-      const backdrop = e.target === modal;
-      if (!closer && !backdrop) return;
-      closeModal('modal-empi-approval');
-      const ctx = STATE._approval;
-      STATE._approval = null;
-      if (ctx && typeof ctx.onCancel === 'function') ctx.onCancel();
-    });
-  }
-
   /* ============ Modal / OffCanvas 공통 ============ */
   function openModal(id) {
     const m = document.getElementById(id);
@@ -11941,7 +11235,7 @@
   }
   function bindModalClose() {
     /* modal-empi-create 는 모달이 아닌 인페이지 상세 화면 → 여기서 제외 (자체 닫기 핸들러 사용) */
-    ['modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit','modal-empi-shift-pick'].forEach(id => {
+    ['modal-empi-mail','modal-empi-contract','modal-empi-doc-preview','modal-empi-card-edit'].forEach(id => {
       const m = document.getElementById(id);
       if (!m) return;
       m.addEventListener('click', (e) => {
@@ -12232,7 +11526,6 @@
         bindMailModal();
         bindContractModal();
         bindDocPreviewModal();
-        bindApprovalModal();
         bindCardModal();          // 신규 인사정보카드 모달
         bindCardEditModal();      // 인사정보카드 — 고용/소속 정보 편집 모달
         bindPayrollTaxModal();    // 인사정보카드 — 세금/원천징수 정보 편집 모달

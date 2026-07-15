@@ -1274,7 +1274,7 @@
               <option value="">선택하세요</option>
               ${typeOpts}
             </select>
-            <button class="btn btn--sm" type="button" data-evr-type-preview ${f.typeKey ? '' : 'disabled'} title="양식 미리보기"
+            <button class="btn btn--sm" type="button" data-evr-type-preview ${f.typeKey ? '' : 'disabled'} title="평가 양식 미리보기"
               style="height:32px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;">
               ${(window.Icons && window.Icons.eye) || ''}<span>미리보기</span>
             </button>
@@ -1482,32 +1482,6 @@
       ${noneChecked && total > 0 ? `<div style="color:var(--color-warning);font-size:var(--fs-xs);margin-top:6px;">최소 1명 이상 선택해야 다음 단계로 이동할 수 있습니다.</div>` : ''}`;
 
     return `<div data-evr-sec="target-list" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--color-divider);">${blockLabel}${tableHTML}</div>`;
-  }
-
-  /* ============ 섹션 3. 평가 정보 (평가유형 미리보기) ============
-   *  테이블 구조: [평가요소(역량) | 평가 양식(미리보기) | 평가 프로세스(chip flow)]
-   *    - 평가요소는 역량 단일, 배점 없음 */
-  /* 평가유형의 평가요소(역량) 행 — 양식 미리보기 + 평가 프로세스 chip flow.
-   *   formPreviewAttr: 양식 미리보기 트리거에 붙일 data-* 속성 문자열 (renderSectionEval / type preview 공용). */
-  function evalElementRowsHTML(type, formPreviewAttr) {
-    const comp = type.competency || { scale: 5, sections: [] };
-    const sections = comp.sections || [];
-    const itemCnt = sections.reduce((s, sec) => s + (sec.items || []).length, 0);
-    const procCell = stageFlowChipsHTML();
-
-    const masterCell = `<button type="button" ${formPreviewAttr}
-               style="background:none;border:0;padding:0;cursor:pointer;text-align:left;display:block;width:100%;"
-               title="역량 양식 미리보기">
-         <div style="font-weight:var(--fw-medium);color:var(--color-brand-primary);text-decoration:underline;text-underline-offset:3px;">역량 양식</div>
-         <div style="margin-top:2px;color:var(--color-text-muted);font-size:var(--fs-xs);">${comp.scale || 5}점 · 분야 ${sections.length} · 항목 ${itemCnt}</div>
-       </button>`;
-
-    return `
-      <tr>
-        <td style="text-align:center;width:80px;color:var(--color-text-sub);font-weight:var(--fw-medium);">역량</td>
-        <td style="width:auto;">${masterCell}</td>
-        <td style="width:auto;">${procCell}</td>
-      </tr>`;
   }
 
   function renderSectionEval(f) {
@@ -1790,12 +1764,12 @@
     /* 기본 정보 입력 → STATE.form 동기화 */
     const f = STATE.form;
 
-    /* 평가유형 미리보기 모달 — Section 3 와 동일 구성 + 등급 구간.
+    /* 평가 양식 미리보기 모달 — 척도 + 문항 구성 (Section 3 미리보기와 동일).
      * 회차 상태와 무관하게 (수정 불가 detail 에서도) 동작. */
     const previewBtn = pageEl.querySelector('[data-evr-type-preview]');
     if (previewBtn) previewBtn.addEventListener('click', () => {
       if (!f.typeKey) return;
-      openTypePreviewModal(f.typeKey);
+      openFormPreviewModal(f.typeKey);
     });
 
     /* Section 3 「평가 정보」 의 평가 양식 셀 클릭 → 역량 양식 미리보기 모달.
@@ -2259,33 +2233,6 @@
   };
   function gradingModeLabel(k) { return GRADING_MODE_LABELS[k] || '-'; }
 
-  function openTypePreviewModal(typeKey) {
-    const type = findEvalType(typeKey);
-    if (!type) return;
-    let modal = document.getElementById('evr-type-preview-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'evr-type-preview-modal';
-      modal.className = 'modal-backdrop';
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeTypePreviewModal(); });
-      document.body.appendChild(modal);
-    }
-    modal.innerHTML = buildTypePreviewModalHTML(type);
-    modal.classList.add('is-open');
-    document.body.style.overflow = 'hidden';
-    modal.querySelectorAll('[data-evr-tpm-close]').forEach(b => b.addEventListener('click', closeTypePreviewModal));
-    /* 평가 양식 셀 클릭 → 역량 양식 미리보기 모달 (이 모달 위에 over-modal 로 표시). */
-    modal.querySelectorAll('[data-evr-tpm-formpreview]').forEach(btn => btn.addEventListener('click', e => {
-      openFormPreviewModal(e.currentTarget.dataset.evrTpmFormpreview, true);
-    }));
-  }
-  function closeTypePreviewModal() {
-    const modal = document.getElementById('evr-type-preview-modal');
-    if (!modal) return;
-    modal.classList.remove('is-open');
-    if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
-  }
-
   /* =========================================================
    *  역량 양식 미리보기 모달 — type.competency 를 read-only 로 표시.
    *   overModal=true 면 평가유형 미리보기 모달 위에 떠야 하므로 over-modal z-index 사용.
@@ -2355,96 +2302,6 @@
         <thead><tr><th style="width:40px;text-align:center;">#</th><th>평가 항목</th></tr></thead>
         <tbody>${sectionsBody || '<tr><td colspan="2" class="t-muted" style="text-align:center;padding:14px;">등록된 분야가 없습니다.</td></tr>'}</tbody>
       </table>
-    `;
-  }
-
-  function buildTypePreviewModalHTML(type) {
-    return `
-      <div class="modal modal--xl">
-        <header class="modal__header">
-          <div class="modal__title">${esc(type.name)} <span style="color:var(--color-text-muted);font-weight:var(--fw-regular);font-size:var(--fs-md);margin-left:8px;">${esc(type.key)}</span></div>
-          <button class="modal__close" type="button" data-evr-tpm-close aria-label="닫기">✕</button>
-        </header>
-        <div class="modal__body">${renderTypePreviewBody(type)}</div>
-        <footer class="modal__footer">
-          <button class="btn" type="button" data-evr-tpm-close>닫기</button>
-        </footer>
-      </div>
-    `;
-  }
-
-  function renderTypePreviewBody(type) {
-    const rows = evalElementRowsHTML(type, `data-evr-tpm-formpreview="${esc(type.key)}"`);
-
-    const hasDirectAssign = listDirectAssignStages(type).length > 0;
-    const directAssignNote = hasDirectAssign
-      ? `<div style="margin-top:8px;color:var(--color-text-muted);font-size:var(--fs-xs);">* 「직접 지정」 단계는 회차 등록 시 「평가자 지정」 섹션에서 대상자별로 지정합니다.</div>`
-      : '';
-
-    const descBlock = type.description
-      ? `<div style="margin-bottom:14px;padding:10px 14px;background:var(--color-surface-alt);border-left:3px solid var(--color-brand-primary);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--fs-sm);color:var(--color-text-sub);">${esc(type.description)}</div>`
-      : '';
-
-    const blockLabel = (text) => `
-      <h4 style="font-size:var(--fs-sm);font-weight:var(--fw-semibold);margin:18px 0 8px;color:var(--color-text-sub);">${esc(text)}</h4>
-    `;
-
-    return `
-      ${descBlock}
-
-      <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form" style="margin-bottom:6px;">
-        <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:110px 1fr;">
-          <div class="fm-tbl__label">결과 유형</div>
-          <div class="fm-tbl__value">${esc(type.resultType)}</div>
-        </div>
-      </div>
-
-      ${blockLabel('평가요소 구성')}
-      <table class="tbl tbl--bordered" style="width:100%;">
-        <thead>
-          <tr>
-            <th style="width:80px;text-align:center;">평가요소</th>
-            <th>평가 양식</th>
-            <th style="width:340px;">평가 프로세스</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-      ${directAssignNote}
-
-      ${blockLabel('등급 산정 기준')}
-      ${renderTypePreviewGrading(type)}
-    `;
-  }
-
-  function renderTypePreviewGrading(type) {
-    const grades = (window.App && App.HREvalConfig && App.HREvalConfig.grades) ? App.HREvalConfig.grades() : [];
-    if (!grades.length) {
-      return `<div style="padding:14px;color:var(--color-text-muted);font-size:var(--fs-sm);background:var(--color-surface-alt);border-radius:var(--radius-md);">등급 산정 기준이 설정되지 않았습니다.</div>`;
-    }
-    const jobCatLabel = (v) => (window.App && App.HREvalConfig && App.HREvalConfig.jobCatLabel) ? App.HREvalConfig.jobCatLabel(v) : v;
-    const groupTables = grades.map(g => {
-      const rows = (g.tiers || []).map(t =>
-        `<tr><td style="font-weight:var(--fw-medium);width:140px;">${esc(t.name)}</td><td>상위 ${Number(t.ratio) || 0}%</td></tr>`
-      ).join('');
-      const cats = (g.condValues || []).map(v => `<span class="pill">${esc(jobCatLabel(v))}</span>`).join(' ');
-      return `
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-            <strong style="font-size:var(--fs-sm);">${esc(g.groupName)}</strong> ${cats}
-          </div>
-          <table class="tbl tbl--bordered" style="width:100%;">
-            <thead><tr><th style="width:140px;">등급명</th><th>비율</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>`;
-    }).join('');
-    return `
-      <div style="display:flex;align-items:center;margin-bottom:8px;">
-        <span class="pill pill--soft-blue" style="margin-right:8px;">상대평가</span>
-        <span style="color:var(--color-text-muted);font-size:var(--fs-xs);">직군 그룹별 상위 비율에 따라 등급이 결정됩니다. (단계·등급 설정 상속)</span>
-      </div>
-      ${groupTables}
     `;
   }
 
@@ -2620,7 +2477,7 @@
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
     modal.querySelectorAll('[data-evr-info-close]').forEach(b => b.addEventListener('click', closeRoundInfoModal));
-    modal.querySelectorAll('[data-evr-type-preview]').forEach(b => b.addEventListener('click', () => { if (f.typeKey) openTypePreviewModal(f.typeKey); }));
+    modal.querySelectorAll('[data-evr-type-preview]').forEach(b => b.addEventListener('click', () => { if (f.typeKey) openFormPreviewModal(f.typeKey, true); }));
     modal.querySelectorAll('[data-evr-form-preview]').forEach(b => b.addEventListener('click', () => openFormPreviewModal(b.dataset.evrFormPreview, true)));
   }
   function closeRoundInfoModal() {

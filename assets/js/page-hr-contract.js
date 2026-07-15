@@ -1510,16 +1510,6 @@ ${wageClauses(v)}
       const jobCatOpts  = '<option value="">선택</option>' + MASTER_JOB_CATS.map(([v,l]) => opt(v,l,EDIT.jobCat || '')).join('');
       const jobOpts     = '<option value="">선택</option>' + MASTER_JOBS.map(j => opt(j,j,EDIT.job || '')).join('');
       const siteOpts    = '<option value="">선택</option>' + MASTER_SITES.map(s => opt(s,s,EDIT.site || '')).join('');
-      /* 휴게시간 표시 — 휴게1 + (있을 시) 휴게2 */
-      const b1 = (EDIT.breakStart && EDIT.breakEnd) ? `${EDIT.breakStart} ~ ${EDIT.breakEnd}` : '';
-      const b2 = (EDIT.breakStart2 && EDIT.breakEnd2) ? `, ${EDIT.breakStart2} ~ ${EDIT.breakEnd2}` : '';
-      const breakDisplay = b1 ? b1 + b2 : '-';
-      const workTimeDisplay = (EDIT.workTimeStart && EDIT.workTimeEnd)
-        ? `${EDIT.workTimeStart} ~ ${EDIT.workTimeEnd}` : '-';
-      const shiftBtnLabel = EDIT.shiftCode ? '근무조 변경' : '근무조 선택';
-      const shiftDisplay = EDIT.shiftCode
-        ? `<span style="color:var(--color-text);">${esc(EDIT.shiftCode)}조${EDIT.workHoursStr ? ` (${esc(EDIT.workHoursStr)})` : ''}</span>`
-        : `<span style="color:var(--color-text-muted);">선택된 근무조 없음</span>`;
       host.innerHTML = `
         <div class="form-field">
           <label class="form-label">근로 유형</label>
@@ -1731,11 +1721,6 @@ ${wageClauses(v)}
         renderEditorView(document.getElementById('modal-ctr-view'));
       });
     });
-    /* 근무조 선택 버튼 — App.AttShifts.list() 마스터 모달 호출 */
-    const shiftPickBtn = pageEl.querySelector('[data-ctr-edit-shift-pick]');
-    if (shiftPickBtn) {
-      shiftPickBtn.addEventListener('click', () => openShiftPickForEditor());
-    }
     /* 임금계약서 필드 — info-mgmt 임금계약 정보 편집 구조와 동일.
        계약 금액 / 임금 유형 / 임금 계약 유형 / OT 파라미터 변경 시 기본급 + (kind 별) 시간외수당 자동 산출. */
     bindField        ('#ctr-edit-base',       'baseSalary');         // user 직접 수정 가능
@@ -1789,86 +1774,6 @@ ${wageClauses(v)}
       window.toast && window.toast('PDF 미리보기 (데모: 미구현)', 'info');
     });
     pageEl.querySelector('[data-ctr-edit-send]').addEventListener('click', onSendForSign);
-  }
-
-  /* 근무조 선택 모달 — 인사정보카드의 modal-empi-shift-pick 재사용.
-     인사정보카드 측 마스터 모달이 자기 자신의 hidden inputs 를 채우는데, 우리는
-     클릭한 shift 객체만 받아 EDIT 에 직접 반영하면 됨. */
-  function openShiftPickForEditor() {
-    const list = (window.App && App.AttShifts && App.AttShifts.list)
-      ? App.AttShifts.list() : [];
-    const host = document.getElementById('empi-shift-pick-list');
-    const modal = document.getElementById('modal-empi-shift-pick');
-    if (!host || !modal) {
-      window.toast && window.toast('근무조 마스터 모달을 불러올 수 없습니다.', 'danger');
-      return;
-    }
-    if (!list.length) {
-      host.innerHTML = `<p style="color:var(--color-text-muted);text-align:center;padding:24px 0;">등록된 근무조가 없습니다.</p>`;
-    } else {
-      const br1 = (s) => (s.breakStart && s.breakEnd) ? `${esc(s.breakStart)}~${esc(s.breakEnd)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      const br2 = (s) => (s.breakStart2 && s.breakEnd2) ? `${esc(s.breakStart2)}~${esc(s.breakEnd2)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      host.innerHTML = `
-        <table class="tbl tbl--hover tbl--striped" style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr>
-              <th style="width:80px;text-align:center;">근무조</th>
-              <th style="width:80px;text-align:center;">출근</th>
-              <th style="width:80px;text-align:center;">퇴근</th>
-              <th style="width:80px;text-align:center;">근무시간</th>
-              <th style="text-align:center;">휴게시간1</th>
-              <th style="text-align:center;">휴게시간2</th>
-              <th style="width:80px;"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map(s => `
-              <tr data-ctr-shift-pick-row="${esc(s.code)}" style="cursor:pointer;">
-                <td style="text-align:center;font-weight:var(--fw-bold);color:var(--color-brand-primary);">${esc(s.code)}</td>
-                <td style="text-align:center;">${esc(s.start)}</td>
-                <td style="text-align:center;">${esc(s.end)}</td>
-                <td style="text-align:center;">${esc(s.workHours || '-')}</td>
-                <td style="text-align:center;">${br1(s)}</td>
-                <td style="text-align:center;">${br2(s)}</td>
-                <td style="text-align:center;"><button type="button" class="btn btn--xs btn--primary" data-ctr-shift-pick-confirm="${esc(s.code)}">선택</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`;
-    }
-    /* 클릭 위임 — 1회만 바인딩 (ctr 컨텍스트 전용 키) */
-    if (!host.dataset.ctrBound) {
-      host.dataset.ctrBound = '1';
-      host.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-ctr-shift-pick-confirm]') || e.target.closest('[data-ctr-shift-pick-row]');
-        if (!btn) return;
-        const code = btn.dataset.ctrShiftPickConfirm || btn.dataset.ctrShiftPickRow;
-        const shift = (window.App && App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
-        if (!shift) return;
-        applyShiftPickToEditor(shift);
-      });
-    }
-    modal.style.setProperty('z-index', '1450', 'important');   /* over-oc !important 를 이기려면 inline important */
-    modal.classList.add('is-open');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function applyShiftPickToEditor(shift) {
-    EDIT.shiftCode    = shift.code;
-    EDIT.shiftLabel   = shift.label || '';
-    EDIT.workHoursStr = shift.workHours || '';
-    EDIT.workTimeStart = shift.start;
-    EDIT.workTimeEnd   = shift.end;
-    EDIT.breakStart    = shift.breakStart  || '';
-    EDIT.breakEnd      = shift.breakEnd    || '';
-    EDIT.breakStart2   = shift.breakStart2 || '';
-    EDIT.breakEnd2     = shift.breakEnd2   || '';
-    /* 모달 닫기 + 편집 화면 재렌더 */
-    const m = document.getElementById('modal-empi-shift-pick');
-    if (m) m.classList.remove('is-open');
-    if (!document.querySelector('.modal-backdrop.is-open')) document.body.style.overflow = '';
-    renderEditorView(document.getElementById('modal-ctr-view'));
-    window.toast && window.toast(`${shift.code}조 — 근무·휴게시간 자동 채움`, 'success');
   }
 
   function bindField(sel, key) {
@@ -2414,7 +2319,6 @@ ${wageClauses(v)}
     single: false,                // true = 개별 작성용 단일 선택 모드 (선택 → 개별 편집기로)
     workDocType: null,            // 단일 모드 근로계약서 하위 종류 필터: 'permanent' | 'fixed' | null
     histOpen: new Set(),          // Phase 2에서 계약 이력 펼친 직원 id
-    currentShiftPickEmpId: null,  // 행 단위 근무조 선택 모달 호출자 추적
   };
 
   /* 개별 작성 — 일괄 작성과 동일한 대상자 선택 테이블을 단일 선택 모드로 사용.
@@ -2492,31 +2396,18 @@ ${wageClauses(v)}
     const isPhase1 = BULK.phase === 1;
     const title    = modal.querySelector('#ctr-bulk-title');
     const phase1El = modal.querySelector('#ctr-bulk-phase1');
-    const phase2El = modal.querySelector('#ctr-bulk-phase2');
-    const nextBtn  = modal.querySelector('[data-ctr-bulk-next]');
-    const backBtn  = modal.querySelector('[data-ctr-bulk-back]');
-    const submit   = modal.querySelector('[data-ctr-bulk-submit]');
     const kwEl     = modal.querySelector('[data-ctr-bulk-phase1-only]');
     if (title)    title.textContent = BULK.single ? '대상 직원 선택'
                                     : (isPhase1 ? '계약서 일괄 작성' : `${BULK.kind} 일괄 작성`);
     if (phase1El) phase1El.style.display = isPhase1 ? 'flex' : 'none';
-    if (phase2El) phase2El.style.display = isPhase1 ? 'none' : 'flex';
-    if (nextBtn)  { nextBtn.style.display  = (isPhase1 && !BULK.single) ? '' : 'none'; nextBtn.textContent = '다음'; }
-    /* 계약 유형 선택 바 — Phase 2(편집)·개별(단일) 모드에서는 숨김 (유형이 이미 결정됨) */
+    /* 계약 유형 선택 바 — 개별(단일) 모드에서는 숨김 (유형이 이미 결정됨) */
     const kindBar = modal.querySelector('[data-ctr-bulk-kindbar]');
     if (kindBar) kindBar.style.display = (isPhase1 && !BULK.single) ? '' : 'none';
-    /* 헤더 카운트(총 N명 · 선택) — Phase 2 에서는 숨김 (선택 인원은 테이블 좌상단에 표시) */
+    /* 헤더 카운트(총 N명 · 선택) */
     const counts = modal.querySelector('[data-ctr-bulk-counts]');
     if (counts) counts.style.display = isPhase1 ? '' : 'none';
-    if (backBtn)  backBtn.style.display  = isPhase1 ? 'none' : '';
-    if (submit)   submit.style.display   = isPhase1 ? 'none' : '';
     if (kwEl)     kwEl.style.display     = isPhase1 ? '' : 'none';
-    if (isPhase1) renderBulkPhase1();
-    else {
-      const editCnt = modal.querySelector('[data-ctr-bulk-edit-count]');
-      if (editCnt) editCnt.textContent = BULK.selectedIds.size;
-      renderBulkPhase2();
-    }
+    renderBulkPhase1();
     if (!modal.classList.contains('is-open')) {
       modal.classList.add('is-open');
       document.body.style.overflow = 'hidden';
@@ -2724,241 +2615,11 @@ ${wageClauses(v)}
     if (cnt) cnt.innerHTML = `<strong>${rows.length}</strong>명`;
     const selSpan = document.querySelector('[data-ctr-bulk-sel]');
     if (selSpan) selSpan.textContent = BULK.selectedIds.size ? ` · 선택 ${BULK.selectedIds.size}명` : '';
-    const nextBtn = document.querySelector('[data-ctr-bulk-next]');
-    if (nextBtn) nextBtn.disabled = BULK.selectedIds.size === 0;
     const allCb = document.querySelector('[data-ctr-bulk-check-all]');
     if (allCb) {
       allCb.style.display = BULK.single ? 'none' : '';   /* 개별(단일) 모드 — 전체 선택 숨김 */
       allCb.checked = !BULK.single && rows.length > 0 && rows.every(r => BULK.selectedIds.has(r.id));
     }
-  }
-
-  /* 인사정보(App.HRInfoMgmt) → bulk draft 생성. 모든 신규 필드 prefill. */
-  function buildBulkDraft(empRow) {
-    const fmt = (n) => (n === '' || n == null) ? '' : Number(n).toLocaleString();
-    let ws = empRow.workSchedule || 'fixed';
-    if (ws === 'schedule') ws = empRow.scheduleType === 'shift' ? 'shift' : 'fixed';
-    const d = {
-      kind: BULK.kind,
-      startDate: '', endDate: '', indefinite: false,
-      /* 근로계약서 */
-      empType: '', contractSubType: '', contractOut: false,
-      jobCat: '', job: '', site: '',
-      workSchedule: 'fixed',
-      shiftCode: '', shiftLabel: '', workHoursStr: '',
-      workTimeStart: '', workTimeEnd: '',
-      breakStart: '', breakEnd: '',
-      breakStart2: '', breakEnd2: '',
-      annualLeavePolicy: '근로기준법 및 취업규칙에 따름',
-      /* 임금계약서 (info-mgmt 임금계약 정보 편집 항목) */
-      wageType: 'annual', contractAmount: '',
-      wageContractKind: 'general',
-      fixedOTHours: '', fixedOTRate: 1.5,
-      baseSalary: '', fixedOTAmount: '', inclusiveOTAmount: '',
-      deductionPolicy: '근로기준법 및 취업규칙에 따름',
-      payDay: 10,
-    };
-    if (BULK.kind === '근로계약서') {
-      d.startDate  = empRow.contractStartDate || empRow.joinDate || '';
-      d.endDate    = empRow.contractEndDate || '';
-      d.indefinite = empRow.empType === 'regular' && !empRow.contractEndDate;
-      d.empType         = empRow.empType         || '';
-      d.contractSubType = empRow.contractSubType || '';
-      d.contractOut     = !!empRow.contractOut;
-      d.jobCat = empRow.jobCat || '';
-      d.job    = empRow.job    || '';
-      d.site   = empRow.site   || '';
-      d.workSchedule  = ws;
-      d.shiftCode     = empRow.shiftCode     || '';
-      d.shiftLabel    = empRow.shiftLabel    || '';
-      d.workTimeStart = empRow.workTimeStart || '';
-      d.workTimeEnd   = empRow.workTimeEnd   || '';
-      d.workHoursStr  = (d.workTimeStart && d.workTimeEnd) ? `${d.workTimeStart} ~ ${d.workTimeEnd}` : '';
-      d.breakStart    = empRow.breakStart    || '';
-      d.breakEnd      = empRow.breakEnd      || '';
-      d.breakStart2   = empRow.breakStart2   || '';
-      d.breakEnd2     = empRow.breakEnd2     || '';
-      d.annualLeavePolicy = empRow.annualLeavePolicy || '근로기준법 및 취업규칙에 따름';
-    } else {
-      d.startDate  = empRow.wageContractStartDate || empRow.contractStartDate || empRow.joinDate || '';
-      d.endDate    = empRow.wageContractEndDate || empRow.contractEndDate || '';
-      d.wageType         = empRow.wageType         || 'annual';
-      d.contractAmount   = empRow.contractAmount   ? fmt(empRow.contractAmount)   : '';
-      d.wageContractKind = empRow.wageContractKind || 'general';
-      d.fixedOTHours     = empRow.fixedOTHours != null && empRow.fixedOTHours !== '' ? empRow.fixedOTHours : '';
-      d.fixedOTRate      = empRow.fixedOTRate  != null && empRow.fixedOTRate  !== '' ? empRow.fixedOTRate  : 1.5;
-      d.baseSalary       = empRow.baseSalary    ? fmt(empRow.baseSalary)    : '';
-      d.fixedOTAmount    = empRow.fixedOTAmount ? fmt(empRow.fixedOTAmount) : '';
-      d.inclusiveOTAmount = empRow.inclusiveOTAmount ? fmt(empRow.inclusiveOTAmount) : '';
-      d.deductionPolicy  = empRow.deductionPolicy || '근로기준법 및 취업규칙에 따름';
-      d.payDay           = empRow.payDay || 10;
-    }
-    return d;
-  }
-
-  /* Phase 2 — 성명 셀: 이름 클릭 시 인사정보카드 열기 (계약 이력은 카드 안에서 확인) */
-  function bulkNameCardLink(empId, name) {
-    return `<a href="javascript:;" data-ctr-bulk-empcard="${esc(empId)}" style="color:var(--color-brand-primary);font-weight:var(--fw-medium);">${esc(name || '-')}</a>`;
-  }
-
-  /* Phase 2: 선택 직원 인라인 편집 테이블 */
-  function renderBulkPhase2() {
-    const tbody = document.getElementById('ctr-bulk-edit-body');
-    const thead = document.getElementById('ctr-bulk-edit-head');
-    if (!tbody) return;
-    /* 헤더 — kind 에 따라 컬럼 구성이 달라짐 */
-    if (thead) {
-      thead.innerHTML = BULK.kind === '임금계약서'
-        ? `<tr>
-            <th style="width:90px;">사번</th>
-            <th style="width:110px;">성명</th>
-            <th style="width:280px;">계약 기간</th>
-            <th style="width:100px;">임금 유형</th>
-            <th style="width:170px;">계약 금액</th>
-            <th style="width:240px;">임금 계약 유형</th>
-            <th style="width:160px;">월 기본급<br><small style="font-weight:var(--fw-regular);color:var(--color-text-muted);">(자동 산출)</small></th>
-            <th style="width:160px;">월 시간외수당<br><small style="font-weight:var(--fw-regular);color:var(--color-text-muted);">(자동 산출)</small></th>
-            <th style="width:170px;">월 고정연장수당</th>
-            <th style="width:200px;">공제 안내</th>
-            <th style="width:120px;">임금 지급일</th>
-          </tr>`
-        : `<tr>
-            <th style="width:90px;">사번</th>
-            <th style="width:110px;">성명</th>
-            <th style="width:280px;">계약 기간</th>
-            <th style="width:110px;">근로 유형</th>
-            <th style="width:100px;">사원 유형</th>
-            <th style="width:120px;">직무</th>
-            <th style="width:130px;">근무지</th>
-            <th style="width:110px;">근무 형태</th>
-            <th style="width:170px;">근무일</th>
-            <th style="width:90px;">휴일</th>
-            <th style="width:160px;">근무시간</th>
-            <th style="width:200px;">휴게시간</th>
-            <th style="width:200px;">연차유급휴가</th>
-          </tr>`;
-    }
-    const targets = Array.from(BULK.selectedIds);
-    const allRows = bulkRowsSource();
-    if (!targets.length) {
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--color-text-muted);padding:24px;">선택된 직원이 없습니다.</td></tr>`;
-      return;
-    }
-    /* 임금계약서 모드 — info-mgmt 임금계약 정보 편집 항목 기준 inline-editable 컬럼.
-       11컬럼: 사번 / 성명 / 계약기간 / 임금유형 / 계약금액 / 임금계약유형(+고정OT 파라미터)
-              / 월 기본급(자동) / 월 시간외수당(자동) / 월 고정연장수당 / 공제안내 / 지급일 */
-    if (BULK.kind === '임금계약서') {
-      const wageTypeOpts = (cur) => MASTER_WAGE_TYPES.map(([v,l]) =>
-        `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('');
-      const wageKindOpts = (cur) => MASTER_WAGE_KINDS.map(([v,l]) =>
-        `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`).join('');
-      tbody.innerHTML = targets.map(empId => {
-        const er = allRows.find(r => r.id === empId) || {};
-        if (!BULK.drafts[empId]) BULK.drafts[empId] = buildBulkDraft(er);
-        const d = BULK.drafts[empId];
-        /* 행 초기 진입 시 자동 산출 1회 (prefill 된 계약금액 기준) */
-        autoCalcBulkWageDraft(d);
-        const isFixedOT  = d.wageContractKind === 'fixedOT';
-        const isInclusive = d.wageContractKind === 'inclusive';
-        const prefix = MASTER_WAGE_AMOUNT_PREFIX[d.wageType || 'annual'] || '연봉';
-        return `
-          <tr data-ctr-bulk-edit-row="${esc(empId)}">
-            <td>${esc(er.id || empId)}</td>
-            <td>${bulkNameCardLink(empId, bulkDisplayName(er))}</td>
-            <td>
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;">
-                <input class="input input--sm" type="date" data-ctr-bulk-f="startDate" value="${esc(d.startDate)}" style="width:128px;" />
-                <span style="color:var(--color-text-muted);">~</span>
-                <input class="input input--sm" type="date" data-ctr-bulk-f="endDate" value="${esc(d.endDate)}" style="width:128px;" />
-              </div>
-            </td>
-            <td><select class="select select--sm" data-ctr-bulk-f="wageType" style="width:100%;">${wageTypeOpts(d.wageType || 'annual')}</select></td>
-            <td>
-              <div style="display:flex;gap:4px;align-items:center;">
-                <span style="font-size:11px;color:var(--color-text-muted);min-width:24px;" data-ctr-bulk-amount-prefix>${esc(prefix)}</span>
-                <input class="input input--sm" type="text" data-ctr-bulk-f="contractAmount" value="${esc(d.contractAmount)}" inputmode="numeric" style="flex:1;min-width:80px;text-align:right;" placeholder="0" />
-                <span style="font-size:11px;color:var(--color-text-muted);">원</span>
-              </div>
-            </td>
-            <td>
-              <select class="select select--sm" data-ctr-bulk-f="wageContractKind" style="width:100%;">${wageKindOpts(d.wageContractKind || 'general')}</select>
-              <div data-ctr-bulk-fot-params style="display:${isFixedOT ? 'flex' : 'none'};gap:6px;align-items:center;margin-top:4px;padding:6px 8px;background:#f8fafc;border:1px solid var(--color-divider);border-radius:4px;flex-wrap:nowrap;">
-                <input class="input input--sm" type="text" inputmode="numeric" data-ctr-bulk-f="fixedOTHours" value="${esc(d.fixedOTHours)}" style="width:64px;text-align:right;flex-shrink:0;" placeholder="0" title="기준 시간(시)" />
-                <span style="font-size:11px;color:var(--color-text-muted);flex-shrink:0;">시간 ×</span>
-                <input class="input input--sm" type="text" inputmode="decimal" data-ctr-bulk-f="fixedOTRate" value="${esc(d.fixedOTRate)}" style="width:56px;text-align:right;flex-shrink:0;" placeholder="1.5" title="지급배율(배)" />
-                <span style="font-size:11px;color:var(--color-text-muted);flex-shrink:0;">배</span>
-              </div>
-            </td>
-            <td>
-              <input class="input input--sm" type="text" data-ctr-bulk-f="baseSalary" data-ctr-bulk-base value="${esc(d.baseSalary)}" inputmode="numeric" style="width:100%;text-align:right;" placeholder="0" />
-            </td>
-            <td>
-              <input class="input input--sm" type="text" data-ctr-bulk-f="fixedOTAmount" data-ctr-bulk-fot value="${esc(d.fixedOTAmount)}" inputmode="numeric" style="width:100%;text-align:right;${isFixedOT ? '' : 'background:var(--color-surface-alt);'}" placeholder="0" ${isFixedOT ? '' : 'disabled title="고정 OT 선택 시 사용"'} />
-            </td>
-            <td>
-              <input class="input input--sm" type="text" data-ctr-bulk-f="inclusiveOTAmount" value="${esc(d.inclusiveOTAmount)}" inputmode="numeric" style="width:100%;text-align:right;${isInclusive ? '' : 'background:var(--color-surface-alt);'}" placeholder="0" ${isInclusive ? '' : 'disabled title="포괄임금 선택 시 사용"'} />
-            </td>
-            <td><input class="input input--sm" type="text" data-ctr-bulk-f="deductionPolicy" value="${esc(d.deductionPolicy)}" style="width:100%;" /></td>
-            <td style="font-size:12px;color:var(--color-text);">매월 ${esc(d.payDay || 10)}일<br><span style="font-size:10px;color:var(--color-text-muted);">시스템 설정</span></td>
-          </tr>`;
-      }).join('');
-      return;
-    }
-    /* 근로계약서 모드 — 13컬럼 inline-editable */
-    const empTypeOpts = '<option value="">선택</option>' + MASTER_EMP_TYPES.map(([v,l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
-    const jobCatOpts  = '<option value="">선택</option>' + MASTER_JOB_CATS.map(([v,l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
-    const jobOpts     = '<option value="">선택</option>' + MASTER_JOBS.map(j => `<option value="${esc(j)}">${esc(j)}</option>`).join('');
-    const siteOpts    = '<option value="">선택</option>' + MASTER_SITES.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-    const wschOpts = `<option value="fixed">고정</option><option value="shift">교대</option>`;
-    const selOpt = (html, val) => html.replace(`value="${esc(val)}"`, `value="${esc(val)}" selected`);
-    tbody.innerHTML = targets.map(empId => {
-      const er = allRows.find(r => r.id === empId) || {};
-      if (!BULK.drafts[empId]) BULK.drafts[empId] = buildBulkDraft(er);
-      const d = BULK.drafts[empId];
-      const isFixed = d.workSchedule === 'fixed';
-      const isShift = d.workSchedule === 'shift';
-      const breakDisp = (() => {
-        const b1 = (d.breakStart && d.breakEnd) ? `${d.breakStart} ~ ${d.breakEnd}` : '';
-        const b2 = (d.breakStart2 && d.breakEnd2) ? `, ${d.breakStart2} ~ ${d.breakEnd2}` : '';
-        return b1 ? b1 + b2 : '-';
-      })();
-      const workTimeDisp = (d.workTimeStart && d.workTimeEnd) ? `${d.workTimeStart} ~ ${d.workTimeEnd}` : '-';
-      return `
-        <tr data-ctr-bulk-edit-row="${esc(empId)}">
-          <td>${esc(er.id || empId)}</td>
-          <td>${bulkNameCardLink(empId, bulkDisplayName(er))}</td>
-          <td>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;">
-              <input class="input input--sm" type="date" data-ctr-bulk-f="startDate" value="${esc(d.startDate)}" style="width:128px;" />
-              <span style="color:var(--color-text-muted);">~</span>
-              <input class="input input--sm" type="date" data-ctr-bulk-f="endDate" value="${esc(d.endDate)}" style="width:128px;" />
-            </div>
-          </td>
-          <td><select class="select select--sm" data-ctr-bulk-f="empType" style="width:100%;">${selOpt(empTypeOpts, d.empType || '')}</select></td>
-          <td><select class="select select--sm" data-ctr-bulk-f="jobCat"  style="width:100%;">${selOpt(jobCatOpts,  d.jobCat  || '')}</select></td>
-          <td><select class="select select--sm" data-ctr-bulk-f="job"     style="width:100%;">${selOpt(jobOpts,     d.job     || '')}</select></td>
-          <td><select class="select select--sm" data-ctr-bulk-f="site"    style="width:100%;">${selOpt(siteOpts,    d.site    || '')}</select></td>
-          <td><select class="select select--sm" data-ctr-bulk-f="workSchedule" style="width:100%;">${selOpt(wschOpts, d.workSchedule || 'fixed')}</select></td>
-          <td>
-            <div style="display:flex;flex-direction:column;gap:2px;">
-              <span style="font-size:12px;">월 ~ 금</span>
-              <button type="button" class="btn btn--xs" data-ctr-bulk-shift-pick="${esc(empId)}" style="display:${isFixed ? 'inline-flex' : 'none'};">
-                ${d.shiftCode ? `${esc(d.shiftCode)}조 변경` : '근무조 선택'}
-              </button>
-            </div>
-          </td>
-          <td style="text-align:center;font-size:12px;">토, 일</td>
-          <td style="font-size:12px;">
-            <span data-ctr-bulk-worktime style="display:${isFixed ? 'inline' : 'none'};">${esc(workTimeDisp)}</span>
-            <span data-ctr-bulk-worktime-shift style="display:${isShift ? 'inline' : 'none'};color:var(--color-text-muted);">교대 근무표에 따름</span>
-          </td>
-          <td style="font-size:12px;">
-            <span data-ctr-bulk-breaktime style="display:${isFixed ? 'inline' : 'none'};">${esc(breakDisp)}</span>
-            <span data-ctr-bulk-breaktime-shift style="display:${isShift ? 'inline' : 'none'};color:var(--color-text-muted);">교대 근무표에 따름</span>
-          </td>
-          <td><input class="input input--sm" type="text" data-ctr-bulk-f="annualLeavePolicy" value="${esc(d.annualLeavePolicy)}" style="width:100%;" /></td>
-        </tr>`;
-    }).join('');
   }
 
   function bindBulkModal() {
@@ -3032,8 +2693,6 @@ ${wageClauses(v)}
       tr.classList.toggle('is-selected', cb.checked);
       const selSpan = document.querySelector('[data-ctr-bulk-sel]');
       if (selSpan) selSpan.textContent = BULK.selectedIds.size ? ` · 선택 ${BULK.selectedIds.size}명` : '';
-      const nextBtn = document.querySelector('[data-ctr-bulk-next]');
-      if (nextBtn) nextBtn.disabled = BULK.selectedIds.size === 0;
     });
     /* Phase 1 행 — 근로계약서 종류 셀의 [미리보기] (기존 서명 계약 미리보기) */
     modal.querySelector('#ctr-bulk-body').addEventListener('click', (e) => {
@@ -3057,310 +2716,6 @@ ${wageClauses(v)}
       });
       renderBulkPhase1();
     });
-    /* Phase 전환 버튼 */
-    modal.querySelector('[data-ctr-bulk-next]').addEventListener('click', () => {
-      if (!BULK.selectedIds.size) return;
-      if (BULK.single) { confirmBulkSingle(); return; }
-      BULK.phase = 2;
-      applyBulkPhase();
-    });
-    modal.querySelector('[data-ctr-bulk-back]').addEventListener('click', () => {
-      BULK.phase = 1;
-      applyBulkPhase();
-    });
-    modal.querySelector('[data-ctr-bulk-submit]').addEventListener('click', doBulkCreate);
-    /* Phase 2 — 행 내 input/select 변경 사항 BULK.drafts 에 즉시 저장 */
-    modal.querySelector('#ctr-bulk-edit-body').addEventListener('input',  handleBulkEditChange);
-    modal.querySelector('#ctr-bulk-edit-body').addEventListener('change', handleBulkEditChange);
-    modal.querySelector('#ctr-bulk-edit-body').addEventListener('click', (e) => {
-      /* 성명 클릭 → 인사정보카드 (계약 이력은 카드 안에서 확인) */
-      const cardLink = e.target.closest('[data-ctr-bulk-empcard]');
-      if (cardLink) {
-        const id = cardLink.dataset.ctrBulkEmpcard;
-        const emp = (window.App && App.HRInfoMgmt && App.HRInfoMgmt.list)
-          ? App.HRInfoMgmt.list().find(r => r.id === id) : null;
-        if (emp && App.HRInfoCard && typeof App.HRInfoCard.open === 'function') {
-          App.HRInfoCard.open(emp);
-          /* 일괄 작성 모달(1000) 위에 카드가 보이도록 z-index 상향. 카드 내부 미리보기(1200)보다는 낮게. */
-          const cm = document.getElementById('modal-empi-card');
-          if (cm) cm.style.zIndex = '1100';
-        }
-        return;
-      }
-      const btn = e.target.closest('[data-ctr-bulk-shift-pick]');
-      if (!btn) return;
-      BULK.currentShiftPickEmpId = btn.dataset.ctrBulkShiftPick;
-      openShiftPickForBulkRow();
-    });
-  }
-
-  function handleBulkEditChange(e) {
-    const tr = e.target.closest('[data-ctr-bulk-edit-row]');
-    if (!tr) return;
-    const empId = tr.dataset.ctrBulkEditRow;
-    const d = BULK.drafts[empId]; if (!d) return;
-    const target = e.target.closest('[data-ctr-bulk-f]');
-    if (!target) return;
-    const field = target.dataset.ctrBulkF;
-    /* 금액 필드는 콤마 자동 포맷 — input value 와 캐럿 위치까지 동기화 */
-    const MONEY_FIELDS = ['contractAmount','baseSalary','fixedOTAmount','inclusiveOTAmount'];
-    if (MONEY_FIELDS.indexOf(field) >= 0 && target.tagName === 'INPUT') {
-      const raw = String(target.value || '').replace(/[^\d]/g, '');
-      const formatted = raw ? Number(raw).toLocaleString() : '';
-      if (target.value !== formatted) {
-        /* 캐럿 위치 유지 — 콤마 삽입 후 우측 길이 차이만큼 보정 */
-        const caret = target.selectionStart || formatted.length;
-        const diff  = formatted.length - target.value.length;
-        target.value = formatted;
-        try { target.setSelectionRange(caret + diff, caret + diff); } catch (_) {}
-      }
-      d[field] = formatted;
-    } else {
-      d[field] = target.value;
-    }
-    /* 근로계약서 — 근무 형태 변경 시 근무시간/휴게시간 셀 토글 + 교대 전환 시 근무조 값 클리어 */
-    if (field === 'workSchedule') {
-      if (d.workSchedule === 'shift') {
-        d.shiftCode = ''; d.shiftLabel = ''; d.workHoursStr = '';
-        d.workTimeStart = ''; d.workTimeEnd = '';
-        d.breakStart = ''; d.breakEnd = '';
-        d.breakStart2 = ''; d.breakEnd2 = '';
-      }
-      renderBulkPhase2();
-      return;
-    }
-    /* 임금계약서 자동 산출 — 계약금액/임금유형/OT 파라미터 입력 시 기본급+시간외수당 갱신.
-       임금계약유형 변경 시는 행 전체 재렌더 (fixedOT params / disabled 토글 필요). */
-    if (BULK.kind === '임금계약서') {
-      if (field === 'wageContractKind') {
-        renderBulkPhase2();
-        return;
-      }
-      if (['contractAmount','wageType','fixedOTHours','fixedOTRate'].indexOf(field) >= 0) {
-        autoCalcBulkWageDraft(d);
-        /* 행 안의 base/fot 표시값 동기화 (전체 재렌더 없이 입력 focus 유지) */
-        const baseEl = tr.querySelector('[data-ctr-bulk-base]');
-        if (baseEl && document.activeElement !== baseEl) baseEl.value = d.baseSalary || '';
-        const fotEl = tr.querySelector('[data-ctr-bulk-fot]');
-        if (fotEl && document.activeElement !== fotEl) fotEl.value = d.fixedOTAmount || '';
-        /* 임금 유형 변경 시 prefix(연봉/월급) 텍스트도 갱신 */
-        if (field === 'wageType') {
-          const px = tr.querySelector('[data-ctr-bulk-amount-prefix]');
-          if (px) px.textContent = MASTER_WAGE_AMOUNT_PREFIX[d.wageType] || '연봉';
-        }
-      }
-    }
-  }
-
-  /* 임금계약서 bulk row 자동 산출 — info-mgmt / 개별 작성 editor 와 동일 산식.
-       M = wageType==='annual' ? amount/12 : amount
-       H = 209, W = (fixedOT) hours×rate / (그 외) 0
-       baseAuto = M × H / (H + W),  fixedOTAuto = M × W / (H + W) */
-  function autoCalcBulkWageDraft(d) {
-    if (!d || d.kind !== '임금계약서') return;
-    const wt = d.wageType || 'annual';
-    const kind = d.wageContractKind || 'general';
-    const amount = Number(String(d.contractAmount || '').replace(/[^0-9.-]/g, '')) || 0;
-    if (!amount) return;
-    const M = wt === 'annual' ? (amount / 12) : amount;
-    const H = 209;
-    let W = 0;
-    if (kind === 'fixedOT') {
-      const h = Number(d.fixedOTHours || 0);
-      const r = Number(d.fixedOTRate  || 1.5);
-      W = h * r;
-    }
-    const denom = H + W;
-    const baseAuto = denom > 0 ? Math.round(M * H / denom) : Math.round(M);
-    const otAuto   = denom > 0 ? Math.round(M * W / denom) : 0;
-    d.baseSalary = baseAuto ? baseAuto.toLocaleString() : '';
-    if (kind === 'fixedOT') {
-      d.fixedOTAmount = otAuto ? otAuto.toLocaleString() : '';
-    }
-  }
-
-  /* 행 단위 근무조 선택 — modal-empi-shift-pick 재사용 (ctr 컨텍스트 키).
-     현재 선택 행은 BULK.currentShiftPickEmpId 로 추적. */
-  function openShiftPickForBulkRow() {
-    const list = (window.App && App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : [];
-    const host = document.getElementById('empi-shift-pick-list');
-    const modal = document.getElementById('modal-empi-shift-pick');
-    if (!host || !modal) {
-      window.toast && window.toast('근무조 마스터 모달을 불러올 수 없습니다.', 'danger');
-      return;
-    }
-    if (!list.length) {
-      host.innerHTML = `<p style="color:var(--color-text-muted);text-align:center;padding:24px 0;">등록된 근무조가 없습니다.</p>`;
-    } else {
-      const br1 = (s) => (s.breakStart && s.breakEnd) ? `${esc(s.breakStart)}~${esc(s.breakEnd)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      const br2 = (s) => (s.breakStart2 && s.breakEnd2) ? `${esc(s.breakStart2)}~${esc(s.breakEnd2)}` : '<span style="color:var(--color-text-muted);">-</span>';
-      host.innerHTML = `
-        <table class="tbl tbl--hover tbl--striped" style="width:100%;border-collapse:collapse;">
-          <thead><tr>
-            <th style="width:80px;text-align:center;">근무조</th>
-            <th style="width:80px;text-align:center;">출근</th>
-            <th style="width:80px;text-align:center;">퇴근</th>
-            <th style="width:80px;text-align:center;">근무시간</th>
-            <th style="text-align:center;">휴게시간1</th>
-            <th style="text-align:center;">휴게시간2</th>
-            <th style="width:80px;"></th>
-          </tr></thead>
-          <tbody>
-            ${list.map(s => `
-              <tr data-ctr-shift-pick-row="${esc(s.code)}" style="cursor:pointer;">
-                <td style="text-align:center;font-weight:var(--fw-bold);color:var(--color-brand-primary);">${esc(s.code)}</td>
-                <td style="text-align:center;">${esc(s.start)}</td>
-                <td style="text-align:center;">${esc(s.end)}</td>
-                <td style="text-align:center;">${esc(s.workHours || '-')}</td>
-                <td style="text-align:center;">${br1(s)}</td>
-                <td style="text-align:center;">${br2(s)}</td>
-                <td style="text-align:center;"><button type="button" class="btn btn--xs btn--primary" data-ctr-shift-pick-confirm="${esc(s.code)}">선택</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`;
-    }
-    /* 클릭 위임 — ctr 키. bulk 컨텍스트에서 호출됐을 때 applyShiftPickToBulkRow 로 분기 */
-    if (!host.dataset.ctrBound) {
-      host.dataset.ctrBound = '1';
-      host.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-ctr-shift-pick-confirm]') || e.target.closest('[data-ctr-shift-pick-row]');
-        if (!btn) return;
-        const code = btn.dataset.ctrShiftPickConfirm || btn.dataset.ctrShiftPickRow;
-        const shift = (window.App && App.AttShifts && App.AttShifts.get) ? App.AttShifts.get(code) : null;
-        if (!shift) return;
-        if (BULK.currentShiftPickEmpId) applyShiftPickToBulkRow(shift);
-        else                            applyShiftPickToEditor(shift);
-      });
-    }
-    modal.style.setProperty('z-index', '1450', 'important');   /* over-oc !important 를 이기려면 inline important */
-    modal.classList.add('is-open');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function applyShiftPickToBulkRow(shift) {
-    const empId = BULK.currentShiftPickEmpId;
-    if (!empId) return;
-    const d = BULK.drafts[empId]; if (!d) return;
-    d.shiftCode    = shift.code;
-    d.shiftLabel   = shift.label || '';
-    d.workHoursStr = shift.workHours || '';
-    d.workTimeStart = shift.start;
-    d.workTimeEnd   = shift.end;
-    d.breakStart    = shift.breakStart  || '';
-    d.breakEnd      = shift.breakEnd    || '';
-    d.breakStart2   = shift.breakStart2 || '';
-    d.breakEnd2     = shift.breakEnd2   || '';
-    BULK.currentShiftPickEmpId = null;
-    const m = document.getElementById('modal-empi-shift-pick');
-    if (m) m.classList.remove('is-open');
-    renderBulkPhase2();
-    window.toast && window.toast(`${shift.code}조 — 근무·휴게시간 자동 채움`, 'success');
-  }
-
-  /* [선택 직원 일괄 발송] — Phase 2 BULK.drafts 기반 일괄 행 생성 + 인사정보카드 sync */
-  function doBulkCreate() {
-    if (!BULK.selectedIds.size) return;
-    const targets = Array.from(BULK.selectedIds);
-    const cnt = targets.length;
-    if (!window.sweet) return doBulkCreateApply(targets);
-    window.sweet({
-      icon: 'confirm',
-      title: '일괄 발송',
-      text: `선택한 ${cnt}명에게 ${BULK.kind} 서명 요청 이메일을 발송합니다.\n발송 후에는 계약 내용을 수정할 수 없습니다.`,
-      cancelText: '취소', confirmText: `${cnt}명에게 발송`,
-      onConfirm: () => doBulkCreateApply(targets),
-    });
-  }
-  function doBulkCreateApply(targets) {
-    const today = todayStr();
-    let createdCount = 0;
-    const allRows = bulkRowsSource();
-    targets.forEach((empId, idx) => {
-      const empRow = allRows.find(r => r.id === empId);
-      if (!empRow) return;
-      const d = BULK.drafts[empId] || buildBulkDraft(empRow);
-      const isIndef = d.kind === '근로계약서' && d.indefinite;
-      if (!d.startDate || (!isIndef && !d.endDate)) {
-        window.toast && window.toast(`${bulkDisplayName(empRow)} — 시작/종료일 누락 (건너뜀)`, 'warning');
-        return;
-      }
-      /* 근로유형 라벨 + sub 표기 */
-      const empTypeStr = (() => {
-        if (!d.empType) return ({ regular:'정규직', contract:'계약직', daily:'일용직', outsourced:'도급직' })[empRow.empType] || '';
-        const base = EMP_TYPE_LABEL[d.empType] || '정규직';
-        return d.empType === 'contract' && d.contractSubType && CONTRACT_SUB_LABEL[d.contractSubType]
-          ? `${base} (${CONTRACT_SUB_LABEL[d.contractSubType]})` : base;
-      })();
-      const b1 = (d.breakStart && d.breakEnd) ? `${d.breakStart} ~ ${d.breakEnd}` : '';
-      const b2 = (d.breakStart2 && d.breakEnd2) ? `, ${d.breakStart2} ~ ${d.breakEnd2}` : '';
-      const workTimeDisp = (d.workTimeStart && d.workTimeEnd) ? `${d.workTimeStart} ~ ${d.workTimeEnd}` : '';
-      const v = {
-        회사명: COMPANY, 직원명: bulkDisplayName(empRow), 사번: empRow.id,
-        부서: empRow.dept || '', 직무: d.job || empRow.job || '', 직위: empRow.rank || '',
-        직책: empRow.position || '',
-        고용구분: empTypeStr,
-        소속형태: (d.contractOut || empRow.contractOut) ? '도급' : '-',
-        직군:    ({ office:'사무직', production:'생산직', research:'연구직' })[d.jobCat || empRow.jobCat] || '',
-        시작일: d.startDate, 종료일: isIndef ? '' : d.endDate,
-        무기: isIndef,
-        근무지: d.site || empRow.site || '성수동',
-        근무형태: d.workSchedule === 'shift' ? '교대' : '고정',
-        근무일: '월 ~ 금', 휴일: '토, 일',
-        근무시간: workTimeDisp, 휴게시간: b1 + b2,
-        소정근로시간: '1일 8시간 · 1주 40시간 · 월 209시간',
-        연차유급휴가: d.annualLeavePolicy || '근로기준법 및 취업규칙에 따름',
-        shiftCode: d.shiftCode || '',
-        /* 임금계약서 (info-mgmt 임금계약 정보 항목) */
-        임금유형: MASTER_WAGE_AMOUNT_PREFIX[d.wageType] || '연봉',
-        wageTypeKey: d.wageType || 'annual',
-        계약금액: d.contractAmount,
-        임금계약유형: ({ general:'일반', fixedOT:'고정 OT', inclusive:'포괄임금' })[d.wageContractKind] || '일반',
-        wageContractKindKey: d.wageContractKind || 'general',
-        fixedOTHours: d.fixedOTHours, fixedOTRate: d.fixedOTRate,
-        월기본급: d.baseSalary,
-        월시간외수당: d.fixedOTAmount,
-        월고정연장근무수당: d.inclusiveOTAmount,
-        공제안내: d.deductionPolicy || '근로기준법 및 취업규칙에 따름',
-        지급일: `매월 ${d.payDay || 10}일`,
-        작성일: today,
-      };
-      const body = TEMPLATES[d.kind](v);
-      const stamp = nowStamp();
-      const salaryBlock = d.kind === '임금계약서' ? {
-        base: d.baseSalary || '',
-        contractAmount: d.contractAmount || '',
-        wageType: d.wageType || '',
-        wageContractKind: d.wageContractKind || '',
-        fixedOTAmount: d.fixedOTAmount || '',
-        inclusiveOTAmount: d.inclusiveOTAmount || '',
-        payday: `매월 ${d.payDay || 10}일`,
-      } : { base: '', allowance: '', meal: '', payday: '' };
-      const row = {
-        id: makeContractId(empRow.id, today),
-        kind: d.kind, mode: 'bulk',
-        empId: empRow.id, empName: bulkDisplayName(empRow), empDept: empRow.dept || '',
-        startDate: d.startDate, endDate: isIndef ? '' : d.endDate,
-        indefinite: isIndef,
-        status: 'signing', body,
-        history: [
-          { at: stamp, title: '계약서 작성', desc: `HR 담당자 ${HR_NAME}`, kind: '' },
-          { at: stamp, title: '서명 요청 발송', desc: '이메일 발송 (HR ' + HR_NAME + ')', kind: '' },
-        ],
-        createdAt: today,
-        registeredBy: HR_NAME,
-        sentBy: HR_NAME, sentAt: stamp,
-        gapSignedAt: stamp,
-        salary: salaryBlock,
-      };
-      STATE.rows.unshift(row);
-      createdCount++;
-      syncToInfoMgmt(empRow.id, d, isIndef);
-    });
-    closeAllModals();
-    applyFilter();
-    renderTable();
-    window.toast && window.toast(`${createdCount}건의 ${BULK.kind} 발송 완료`, 'success', 4500);
   }
 
   /* 계약 발송 시점에 인사정보카드(App.HRInfoMgmt) 의 해당 직원 행에 반영.

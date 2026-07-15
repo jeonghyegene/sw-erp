@@ -1905,6 +1905,83 @@ textarea.input {
 }
 .lp-year-pop__item { white-space: nowrap; }
 .lp-year-pop__item + .lp-year-pop__item { border-top: 1px solid var(--color-divider); }
+
+/* =========================================================
+ * 휴일 관리 (근무정책 설정 > 휴일 관리 탭)
+ *   월간 캘린더(att-cal) / 연간 그리드(lp-year) 재사용 + 휴일 칩(hol-chip).
+ * ========================================================= */
+/* 월간 캘린더 — 휴일 지정일 셀 강조 + 빈 날 추가 가능 hover */
+.att-cal__cell--hol { background: rgba(220, 38, 38, 0.045); border-color: rgba(220, 38, 38, 0.22); }
+.att-cal__cell--hol .att-cal__day { color: var(--color-danger); }
+.att-cal__cell--addable { cursor: pointer; }
+.att-cal__cell--addable:hover { background: var(--color-hover); border-color: var(--color-brand-primary); }
+/* 편집 모드에서 지난 날짜 셀 — 소급 지정 불가(자물쇠 표시, 근무조 편성과 동일 톤) */
+.att-cal__cell--locked { background: var(--color-surface-alt); cursor: not-allowed; }
+.att-cal__cell--locked .att-cal__day { color: var(--color-text-muted); }
+.hol-lock { font-size: 11px; line-height: 1; opacity: 0.55; }
+.att-cal__cell--hol.att-cal__cell--addable:hover { background: rgba(220, 38, 38, 0.09); }
+.att-cal__add {
+  margin-top: auto; align-self: flex-start;
+  font-size: 11px; color: var(--color-text-muted); font-weight: var(--fw-semibold);
+  opacity: 0; transition: opacity var(--t-fast);
+}
+.att-cal__cell--addable:hover .att-cal__add { opacity: 1; }
+
+/* 휴일 칩 — 캘린더 셀 내부 */
+.hol-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  max-width: 100%;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs); line-height: 1.25;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  text-align: left;
+  background: rgba(0, 52, 125, 0.09); color: var(--color-brand-primary);
+  border: 1px solid rgba(0, 52, 125, 0.18);
+}
+.hol-chip:hover { filter: brightness(0.97); }
+.hol-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 승인대기 — 전자결재 상신 후 확정 전(효력 없음). 반려 — 승인대기인 채 날짜 경과. */
+.hol-chip--pending { background: rgba(243, 130, 0, 0.10); color: var(--color-brand-accent); border-color: rgba(243, 130, 0, 0.38); }
+.hol-chip--voided  { background: var(--color-surface-alt); color: var(--color-text-muted); border-color: var(--color-divider); }
+.hol-chip--voided .hol-chip__name { text-decoration: line-through; }
+.hol-chip__wait { flex: none; font-size: 10px; font-weight: var(--fw-bold); padding: 0 4px; border-radius: 3px; line-height: 1.5; background: var(--color-brand-accent); color: #fff; }
+.hol-chip__wait--void { background: var(--color-danger); }
+
+/* 연간 그리드 — 휴일 셀(좌측 컬러바) */
+.lp-year__cell--hol { cursor: pointer; text-align: left; padding: 2px 5px; color: var(--color-text); box-shadow: inset 3px 0 0 var(--color-brand-primary); background: rgba(0, 52, 125, 0.07); }
+.lp-year__cell--hol:hover { filter: brightness(0.96); }
+/* 승인대기(주황)/반려(적·취소선) */
+.lp-year__cell--holpending { box-shadow: inset 3px 0 0 var(--color-brand-accent); background: rgba(243, 130, 0, 0.09); }
+.lp-year__cell--holvoid { box-shadow: inset 3px 0 0 var(--color-danger); background: var(--color-surface-alt); color: var(--color-text-muted); }
+.lp-year__cell--holvoid .lp-year__holnm { text-decoration: line-through; }
+.lp-year__holnm { display: block; font-size: 10px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 연간 뷰 — 편집 모드에서 지난 날짜 셀(소급 불가): 옅은 배경 + 자물쇠(월간과 동일 인지 신호) */
+.lp-year__cell--locked { background: var(--color-surface-alt); cursor: not-allowed; }
+.lp-year__lock { font-size: 9px; opacity: 0.5; }
+
+/* 휴일 본문 스크롤 래퍼 — 유일한 스크롤 영역(2중 스크롤 방지).
+   .lp-year 의 자체 스크롤(max-height/overflow)을 해제하고 바깥 .hol-body 만 스크롤한다.
+   sticky thead/첫 컬럼은 .hol-body 를 기준으로 계속 고정. */
+.hol-body { padding: 16px 20px; background: var(--color-surface-alt); }
+.hol-body .lp-year { max-height: none; overflow: visible; }
+
+/* 연간 뷰 — 회색 여백/라운드 없이 그리드가 본문을 꽉 채움(공중에 뜨는 느낌 제거).
+   월간 뷰는 여백 유지(.hol-body 기본 padding). */
+.hol-body--year { padding: 0; background: var(--color-surface); }
+.hol-body--year .lp-year { border: 0; border-radius: 0; }
+
+/* 편집 모드 안내 배너 — 툴바와 본문 사이 고정(스크롤 안 됨) */
+.hol-editbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 20px;
+  border-bottom: 1px solid rgba(243, 130, 0, 0.3);
+  background: rgba(243, 130, 0, 0.08);
+  font-size: var(--fs-sm); color: var(--color-text-sub);
+}
+.hol-editbar strong { color: var(--color-brand-accent); }
+.hol-tb__divider { width: 1px; height: 20px; background: var(--color-divider); margin: 0 2px; display: inline-block; }
 /* 툴바 — 본인 연차 잔여 chip */
 .att-plan-mychip {
   display: inline-flex; align-items: center; gap: 6px;

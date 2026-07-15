@@ -399,39 +399,6 @@
   </aside>
 
   <!-- ===== 인사(HR) / 근태(ATT) 정적 모달·오프캔버스 (erp-hr 이식) ===== -->
-  <!-- ============ 급여 관련 설정 — 시간외수당 계산식 모달 ============ -->
-  <div class="modal-backdrop" id="modal-ps-ot" data-modal-id="ps-ot">
-    <div class="modal modal--lg">
-      <div class="modal__header">
-        <div class="modal__title">시간외수당 계산식 설정</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="ps-ot-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
-        <!-- renderOtModal() 가 채움 -->
-      </div>
-      <div class="modal__footer" id="ps-ot-footer">
-        <!-- renderOtModal() 가 채움 -->
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ 급여 관련 설정 — 기본 지급일 설정 모달 ============ -->
-  <div class="modal-backdrop" id="modal-ps-payday" data-modal-id="ps-payday">
-    <div class="modal modal--md">
-      <div class="modal__header">
-        <div class="modal__title">기본 지급일 설정</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="ps-payday-body" style="max-height:72vh;overflow:auto;padding:20px 24px;">
-        <!-- renderPaydayModal() 가 채움 -->
-      </div>
-      <div class="modal__footer" id="ps-payday-footer">
-        <!-- renderPaydayModal() 가 채움 -->
-      </div>
-    </div>
-  </div>
-
-
   <!-- ============ 포상·징계 — 신규/수정 등록 모달 (Layer Modal) ============ -->
   <div class="modal-backdrop" id="modal-pd-editor" data-modal-id="pd-editor">
     <div class="modal modal--lg">
@@ -732,27 +699,6 @@
     </div>
   </div>
 
-  <!-- ============ 인사정보카드 — 근무조 마스터 선택 모달 ============
-       근로 계약 정보 설정 모달에서 '고정 근무' 선택 시 노출되는 [근무조 선택] 버튼이 호출.
-       선택 시 근무시간 / 휴게시간 필드를 자동 채움. -->
-  <div class="modal-backdrop modal-backdrop--over-oc" id="modal-empi-shift-pick" data-modal-id="empi-shift-pick" style="z-index:1200;">
-    <div class="modal modal--lg" style="width:96vw;max-width:780px;display:flex;flex-direction:column;">
-      <div class="modal__header">
-        <div class="modal__title">근무조 선택</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" style="padding:14px 18px;max-height:70vh;overflow:auto;">
-        <p style="color:var(--color-text-muted);font-size:var(--fs-sm);margin:0 0 10px;">
-          선택한 근무조의 근무시간과 휴게시간이 인사정보카드에 자동으로 채워집니다.
-        </p>
-        <div id="empi-shift-pick-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ 계약 — 일괄 작성 모달 (2-phase: 선택 → 편집) ============
        Phase 1: 임직원 6컬럼 테이블에서 대상 직원 다중 선택
        Phase 2: 선택 직원들을 13컬럼 inline-editable 테이블로 노출 → [일괄 발송] -->
@@ -824,45 +770,9 @@
             </section>
           </div>
         </div>
-
-        <!-- Phase 2: 선택 직원 인라인 편집 테이블 (가로 스크롤). 헤더는 kind 에 따라 JS 가 동적으로 채움. -->
-        <div id="ctr-bulk-phase2" style="display:none;flex:1;min-height:0;flex-direction:column;">
-          <div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <span class="toolbar__count">선택한 인원 총 <strong data-ctr-bulk-edit-count>0</strong>명</span>
-            <span style="font-size:var(--fs-xs);color:var(--color-text-muted);">· 각 인원의 계약 이력은 <strong style="color:var(--color-text-sub);font-weight:var(--fw-medium);">성명</strong>을 눌러 인사정보카드에서 확인할 수 있습니다.</span>
-          </div>
-          <div class="grid-wrap" style="flex:1;min-height:0;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
-            <div class="grid-scroll" style="overflow:auto;">
-              <table class="tbl" style="min-width:2200px;">
-                <thead id="ctr-bulk-edit-head" style="position:sticky;top:0;background:var(--color-surface);z-index:1;"></thead>
-                <tbody id="ctr-bulk-edit-body"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       </div>
       <div class="modal__footer">
         <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn" type="button" data-ctr-bulk-back style="display:none;">← 선택 단계로</button>
-        <span style="flex:1;"></span>
-        <button class="btn btn--primary" type="button" data-ctr-bulk-next disabled>다음 (편집)</button>
-        <button class="btn btn--primary" type="button" data-ctr-bulk-submit style="display:none;">일괄 서명요청</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ 계약 — 일괄 작성 미리보기 모달 (행별 [계약서 보기]) ============ -->
-  <div class="modal-backdrop modal-backdrop--over-oc" id="modal-ctr-bulk-preview" data-modal-id="ctr-bulk-preview">
-    <div class="modal modal--xl" style="width:96vw;max-width:1080px;height:88vh;max-height:880px;display:flex;flex-direction:column;">
-      <div class="modal__header">
-        <div class="modal__title" id="ctr-bulk-preview-title">계약서 보기</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" id="ctr-bulk-preview-body" style="padding:0;flex:1;min-height:0;overflow:hidden;"></div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>닫기</button>
-        <span style="flex:1;"></span>
-        <button class="btn btn--primary" type="button" data-ctr-bulk-preview-save>저장</button>
       </div>
     </div>
   </div>
@@ -882,25 +792,6 @@
       <div class="modal__footer">
         <button class="btn" type="button" data-modal-close>취소</button>
         <button class="btn btn--primary" type="button" data-ctr-pick-confirm disabled>선택</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ 발령 — 대상 직원 Picker (작성 화면에서 사용) ============ -->
-  <div class="modal-backdrop" id="modal-apt-emppick" data-modal-id="apt-emppick">
-    <div class="modal" style="width:480px;">
-      <div class="modal__header">
-        <div class="modal__title">대상 직원 선택 <small style="font-weight:var(--fw-regular);color:var(--color-text-muted);">(다중 선택 가능)</small></div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body">
-        <input class="input input--full" type="text" id="apt-pick-kw" placeholder="이름 / 사번 / 부서 검색" style="margin-bottom:10px;" />
-        <div class="picker-list" id="apt-pick-list"></div>
-        <p class="t-muted" style="font-size:var(--fs-xs);margin-top:8px;">※ 입사확정 상태의 직원만 표시됩니다. 여러 명을 체크하면 동일 발령이 일괄 적용됩니다.</p>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn btn--primary" type="button" data-apt-pick-confirm disabled>선택</button>
       </div>
     </div>
   </div>
@@ -937,48 +828,6 @@
       <div class="modal__footer">
         <button class="btn" type="button" data-modal-close>취소</button>
         <button class="btn btn--danger" type="button" data-ctr-v-submit disabled>무효 처리</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============ [급여 정산] 회차 복제 모달 ============ -->
-  <div class="modal-backdrop" id="modal-prs-copy" data-modal-id="prs-copy">
-    <div class="modal" style="width:520px;">
-      <div class="modal__header">
-        <div class="modal__title">급여 정산 복제</div>
-        <button class="modal__close" data-prs-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body">
-        <div style="padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);color:var(--color-text-sub);margin-bottom:12px;">
-          원본: <strong id="prs-copy-src" style="color:var(--color-text);">-</strong>
-        </div>
-        <div class="form-field">
-          <label class="form-label is-required" for="prs-copy-name">새 정산명</label>
-          <input class="input input--full" type="text" id="prs-copy-name" />
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;">
-          <div class="form-field">
-            <label class="form-label" for="prs-copy-month">귀속월</label>
-            <input class="input input--full" type="month" id="prs-copy-month" />
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="prs-copy-paydate">지급일</label>
-            <input class="input input--full" type="date" id="prs-copy-paydate" />
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="prs-copy-target-from">대상자 조회 시작</label>
-            <input class="input input--full" type="date" id="prs-copy-target-from" />
-          </div>
-          <div class="form-field">
-            <label class="form-label" for="prs-copy-target-to">대상자 조회 종료</label>
-            <input class="input input--full" type="date" id="prs-copy-target-to" />
-          </div>
-        </div>
-        <div class="form-help">대상자 조건·지급 항목은 그대로 복제됩니다. 새 정산은 「등록」 상태로 생성됩니다.</div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-prs-modal-close>취소</button>
-        <button class="btn btn--primary" type="button" data-prs-copy-confirm>복제 생성</button>
       </div>
     </div>
   </div>
