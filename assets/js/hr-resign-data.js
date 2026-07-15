@@ -13,7 +13,7 @@
  *   2) detail (모달) — 처리 결과 미리보기 + 최종 확인
  *
  *  데이터
- *   - 재직 직원: App.HRMembers.list().filter(active)
+ *   - 재직 직원: App.HRMembers.list().filter(active) — App.HRInfoMgmt 호환 조회
  *   - 퇴사 이력: App.HRResign.list() — 본 모듈이 단일 소스 (mock seed + 동적 추가)
  *
  *  UI Kit 재사용

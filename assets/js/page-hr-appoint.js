@@ -1,7 +1,7 @@
 /* =========================================================
  * Page: HR > 발령 및 계약 > 발령
  *
- * 입사자 관리(App.HRMembers)에서 입사확정된 사람에 대해
+ * 임직원 통합 마스터(App.HRInfoMgmt)에서 등록 완료된 사람에 대해
  * 전보 / 승진 / 수습해제 발령을 처리하는 화면.
  *
  *   목록 view(list):
@@ -127,7 +127,7 @@
     return `<span class="av av--${size || 'md'} av--c${idx}">${esc(ch)}</span>`;
   }
 
-  /* ============ 입사자 데이터 (App.HRMembers 공유) ============
+  /* ============ 임직원 데이터 (App.HRMembers 호환 어댑터 경유) ============
    *   입사확정된 사람만 발령 대상 — status === 'completed' (인사카드 생성 완료)
    *   미로드/없을 때를 위한 fallback 내장 */
   function loadEmployees() {
@@ -138,7 +138,7 @@
     if (completed.length) {
       return completed.map((m, i) => Object.assign({}, m, { colorIdx: (i % 6) + 1 }));
     }
-    /* fallback — hr-members-data 미로드 케이스 (방어용, 일반적으로 발생 안 함) */
+    /* fallback — 임직원 원본/호환 어댑터 미로드 케이스 (독립 실행 방어용) */
     return [
       { id:'SW260101', name:'김지훈', dept:'경영지원본부', job:'인사',     rank:'사원',   position:'팀원', colorIdx:1 },
       { id:'SW260102', name:'이서연', dept:'생산본부',     job:'생산관리', rank:'대리',   position:'팀원', colorIdx:2 },
@@ -1172,7 +1172,7 @@
 
   /* =========================================================
    *  대상 직원 Picker — 전자결재 결재자 지정과 동일한 OffCanvas(App.openEmpPicker) 재사용.
-   *   발령 화면 자체 마스터(App.HRMembers 기반 EMPLOYEES)를 ctx.employees 로 주입하므로
+   *   임직원 통합 마스터 기반 EMPLOYEES를 ctx.employees로 주입하므로
    *   dept/rank(직위)/position(직책)/job(직무) 가 드롭다운 옵션과 1:1 일치한다.
    *   (조직 전체 picker 데이터는 pos 단일 필드만 제공 → 직위·직책 중복/옵션 불일치 발생)
    *

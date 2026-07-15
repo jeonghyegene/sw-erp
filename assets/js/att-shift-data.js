@@ -92,6 +92,74 @@
   /* 근무시간유형(D=주간 / N=야간) — 심야 겹침 여부로 결정 */
   function workTypeChar(f) { return f.isNight ? 'N' : 'D'; }
 
+  /* ============ 반차·반반차 구간 산정 (정책 §4.10) ============
+   *  1일 소정근로 8시간(DAILY_STD_MIN) 기준. 반차=4h, 반반차=2h.
+   *  · 오전 반차/반반차 : 소정근로 시작(출근)부터 4h / 2h 연속 구간
+   *  · 오후 반차/반반차 : 소정근로 종료 시점(연장 제외) 이전 4h / 2h 연속 구간
+   *  · 소정근로 종료 시점 = 출근부터 실근로가 8시간에 도달하는 시각(휴게 제외). 8시간 초과 연장은 산정 제외.
+   *  · 휴게시간이 구간 안에 들어오면 근태 산정상 근무 인정시간으로 치환 → 연속 시간대를 그대로 인정(구간을 늘리지 않음). */
+  function fmtClock(absMin) {
+    const m = ((Math.round(absMin) % 1440) + 1440) % 1440;
+    return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
+  }
+  /* 소정근로 종료 시점(분, 출근 기준 절대분) — 출근부터 실근로(휴게 제외)가 8h 도달하는 시각. 연장 제외. */
+  function scheduledEndMin(f) {
+    if (!f.start || !f.end) return 0;
+    const startM = toMin(f.start);
+    let endM = toMin(f.end); if (endM <= startM) endM += 1440;   /* 야간조 — 익일 퇴근 */
+    const breaks = [];
+    const pushB = (bs, be) => {
+      if (!bs || !be) return;
+      let s = toMin(bs), e = toMin(be);
+      if (s < startM) s += 1440;
+      if (e <= s) e += 1440;
+      breaks.push([s, e]);
+    };
+    pushB(f.breakStart, f.breakEnd);
+    pushB(f.breakStart2, f.breakEnd2);
+    const inBreak = (t) => breaks.some(b => t >= b[0] && t < b[1]);
+    let work = 0, t = startM;
+    while (t < endM && work < DAILY_STD_MIN) { if (!inBreak(t)) work++; t++; }
+    return t;   /* 8h 도달 시각(연장 제외) 또는 실근로<8h 면 퇴근 */
+  }
+  /* 반차·반반차 기본 구간 — { amHalf, amQuarter, pmHalf, pmQuarter } 각 { start, end }(HH:MM) + { s, e }(출근 기준 절대분). */
+  function halfDaySegments(f) {
+    if (!f.start || !f.end) return null;
+    const startM = toMin(f.start);
+    const schedEnd = scheduledEndMin(f);
+    const mk = (s, e) => ({ start: fmtClock(s), end: fmtClock(e), s: s, e: e });
+    return {
+      amHalf:    mk(startM,         startM + 240),
+      amQuarter: mk(startM,         startM + 120),
+      pmHalf:    mk(schedEnd - 240, schedEnd),
+      pmQuarter: mk(schedEnd - 120, schedEnd),
+    };
+  }
+  /* 휴게 구간 목록(출근 기준 절대분) — 야간(자정 넘김) 보정 포함. scheduledEndMin 과 동일 좌표계. */
+  function breakRangesAbs(f) {
+    const startM = toMin(f.start);
+    const out = [];
+    const pushB = (bs, be) => {
+      if (!bs || !be) return;
+      let s = toMin(bs), e = toMin(be);
+      if (s < startM) s += 1440;
+      if (e <= s) e += 1440;
+      out.push([s, e]);
+    };
+    pushB(f.breakStart, f.breakEnd);
+    pushB(f.breakStart2, f.breakEnd2);
+    return out;
+  }
+  /* 구간(seg={s,e} 절대분)에 겹치는 휴게시간 목록 — 겹친 부분만 'HH:MM~HH:MM' 문자열 배열로 반환(정책 §4.10 치환 대상). */
+  function segBreakOverlaps(f, seg) {
+    const hits = [];
+    breakRangesAbs(f).forEach(b => {
+      const os = Math.max(b[0], seg.s), oe = Math.min(b[1], seg.e);
+      if (oe > os) hits.push(`${fmtClock(os)}~${fmtClock(oe)}`);
+    });
+    return hits;
+  }
+
   /* ============ Mock 근무조 ============
    *   근무조 = 출·퇴근/총 근무시간/연장·심야·간식(휴게) 등 근태 산정 기준의 단위.
    *   · code  : 시스템 자동 채번 'WT + 근무시간유형(D 주간 / N 야간) + 일련번호(2자리)'.
@@ -371,6 +439,33 @@
       ? `${brk.join(' · ')} <span class="t-muted" style="font-size:11px;">(${f.breakMin || 0}분)</span>`
       : '<span class="t-muted">-</span>';
   }
+  /* 반차·반반차 구간 표시 — 근무조 상세/추가 폼의 '반차·반반차 구간' 행 내용.
+     출·퇴근·휴게에서 자동 산정한 4개 기본 구간(오전/오후 × 반차/반반차)을 pill + 시각으로 표기. */
+  function halfDayHTML(f) {
+    const seg = halfDaySegments(f);
+    if (!seg) return '<span class="t-muted">-</span>';
+    const row = (label, tone, s) => {
+      const hits = segBreakOverlaps(f, s);
+      const brkTag = hits.length
+        ? `<span class="pill pill--warning" style="font-weight:var(--fw-regular);font-size:11px;padding:1px 8px;white-space:nowrap;" title="휴게시간이 구간에 포함되어 근태 산정상 근무 인정시간으로 치환됩니다.">휴게 ${esc(hits.join(', '))} 포함</span>`
+        : '';
+      return `<div style="display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;">
+          <span class="pill ${tone}" style="font-weight:var(--fw-regular);flex:0 0 auto;">${label}</span>
+          <strong style="font-size:var(--fs-sm);flex:0 0 auto;">${esc(s.start)} ~ ${esc(s.end)}</strong>
+          ${brkTag}
+        </div>`;
+    };
+    return `
+      <div style="display:flex;flex-direction:column;gap:7px;width:100%;">
+        ${row('오전 반차', 'pill--info', seg.amHalf)}
+        ${row('오전 반반차', 'pill--soft-blue', seg.amQuarter)}
+        ${row('오후 반차', 'pill--info', seg.pmHalf)}
+        ${row('오후 반반차', 'pill--soft-blue', seg.pmQuarter)}
+        <div class="form-help" style="white-space:normal;word-break:keep-all;line-height:1.5;margin-top:2px;">
+          1일 소정근로 8시간 기준 자동 산정 · 8시간 초과 연장근로는 제외 · <span class="pill pill--warning" style="font-size:10px;padding:0 6px;">휴게 포함</span> 구간의 휴게시간은 근무 인정시간으로 치환됩니다.
+        </div>
+      </div>`;
+  }
   /* 근무조 색상 — 상세/추가 폼 맨 아래 별도 섹션(근태 산정과 무관한 cosmetic).
      withApply=true(근무조 상세)면 선택 색상이 저장값(savedColor)과 다를 때만 [적용] 버튼 노출. */
   function colorSectionHTML(f, withApply, savedColor) {
@@ -454,6 +549,12 @@
           <div class="fm-tbl__label">근무시간 요약</div>
           <div class="fm-tbl__value">
             <div data-shift-summary style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;width:100%;"></div>
+          </div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" style="${row1GT}">
+          <div class="fm-tbl__label">반차·반반차 구간</div>
+          <div class="fm-tbl__value">
+            <div data-shift-halfday style="width:100%;"></div>
           </div>
         </div>
         ${deptsRow}
@@ -761,6 +862,9 @@
         ${item('심야', fmtMin(f.nightMin))}
         ${item('휴게', `${f.breakMin}분`)}`;
     }
+    /* 반차·반반차 구간 — 출·퇴근·휴게 변경에 맞춰 실시간 재산정 */
+    const hd = modal.querySelector('[data-shift-halfday]');
+    if (hd) hd.innerHTML = halfDayHTML(f);
   }
 
   /* 공용 폼 바인딩 — 추가 모달 / 수정 화면 공통. rerender: 휴게 추가·삭제 시 재렌더 콜백. */

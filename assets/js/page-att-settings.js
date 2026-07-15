@@ -499,10 +499,10 @@
     const e = allEmps().find(x => x.id === id);
     return e ? e.name : '';
   }
-  /* 근무정책에 맞는 근무조 후보 — 통상=주간(WTD)만 / 교대=전체(주·야). 비활성 코드는 선택 후보에서 제외. */
+  /* 사용 가능한 근무조 후보 — 모든 부서가 주간·야간 근무조를 모두 사용할 수 있다(근무정책 무관).
+     야간조 사용은 교대/통상 여부와 무관하므로 정책으로 거르지 않는다. 비활성 코드만 제외. */
   function codesForPolicy(policy) {
-    const all = ((App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : []).filter(s => s.active !== false);
-    return policy === 'shift' ? all : all.filter(s => !s.isNight);
+    return ((App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : []).filter(s => s.active !== false);
   }
 
   /* ----- 부서별 근무조 설정 — 전체 조직을 그리드로 리스트업 ----- */
@@ -634,7 +634,7 @@
     /* ② 교대근무 여부 — 통상/교대 택1 대신 '교대근무 해당' 단일 체크. 체크=교대(shift) / 해제=통상(regular). */
     const policyContent = `
       <label class="cb"><input type="checkbox" data-wpm-shift ${policy === 'shift' ? 'checked' : ''} ${inherit ? 'disabled' : ''}><span>교대근무에 해당</span></label>
-      <div class="t-muted" style="font-size:var(--fs-xs);margin-top:4px;">체크 시 주·야 교대 근무조를 사용할 수 있습니다.${inherit ? ' (상위 조직 설정 상속)' : ''}</div>`;
+      <div class="t-muted" style="font-size:var(--fs-xs);margin-top:4px;">체크 시 순번에 따라 근무조가 주마다 교대 편성됩니다. 야간조는 체크 여부와 무관하게 사용할 수 있습니다.${inherit ? ' (상위 조직 설정 상속)' : ''}</div>`;
 
     /* ③ 사용 가능한 근무조 — 근무조 설정 그리드와 동일 컬럼(구분·출근·퇴근·총 근무시간·연장·심야·휴게).
        · 별도 설정 — 편집 테이블([사용] 체크)

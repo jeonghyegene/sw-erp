@@ -205,12 +205,15 @@
     return v;
   }
 
-  /* 월(月) 내 주차 인덱스 — 일요일이 지날 때마다 +1 (근태 현황 weekIndexOfDate 와 동일 규칙). */
-  function weekIdx(dateStr) {
+  /* 연속 주 일련번호 — 기준 월요일(월 경계 무관)로부터 경과 주 수. 교대가 달마다 리셋되지 않음
+     (근태 현황 weekSerial 과 동일 규칙). */
+  const ROTATION_ANCHOR = '2024-01-01';   /* 기준 월요일 */
+  function weekSerial(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
-    let idx = 0;
-    for (let dd = 2; dd <= d; dd++) { if (new Date(y, m - 1, dd).getDay() === 0) idx++; }
-    return idx;
+    const wd = new Date(y, m - 1, d).getDay();                    /* 0=일 .. 6=토 */
+    const mon = new Date(y, m - 1, d - (wd === 0 ? 6 : wd - 1));     /* 그 주 월요일 */
+    const [ay, am, ad] = ROTATION_ANCHOR.split('-').map(Number);
+    return Math.round((mon - new Date(ay, am - 1, ad)) / 6048e5);   /* 6048e5 = 7일(ms) */
   }
 
   /* ============ 기본 근무조 산출 — 「근무정책 설정」 반영(현실 고증) ============
@@ -229,7 +232,7 @@
       if (pol.policy === 'shift') {
         let start = codes.indexOf(emp.shift);          /* 사원 배정조가 부서 코드에 있으면 시작조로(교대 스태거) */
         if (start < 0) start = Math.max(0, codes.indexOf(def));
-        return codes[(start + weekIdx(dateStr)) % codes.length];
+        return codes[(start + weekSerial(dateStr)) % codes.length];
       }
       return def;                                      /* 통상 — 기본 근무조 고정 */
     }

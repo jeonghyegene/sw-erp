@@ -1375,7 +1375,7 @@
   }
 
   /* ============ Step 2 보조: 필터 조건에 맞는 직원 목록 ============
-   *   공유 입사자 데이터(App.HRMembers.list) 가 단일 소스.
+   *   App.HRMembers 호환 어댑터를 통해 임직원 통합 마스터(App.HRInfoMgmt)를 조회한다.
    *   targetFilter 의 조건을 AND 로 결합 — 빈 배열/'any'/빈 문자열은 전체 통과. */
   function listEmployeesMatchingFilter(tf) {
     const all = (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : [];

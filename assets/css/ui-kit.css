@@ -424,6 +424,10 @@
 .callout--warning .callout__icon { color: var(--color-warning); }
 .callout--brand { background: var(--color-active); border-left-color: var(--color-brand-primary); }
 .callout--brand .callout__icon { color: var(--color-brand-primary); }
+/* --compact: 한 줄 슬림 알림(제목 없이 본문 1줄) + 우측 액션 버튼. 목록 상단 인라인 안내용. */
+.callout--compact { padding: 10px 14px; align-items: center; }
+.callout--compact .callout__title { margin-bottom: 0; }
+.callout__action { flex: 0 0 auto; margin-left: auto; align-self: center; }
 
 /* 프로세스 스텝 흐름 (예: MES 조판 → 바코드 → 작업수량 → 생산시작) */
 .flow-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }

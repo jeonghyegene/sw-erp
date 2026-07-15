@@ -431,24 +431,25 @@
    *   - 추가 가드: 임금계약 서명완료(유효)까지 충족해야 급여 정산 대상 (canSettlePayroll)
    *   - 등록·진행중·계약만료·퇴사는 대상에서 제외 */
   function listEmployeesMatchingFilter(tf) {
-    const all = (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : [];
+    const IM = window.App && App.HRInfoMgmt;
+    const all = (IM && typeof IM.list === 'function')
+      ? IM.list()
+      : ((window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : []);
     const isActive = (e) => e.status !== 'retired' && e.status !== 'contractExpired';
     const isPayrollEligible = (e) => e.status === 'completed';
 
     /* 급여 정산 자격 — 계정 등록완료 + 근로계약 서명완료 + 임금계약 서명완료(유효).
-       「인사정보 관리(App.HRInfoMgmt)」의 계약 상태를 단일 진실원으로 emp.id 조인해 판정.
-       (헬퍼/데이터 미로드 시 폴백: 게이팅 생략 — 기존 completed 가드만 적용) */
-    const IM = window.App && App.HRInfoMgmt;
-    let settleOkIds = null;
-    if (IM && typeof IM.canSettlePayroll === 'function' && typeof IM.list === 'function') {
-      settleOkIds = new Set(IM.list().filter(r => IM.canSettlePayroll(r)).map(r => r.id));
-    }
+       직원 목록과 자격 판정 모두 단일 진실원인 App.HRInfoMgmt를 사용한다.
+       (헬퍼 미로드 시 폴백: 기존 completed 가드만 적용) */
+    const canSettle = IM && typeof IM.canSettlePayroll === 'function'
+      ? (e) => IM.canSettlePayroll(e)
+      : () => true;
 
     return all.filter(e => {
       /* 정책 가드 — 「완료」가 아닌 직원은 어떤 필터를 걸어도 대상에서 제외 */
       if (!isPayrollEligible(e)) return false;
       /* 임금계약 서명완료(유효) 미달자 제외 */
-      if (settleOkIds && !settleOkIds.has(e.id)) return false;
+      if (!canSettle(e)) return false;
       if (tf.empStatus && tf.empStatus.length) {
         const ok = (tf.empStatus.includes('active') && isActive(e))
                 || (tf.empStatus.includes('leave')  && !isActive(e));
@@ -1333,8 +1334,8 @@
   }
   function openEmpInfoCard(empId) {
     if (!(window.App && App.HRInfoCard && App.HRInfoCard.open)) return;
-    const member = (App.HRMembers && App.HRMembers.list)
-      ? App.HRMembers.list().find(m => m.id === empId) : null;
+    const member = (App.HRInfoMgmt && App.HRInfoMgmt.list)
+      ? App.HRInfoMgmt.list().find(m => m.id === empId) : null;
     if (member) App.HRInfoCard.open(member);
     else        App.HRInfoCard.open({ id: empId });
   }
@@ -3305,9 +3306,9 @@
   }
 
   /* ============ 계약 임금 동기화 ============
-   *   지급항목 검토의 기본급/고정연장근무수당이 「인사정보 관리(App.HRInfoMgmt)」의 임금계약과
-   *   일치하도록 emp.id 로 조인한다(단일 진실원). 급여 대상자는 App.HRMembers 에서 추리지만,
-   *   임금 정보는 인사정보관리 행에 시드되므로 그 행을 기준으로 기본급/고정연장수당을 가져온다.
+   *   지급항목 검토의 기본급/고정연장근무수당은 단일 진실원인
+   *   「인사정보 관리(App.HRInfoMgmt)」의 임금계약을 사용한다.
+   *   과거 정산 복제 등 직원 스냅샷이 전달된 경우에만 emp.id 로 최신 마스터 행을 보정 조회한다.
    *   계약 데이터가 없으면 emp.id 기반 결정적 값으로 폴백(정렬·필터 순서와 무관하게 항상 동일). */
   function _wageSeed(id) { let h = 0; const s = String(id || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
   function contractWageOf(e) {

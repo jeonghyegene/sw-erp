@@ -164,7 +164,8 @@
   }
 
   /* ============ Mock 입사자 + 서류 상태 ============
-   *   직원 마스터(App.HRMembers)를 어댑팅하되, 서류 진행 상태(emp.docs)는 본 모듈이 자체 보유.
+   *   임직원 통합 마스터의 호환 조회 API(App.HRMembers)를 사용하되,
+   *   서류 진행 상태(emp.docs)는 본 모듈이 자체 보유한다.
    *   emp.docs[].status: unsent(미발송) / pending(미제출) / completed(제출완료) / resign(재서명 필요)
    *   → 화면에는 2값(미제출 / 서명 완료)으로 매핑 (completed = 서명 완료, 그 외 = 미제출). */
   function makeMock() {

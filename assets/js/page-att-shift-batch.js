@@ -10,9 +10,10 @@
  *    · 사무직/연구직: 근무조 변경 승인 내역을 'YY/MM ~ YY/MM 반영 예정'으로 표시(해당 기간 자동 산정 반영).
  *
  *  [월별 근무스케줄 편성] — 기본 근무조대로 월별 근무조를 제출(당월~미래, 여러 달 미리 제출 가능).
- *    · 그리드: 월 | 제목 | 상태(제출 완료/마감) | 관리(복제/삭제) | [상세 보기].
- *    · 상태는 날짜 기준 자동: 월 전체가 지나면 '마감'(근태 산정 완료·조회만), 그 외 '제출 완료'.
- *    · 삭제: 미래(도래 전) 월만 가능. 당월·지난 달은 삭제 불가.
+ *    · 그리드: 월 | 제목 | 상태(편성 대기/편성 완료/마감) | 관리(다음 달로 복제/삭제) | [상세 보기].
+ *    · 상태 흐름: 등록 직후 '편성 대기' → 상세에서 [제출 완료] → '편성 완료' → 월말 지나면 '마감'.
+ *      편성 대기·완료 모두 편집 가능(지난 날짜 셀 제외), 마감은 조회만. 제출 완료는 식권 정산 기준(전월 내 제출).
+ *    · 삭제: 미래(도래 전) 월만 가능. 당월·지난 달은 삭제 불가. 복제: 마감 아닌 회차를 다음 달로.
  *    · 편성 안 한 월/미생성 기간은 기본 근무조로 자동 산정(soft fallback).
  *    · 상세 편집: 오늘 이전 날짜/주간은 수정 불가(근태 산정 완료). 편집 저장 시 '적용 내용' 입력 →
  *      변경 이력(편집 일시 | 적용 내용 | 처리자) 관리. '변경 이력' 버튼은 '편집' 왼쪽.
@@ -102,29 +103,90 @@
   function jobCatPill(jc) { const cls = jc === 'production' ? 'pill--purple' : jc === 'research' ? 'pill--success' : 'pill--info'; return `<span class="pill ${cls}">${esc(jobCatLabel(jc))}</span>`; }
 
   /* ============ 기본 근무조 / 승인 반영 → 편성 산출 ============ */
-  /* 기본 근무스케줄 편성은 주차(1~5주차)별 근무조로 구성 — 교대(생산직)는 주마다 다른 코드로 로테이션. */
-  const WEEKS_N = 5;
+  /* 기본 근무스케줄 편성 = 교대 순번(1번~N번)별 근무조. 교대(생산직)는 순번마다 다른 근무조로 로테이션.
+     ▸ 순번 개수 = 부서 교대주기(STATE.cycleLen). 예: 근무조 2개 1주 교대 → 2번, 2주 교대(주주야야) → 4번.
+     ▸ '연속 주 일련번호'로 순번을 정해 월(月) 경계에서 리셋되지 않는다(교대가 달마다 틀어지지 않음). */
+  const ROTATION_ANCHOR = '2024-01-01';   /* 기준 월요일 — 이 주를 0 으로 연속 카운트 */
+  function weekSerial(ds) {
+    const [y, m, d] = ds.split('-').map(Number);
+    const wd = new Date(y, m - 1, d).getDay();                    /* 0=일 .. 6=토 */
+    const mon = new Date(y, m - 1, d - (wd === 0 ? 6 : wd - 1));     /* 그 주 월요일 */
+    const [ay, am, ad] = ROTATION_ANCHOR.split('-').map(Number);
+    return Math.round((mon - new Date(ay, am - 1, ad)) / 6048e5);   /* 6048e5 = 7일(ms) */
+  }
+  /* 교대 부서 여부 — 근무정책이 'shift'. 통상근무(regular)는 교대 없이 고정 근무조. */
+  function isShiftDept(dept) {
+    const pol = (App.AttWorkPolicy && App.AttWorkPolicy.deptPolicy) ? App.AttWorkPolicy.deptPolicy(dept) : null;
+    return !!(pol && pol.policy === 'shift');
+  }
+  /* 부서 교대주기(순번 개수) 기본값 — 교대 부서는 사용 근무조 수(2~4로 제한), 통상근무는 1(고정). */
+  function defaultCycleLen(dept) {
+    const codes = deptAllowedCodes(dept) || [];
+    return isShiftDept(dept) ? Math.min(4, Math.max(2, codes.length)) : 1;
+  }
+  function cycleLen() { return STATE.cycleLen || 1; }
+  /* 교대주기 변경 — 모든 직원 배열을 새 길이에 맞춰 재구성(기존 값 보존, 늘어난 칸은 패턴 반복). 최대 4주. */
+  function setCycleLen(n) {
+    n = Math.max(1, Math.min(4, Number(n) || 1));
+    STATE.cycleLen = n;
+    const bc = STATE.baseCodes || {};
+    Object.keys(bc).forEach(id => {
+      const old = Array.isArray(bc[id]) ? bc[id] : [];
+      bc[id] = Array.from({ length: n }, (_, i) => (old.length ? old[i % old.length] : deptDefaultCode(STATE.deptName)));
+    });
+  }
   function deptDefaultCode(dept) { return deptDefaultOf(dept) || (deptAllowedCodes(dept)[0]) || 'WTD01'; }
-  /* 직원의 주차별 기본 근무조 배열(길이 WEEKS_N). 구 스키마(단일 문자열)는 자동 보정. */
+  /* 직원의 순번별 기본 근무조 배열(길이 = 교대주기). 구 스키마(단일 문자열·길이 불일치)는 자동 보정. */
   function empWeekCodes(emp) {
     const def = deptDefaultCode(emp.dept) || emp.shift || 'WTD01';
+    const n = cycleLen();
     let arr = STATE.baseCodes && STATE.baseCodes[emp.id];
     if (!Array.isArray(arr)) {
       const single = (typeof arr === 'string' && arr) ? arr : def;
-      arr = Array.from({ length: WEEKS_N }, () => single);
+      arr = Array.from({ length: n }, () => single);
+      if (STATE.baseCodes) STATE.baseCodes[emp.id] = arr;
+    } else if (arr.length !== n) {
+      arr = Array.from({ length: n }, (_, i) => arr[i % arr.length] || def);
       if (STATE.baseCodes) STATE.baseCodes[emp.id] = arr;
     }
     return arr;
   }
-  function empWeekCode(emp, w) { return empWeekCodes(emp)[Math.min(Math.max(0, w), WEEKS_N - 1)] || deptDefaultCode(emp.dept); }
-  /* 대표(1주차) 기본 근무조 — 승인 반영 등 단일 근무조가 필요한 곳에서 사용. */
+  function empWeekCode(emp, w) { const arr = empWeekCodes(emp); const n = arr.length || 1; return arr[((w % n) + n) % n] || deptDefaultCode(emp.dept); }
+  /* 대표(1순번) 기본 근무조 — 승인 반영 등 단일 근무조가 필요한 곳에서 사용. */
   function empBaseCode(emp) { return empWeekCode(emp, 0); }
-  /* 월(月) 내 주차 인덱스(0-based) — 일요일이 지날 때마다 +1 (근무스케줄 현황 weekIdx 와 동일 규칙). */
-  function weekIdxOfMonth(ds) {
-    const [y, m, d] = ds.split('-').map(Number);
-    let idx = 0;
-    for (let dd = 2; dd <= d; dd++) { if (new Date(y, m - 1, dd).getDay() === 0) idx++; }
-    return idx;
+  /* 연속 교대 순번(0-based) — 연속 주 일련번호를 교대주기로 나눈 나머지. 월(月) 경계 무관. */
+  function cycleSlot(ds) { const n = cycleLen(); return ((weekSerial(ds) % n) + n) % n; }
+
+  /* ============ 직원별 교대/고정 구분 ============
+     한 직원의 근무조가 주마다 바뀌면 'shift'(교대), 늘 같으면 'fixed'(고정).
+     통상근무 부서는 전원 고정. 교대 부서 안에서도 직원별로 교대/고정을 섞을 수 있다. */
+  function seedBaseMode(dept) {
+    const jm = jobCatMap();
+    const shiftDept = isShiftDept(dept);
+    const m = {};
+    deptEmps(dept).forEach(e => { m[e.id] = (shiftDept && jm[e.id] === 'production') ? 'shift' : 'fixed'; });
+    return m;
+  }
+  function empMode(emp) {
+    if (!isShiftDept(emp.dept)) return 'fixed';                 /* 통상 부서 — 전원 고정 */
+    const m = STATE.baseMode && STATE.baseMode[emp.id];
+    if (m === 'shift' || m === 'fixed') return m;
+    return (jobCatMap()[emp.id] === 'production') ? 'shift' : 'fixed';
+  }
+  /* 교대/고정 전환 — 고정으로 바꾸면 전 순번을 1번(첫 순번) 근무조로 통일(늘 같은 조). */
+  function setEmpMode(emp, mode) {
+    STATE.baseMode = STATE.baseMode || {};
+    STATE.baseMode[emp.id] = (mode === 'shift') ? 'shift' : 'fixed';
+    if (STATE.baseMode[emp.id] === 'fixed') {
+      const arr = empWeekCodes(emp);
+      const first = arr[0] || deptDefaultCode(emp.dept);
+      for (let i = 0; i < arr.length; i++) arr[i] = first;
+    }
+  }
+  /* 고정 근무조 지정 — 전 순번을 같은 근무조로 통일. */
+  function setEmpFixedCode(emp, code) {
+    const arr = empWeekCodes(emp);
+    for (let i = 0; i < arr.length; i++) arr[i] = code;
   }
   /* 근무조 변경 승인 — 해당 일자가 승인 반영 기간(fromYm~toYm)에 들면 승인 근무조로 산정. */
   function approvalAt(empId, ds) {
@@ -137,7 +199,7 @@
     if (wd === 0 || wd === 6) return '-';
     const ap = approvalAt(emp.id, ds);
     if (ap) return ap.toCode;
-    return empWeekCode(emp, weekIdxOfMonth(ds));
+    return empWeekCode(emp, cycleSlot(ds));
   }
 
   /* ============ 근무조 칩 — 부서별 근무스케줄 현황과 동일한 감성 소프트 카드 ============
@@ -201,7 +263,9 @@
   /* ============ STATE ============ */
   const STATE = {
     deptName: null,
-    baseCodes: null,         /* { empId: [c0..c4] } — 기본 근무스케줄 편성(주차별 근무조, 1~5주차) */
+    baseCodes: null,         /* { empId: [c0..c(N-1)] } — 기본 근무스케줄 편성(순번별 근무조, 길이 = 교대주기) */
+    cycleLen: null,          /* 부서 교대주기(순번 개수). null 이면 defaultCycleLen 으로 시드 */
+    baseMode: null,          /* { empId: 'shift'|'fixed' } — 직원별 교대/고정 구분 */
     approvals: null,         /* { empId: { fromCode, toCode, fromYm, toYm, approvedAt, by } } — 근무조 변경 승인 반영 */
     records: null,           /* 월별 회차 [{ id, ym, dept, plan{}, log[] }] (ym 내림차순) */
     tab: 'monthly',          /* 'monthly' (기본 근무스케줄은 모달로 분리) */
@@ -221,10 +285,21 @@
     pageSize: 20,
   };
 
-  /* 회차 상태 — 날짜 기준 자동. 월 전체가 오늘 이전이면 '마감'(근태 산정 완료), 그 외 '제출 완료'. */
-  function recStatus(rec) { return monthLastDate(rec.ym) < TODAY ? 'closed' : 'submitted'; }
-  const STATUS = { submitted: { label: '편성 완료', pill: 'success' }, closed: { label: '마감', pill: 'muted' } };
-  function statusPill(st) { const s = STATUS[st] || STATUS.submitted; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
+  /* 회차 상태:
+     · 마감      — 월 전체가 오늘 이전(근태 산정 완료, 조회만)
+     · 편성 대기 — 등록 직후, 아직 '제출 완료' 안 됨(제출 필수)
+     · 편성 완료 — '제출 완료'를 눌러 확정(식권 정산 기준)
+     제출 여부(rec.submitted)와 날짜를 함께 본다. */
+  function recStatus(rec) {
+    if (monthLastDate(rec.ym) < TODAY) return 'closed';
+    return rec.submitted ? 'submitted' : 'pending';
+  }
+  const STATUS = {
+    pending:   { label: '편성 대기', pill: 'warning' },
+    submitted: { label: '편성 완료', pill: 'success' },
+    closed:    { label: '마감',     pill: 'muted' },
+  };
+  function statusPill(st) { const s = STATUS[st] || STATUS.pending; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
   /* 삭제 가능 — 미래(도래 전) 월만. 당월·지난 달은 불가. */
   function deletable(rec) { return rec.ym > CUR_YM; }
 
@@ -245,13 +320,14 @@
     const codes = deptAllowedCodes(dept);
     const def = deptDefaultOf(dept) || codes[0] || 'WTD01';
     const jm = jobCatMap();
+    const n = cycleLen();
     const map = {};
     deptEmps(dept).forEach((e, ei) => {
       const jc = jm[e.id] || 'office';
-      /* 생산직(교대) — 부서 사용 가능한 근무조를 주차마다 순환 배정(직원별 시작조 stagger). 그 외는 기본 근무조 고정. */
+      /* 생산직(교대) — 부서 사용 가능한 근무조를 순번마다 순환 배정(직원별 시작 순번 stagger). 그 외는 기본 근무조 고정. */
       map[e.id] = (jc === 'production' && codes.length > 1)
-        ? Array.from({ length: WEEKS_N }, (_, w) => codes[(ei + w) % codes.length])
-        : Array.from({ length: WEEKS_N }, () => def);
+        ? Array.from({ length: n }, (_, w) => codes[(ei + w) % codes.length])
+        : Array.from({ length: n }, () => def);
     });
     return map;
   }
@@ -272,7 +348,8 @@
   }
   function seedRecords(dept) {
     const months = [shiftMonth(CUR_YM, -2), shiftMonth(CUR_YM, -1), CUR_YM, shiftMonth(CUR_YM, 1)];
-    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [] }));
+    /* 지난달·당월 = 제출 완료(편성 완료), 다음 달 = 편성 대기(제출 전) — 새 상태 흐름 데모 */
+    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [], submitted: ym <= CUR_YM }));
     recs.forEach(ensureRecordSeed);
     /* 데모 변경 이력 — 이번 달 회차 1건 */
     const cur = recs.find(r => r.ym === CUR_YM);
@@ -281,7 +358,9 @@
   }
   function ensureLoaded() {
     if (!STATE.deptName) STATE.deptName = resolveMyDept();
+    if (STATE.cycleLen == null) STATE.cycleLen = defaultCycleLen(STATE.deptName);
     if (STATE.baseCodes === null) STATE.baseCodes = seedBase(STATE.deptName);
+    if (STATE.baseMode === null) STATE.baseMode = seedBaseMode(STATE.deptName);
     if (STATE.approvals === null) STATE.approvals = seedApprovals(STATE.deptName);
     if (STATE.records === null) STATE.records = seedRecords(STATE.deptName);
     if (!STATE.baseLog || !STATE.baseLog.length) {
@@ -307,7 +386,7 @@
     for (let d = 1; d <= days; d++) { const ds = `${CUR_YM}-${pad2(d)}`; const wd = parseYMD(ds).getDay(); if (wd !== 0 && wd !== 6 && ds > TODAY) { target = ds; break; } }
     if (!target || O.get(emp.id, target)) return;
     const codes = deptAllowedCodes(STATE.deptName);
-    const base = empWeekCode(emp, weekIdxOfMonth(target));
+    const base = empWeekCode(emp, cycleSlot(target));
     const alt = codes.find(c => c !== base) || base;
     O.approve({ empId: emp.id, fromShift: base, toShift: alt, dateFrom: target, dateTo: target, reason: '개인 사정 근무조 조정', reqId: `SC-${CUR_YM.replace('-', '')}-D1`, approvedAt: `${CUR_YM}-10   09:30` });
   }
@@ -339,25 +418,46 @@
     const editing = STATE.baseEdit;
     const selN = STATE.selected.size;
 
-    /* 주차(1~5주차) 헤더 — 근무스케줄 현황 월간 뷰(.ssw-tbl__wk)와 동일 톤 */
-    const wkHead = Array.from({ length: WEEKS_N }, (_, w) =>
-      `<th class="ssw-tbl__wk"><span class="ssw-tbl__wk-no">${w + 1}주차</span></th>`).join('');
+    /* 교대 순번(1번~N번) 헤더 — 근무스케줄 현황 월간 뷰(.ssw-tbl__wk)와 동일 톤.
+       N = 부서 교대주기. 월(月) 주차가 아니라 '연속 교대 순번'이라 달 경계에서 리셋되지 않는다. */
+    const N = cycleLen();
+    const shiftDept = isShiftDept(dept);
+    /* 헤더 — 교대 부서: [교대 여부] + 순번(1번~N번). 통상 부서: 기본 근무조 1칸(전원 고정). */
+    const wkHead = shiftDept
+      ? Array.from({ length: N }, (_, w) =>
+          `<th class="ssw-tbl__wk"><span class="ssw-tbl__wk-no">${w + 1}번</span></th>`).join('')
+      : `<th class="ssw-tbl__wk"><span class="ssw-tbl__wk-no">기본 근무조</span></th>`;
 
     const rows = emps.map(emp => {
       const jc = jm[emp.id] || 'office';
-      const prod = jc === 'production';
       const codes = empWeekCodes(emp);
-      /* 주차별 근무조 셀 — 근무스케줄 현황 월간 뷰(.ssw-tbl__wk > .ssw-wk 블록 카드)와 동일 톤.
-         편집 모드의 생산직(교대)은 셀마다 근무조 선택, 그 외는 고정 칩(주차 무관 동일 코드) */
-      const wkCells = Array.from({ length: WEEKS_N }, (_, w) => {
-        const code = codes[w] || deptDefaultCode(dept);
-        const inner = (editing && prod)
-          ? `<div class="ssw-edit">${chip(code, true)}<select class="ssw-edit__sel" data-sb-base="${esc(emp.id)}" data-sb-bweek="${w}">${codeOptionsHTML(dept, code)}</select></div>`
+      const mode = empMode(emp);
+      /* 교대 여부 셀 (교대 부서만) — 편집 시 select(교대/고정), 조회 시 pill */
+      const modeCell = shiftDept
+        ? (editing
+            ? `<td style="text-align:center;"><select class="select" data-sb-mode="${esc(emp.id)}" style="width:auto;min-width:64px;padding-top:2px;padding-bottom:2px;"><option value="shift" ${mode === 'shift' ? 'selected' : ''}>교대</option><option value="fixed" ${mode === 'fixed' ? 'selected' : ''}>고정</option></select></td>`
+            : `<td style="text-align:center;">${mode === 'shift' ? '<span class="pill pill--purple">교대</span>' : '<span class="pill pill--muted">고정</span>'}</td>`)
+        : '';
+      /* 근무조 셀 — 고정: 근무조 1칸(순번 열 통합). 교대: 순번마다 1칸.
+         편집 모드는 셀마다 근무조 선택, 조회 모드는 칩. */
+      let wkCells;
+      if (mode === 'fixed') {
+        const code = codes[0] || deptDefaultCode(dept);
+        const inner = editing
+          ? `<div class="ssw-edit">${chip(code, true)}<select class="ssw-edit__sel" data-sb-fixed="${esc(emp.id)}">${codeOptionsHTML(dept, code)}</select></div>`
           : chip(code, true);
-        return `<td class="ssw-tbl__wk"><div class="ssw-wk">${inner}</div></td>`;
-      }).join('');
+        wkCells = `<td class="ssw-tbl__wk"${(shiftDept && N > 1) ? ` colspan="${N}"` : ''}><div class="ssw-wk">${inner}</div></td>`;
+      } else {
+        wkCells = Array.from({ length: N }, (_, w) => {
+          const code = codes[w] || deptDefaultCode(dept);
+          const inner = editing
+            ? `<div class="ssw-edit">${chip(code, true)}<select class="ssw-edit__sel" data-sb-base="${esc(emp.id)}" data-sb-bweek="${w}">${codeOptionsHTML(dept, code)}</select></div>`
+            : chip(code, true);
+          return `<td class="ssw-tbl__wk"><div class="ssw-wk">${inner}</div></td>`;
+        }).join('');
+      }
       const ap = STATE.approvals[emp.id];
-      const apCell = (!prod && ap)
+      const apCell = ap
         ? `<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">${chip(ap.fromCode, false)}<span class="t-muted">→</span>${chip(ap.toCode, false)}<span class="t-muted" style="font-size:var(--fs-xs);">${esc(ymSlash(ap.fromYm))} ~ ${esc(ymSlash(ap.toYm))}</span><span class="pill pill--warning">반영 예정</span></span>`
         : '<span class="t-muted">-</span>';
       const nameCell = editing
@@ -366,11 +466,12 @@
       return `<tr>
         ${nameCell}
         <td style="text-align:center;">${jobCatPill(jc)}</td>
+        ${modeCell}
         ${wkCells}
         <td>${apCell}</td>
       </tr>`;
     }).join('');
-    const colspan = WEEKS_N + 3;
+    const colspan = shiftDept ? (N + 4) : 4;
     const bodyRows = emps.length ? rows : `<tr><td colspan="${colspan}" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">${esc(dept)} 부서에 등록된 인원이 없습니다.</td></tr>`;
 
     const allChecked = emps.length && emps.every(e => STATE.selected.has(e.id));
@@ -383,6 +484,21 @@
       ? `<button class="btn btn--sm" type="button" data-sb-base-cancel>취소</button><button class="btn btn--sm btn--primary" type="button" data-sb-base-save>저장</button>`
       : `<button class="btn btn--sm" type="button" data-sb-base-log>변경 이력${STATE.baseLog.length ? ` (${STATE.baseLog.length})` : ''}</button><button class="btn btn--sm btn--primary" type="button" data-sb-base-edit>편집</button>`;
 
+    /* 순번 개수 — 교대 부서만 노출. 한 칸(순번) = 1주씩 진행하며, 개수만큼 주가 지나면 처음으로 반복.
+       '교대주기 N주'가 'N주마다 교대'로 오해되던 것을 '순번 N개 (한 칸 = 1주)'로 표기해 해소.
+       통상근무 부서는 교대가 없으므로 '고정 근무조'로 표기. */
+    const cycleCtrl = !isShiftDept(dept)
+      ? `<span class="t-muted" style="font-size:var(--fs-xs);margin-left:2px;">통상근무 · 고정 근무조</span>`
+      : editing
+        ? `<span style="display:inline-flex;align-items:center;gap:6px;margin-left:2px;">
+             <span class="t-muted" style="font-size:var(--fs-xs);">순번 개수</span>
+             <select class="select" data-sb-cyclelen style="width:auto;min-width:60px;padding-top:2px;padding-bottom:2px;">
+               ${[2, 3, 4].map(n => `<option value="${n}" ${n === N ? 'selected' : ''}>${n}개</option>`).join('')}
+             </select>
+             <span class="t-muted" style="font-size:var(--fs-xs);">(한 칸 = 1주)</span>
+           </span>`
+        : `<span class="t-muted" style="font-size:var(--fs-xs);margin-left:2px;">순번 <strong style="color:var(--color-text);">${N}</strong>개 <span style="font-size:11px;">(한 칸 = 1주)</span></span>`;
+
     /* 선택 시 '총 N명' 우측에 일괄 변경 버튼 노출 (월별과 동일한 .toolbar__left 안에 배치) */
     const bulkBar = (editing && selN)
       ? `<span style="display:flex;align-items:center;gap:8px;margin-left:6px;"><span class="t-muted" style="font-size:var(--fs-xs);">선택 <strong style="color:var(--color-brand-primary);">${selN}</strong>명</span><button class="btn btn--sm btn--primary" type="button" data-sb-base-bulk>근무조 일괄 변경</button><button class="btn btn--sm" type="button" data-sb-base-selclear>선택 해제</button></span>`
@@ -394,6 +510,7 @@
       <div class="toolbar">
         <div class="toolbar__left" style="gap:14px;">
           <span class="toolbar__count">부서 <strong>${esc(dept)}</strong> · 총 <strong>${emps.length}</strong>명</span>
+          ${cycleCtrl}
           ${bulkBar}
         </div>
         <div class="toolbar__right">${actions}</div>
@@ -404,6 +521,7 @@
             <thead><tr>
               ${nameHead}
               <th style="width:90px;text-align:center;">사원 유형</th>
+              ${shiftDept ? '<th style="width:88px;text-align:center;">교대 여부</th>' : ''}
               ${wkHead}
               <th style="min-width:240px;">근무조 변경 승인 반영</th>
             </tr></thead>
@@ -482,15 +600,15 @@
     if (!body) return;
     const dept = STATE.deptName;
     const b = STATE.baseBulk;
-    const weekChips = Array.from({ length: WEEKS_N }, (_, w) =>
-      `<button type="button" class="chip-choice__item ${b.weeks.includes(w) ? 'is-active' : ''}" data-sbbb-week="${w}">${w + 1}주차</button>`).join('');
+    const weekChips = Array.from({ length: cycleLen() }, (_, w) =>
+      `<button type="button" class="chip-choice__item ${b.weeks.includes(w) ? 'is-active' : ''}" data-sbbb-week="${w}">${w + 1}번</button>`).join('');
     body.innerHTML = `
       <div style="background:var(--color-active);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:var(--fs-sm);color:var(--color-text-sub);">
         선택 <strong style="color:var(--color-brand-primary);">${STATE.selected.size}</strong>명에게 적용합니다.
       </div>
       <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
-          <div class="fm-tbl__label">적용 주차</div>
+          <div class="fm-tbl__label">적용 순번</div>
           <div class="fm-tbl__value"><div class="chip-choice">${weekChips}</div></div>
         </div>
         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
@@ -501,7 +619,7 @@
   }
   function openBaseBulk() {
     if (!STATE.selected.size) { toast('먼저 대상 구성원을 선택해 주세요.', 'warning'); return; }
-    STATE.baseBulk = { code: deptDefaultCode(STATE.deptName), weeks: [0, 1, 2, 3, 4] };
+    STATE.baseBulk = { code: deptDefaultCode(STATE.deptName), weeks: Array.from({ length: cycleLen() }, (_, i) => i) };
     ensureBaseBulkModal();
     renderBaseBulkBody();
     openModal('modal-sb-basebulk');
@@ -510,18 +628,19 @@
     const b = STATE.baseBulk;
     const ids = Array.from(STATE.selected);
     if (!ids.length) { toast('대상 구성원이 없습니다.', 'warning'); return; }
-    if (!b.weeks.length) { toast('적용할 주차를 선택해 주세요.', 'warning'); return; }
+    if (!b.weeks.length) { toast('적용할 순번을 선택해 주세요.', 'warning'); return; }
     const emps = deptEmps(STATE.deptName);
     ids.forEach(id => {
       const emp = emps.find(x => x.id === id) || { id, dept: STATE.deptName };
+      if (empMode(emp) === 'fixed') { setEmpFixedCode(emp, b.code); return; }   /* 고정 직원 — 전 순번 통일 */
       const arr = empWeekCodes(emp);
-      b.weeks.forEach(w => { arr[Math.min(Math.max(0, w), WEEKS_N - 1)] = b.code; });
+      b.weeks.forEach(w => { if (w >= 0 && w < arr.length) arr[w] = b.code; });
     });
     closeModal('modal-sb-basebulk');
     renderBaseTab();
     const s = App.AttShifts && App.AttShifts.get ? App.AttShifts.get(b.code) : null;
     const codeLabel = `${b.code}${s && s.label ? ' ' + s.label : ''}`;
-    const wkLabel = b.weeks.length === WEEKS_N ? '전체 주차' : b.weeks.slice().sort((a, c) => a - c).map(w => `${w + 1}주차`).join('·');
+    const wkLabel = b.weeks.length === cycleLen() ? '전체 순번' : b.weeks.slice().sort((a, c) => a - c).map(w => `${w + 1}번`).join('·');
     toast(`${ids.length}명 · ${wkLabel} → ${codeLabel} 적용`, 'success');
   }
 
@@ -555,15 +674,42 @@
       if (e.target.closest('[data-sb-base-selclear]')) { STATE.selected.clear(); renderBaseTab(); return; }
     });
     modal.addEventListener('change', e => {
-      /* 직원별(교대) 주차 근무조 변경 */
+      /* 교대주기(순번 개수) 변경 — 모든 직원 배열을 새 길이로 재구성 후 재렌더 */
+      const cyc = e.target.closest('[data-sb-cyclelen]');
+      if (cyc) {
+        setCycleLen(Number(cyc.value));
+        renderBaseTab();
+        toast(`순번을 ${cycleLen()}개로 변경했습니다. (한 칸 = 1주)`, 'success');
+        return;
+      }
+      /* 직원별 교대/고정 전환 */
+      const modeSel = e.target.closest('[data-sb-mode]');
+      if (modeSel) {
+        const emp = deptEmps(STATE.deptName).find(x => x.id === modeSel.dataset.sbMode) || { id: modeSel.dataset.sbMode, dept: STATE.deptName };
+        setEmpMode(emp, modeSel.value);
+        renderBaseTab();
+        toast(`${emp.name || '직원'} · ${modeSel.value === 'shift' ? '교대' : '고정'} 근무로 변경했습니다.`, 'success');
+        return;
+      }
+      /* 고정 직원 근무조 변경 — 전 순번 동일 근무조로 통일 */
+      const fixedSel = e.target.closest('[data-sb-fixed]');
+      if (fixedSel) {
+        const emp = deptEmps(STATE.deptName).find(x => x.id === fixedSel.dataset.sbFixed) || { id: fixedSel.dataset.sbFixed, dept: STATE.deptName };
+        setEmpFixedCode(emp, fixedSel.value);
+        renderBaseTab();
+        toast(`${emp.name || '직원'} 고정 근무조를 변경했습니다.`, 'success');
+        return;
+      }
+      /* 직원별(교대) 순번 근무조 변경 */
       const baseSel = e.target.closest('[data-sb-base]');
       if (baseSel) {
         const id = baseSel.dataset.sbBase;
         const w = Number(baseSel.dataset.sbBweek || 0);
         const emp = deptEmps(STATE.deptName).find(x => x.id === id) || { id, dept: STATE.deptName };
-        empWeekCodes(emp)[Math.min(Math.max(0, w), WEEKS_N - 1)] = baseSel.value;
+        const arr = empWeekCodes(emp);
+        arr[Math.min(Math.max(0, w), arr.length - 1)] = baseSel.value;
         renderBaseTab();
-        toast(`${w + 1}주차 기본 근무조를 변경했습니다.`, 'success');
+        toast(`${w + 1}번 순번 기본 근무조를 변경했습니다.`, 'success');
         return;
       }
       /* 전체 선택 */
@@ -605,17 +751,24 @@
    *  TAB 2 — 월별 근무스케줄 편성 (목록)
    * ========================================================= */
   function bannerHTML() {
-    /* 이번 달 회차가 없으면 기본 근무조로 산정됨을 안내 */
-    if (STATE.records.some(r => r.ym === CUR_YM)) return '';
-    return `<div style="flex:0 0 auto;padding:12px 20px 0;">
-      <div class="callout callout--warning">
+    /* ① 이번 달 회차 미편성 안내 / ② 다음 달 편성 대기(전월 제출 필요) 안내 — 식권 정산 기준 */
+    const nextYm = shiftMonth(CUR_YM, 1);
+    const nextRec = STATE.records.find(r => r.ym === nextYm);
+    let inner = '';
+    if (!STATE.records.some(r => r.ym === CUR_YM)) {
+      inner = `<div class="callout callout--warning callout--compact">
         <span class="callout__icon">⚠</span>
-        <div class="callout__body">
-          <div class="callout__title">이번 달 ${esc(ymSlash(CUR_YM))} 근무조가 아직 편성되지 않았습니다.</div>
-          <div>편성 전까지는 <strong>부서 기본 근무조</strong>로 자동 산정됩니다. [월별 근무스케줄 편성]으로 제출해 확정하세요.</div>
-        </div>
-      </div>
-    </div>`;
+        <div class="callout__body">이번 달 <strong>${esc(ymSlash(CUR_YM))}</strong> 근무조가 편성되지 않아 <strong>부서 기본 근무조</strong>로 자동 산정됩니다.</div>
+        <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-new>월별 편성하기</button></div>
+      </div>`;
+    } else if (nextRec && recStatus(nextRec) === 'pending') {
+      inner = `<div class="callout callout--warning callout--compact">
+        <span class="callout__icon">⚠</span>
+        <div class="callout__body">다음 달 <strong>${esc(ymSlash(nextYm))}</strong> 근무스케줄이 <strong>편성 대기</strong>입니다. 식권 정산을 위해 이번 달 안에 제출 완료해 주세요.</div>
+        <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-open="${esc(nextRec.id)}">제출하러 가기</button></div>
+      </div>`;
+    }
+    return inner ? `<div style="flex:0 0 auto;padding:12px 20px 0;">${inner}</div>` : '';
   }
 
   function renderMonthlyList(pageEl) {
@@ -675,6 +828,7 @@
       : rows.map(r => {
           const del = deletable(r);
           const delAttr = del ? '' : 'disabled title="당월·지난 달 근무조는 삭제할 수 없습니다."';
+          const copyAttr = recStatus(r) === 'closed' ? 'disabled title="마감된 회차는 복제할 수 없습니다."' : '';
           return `
           <tr class="is-clickable" data-sb-row="${esc(r.id)}">
             <td style="text-align:center;white-space:nowrap;">${esc(ymSlash(r.ym))}</td>
@@ -684,7 +838,7 @@
               <span class="dd dd--row" data-dd>
                 <button class="btn--kebab" type="button" aria-label="더보기">${kebab}</button>
                 <div class="dd__menu">
-                  <button class="dd__item" type="button" data-sb-copy="${esc(r.id)}">복제</button>
+                  <button class="dd__item" type="button" data-sb-copy="${esc(r.id)}" ${copyAttr}>다음 달로 복제</button>
                   <button class="dd__item dd__item--danger" type="button" data-sb-delete="${esc(r.id)}" ${delAttr}>삭제</button>
                 </div>
               </span>
@@ -776,8 +930,8 @@
           return `<td class="ssw-tbl__day ${cls} ssw-tbl__day--locked">${chip(eff.code, true)}<span class="ssw-lock ssw-lock--appr" title="${esc(apTitle)}">승인</span></td>`;
         }
         const code = eff.code;
-        /* 해당 일자가 속한 주차의 기본 근무조 — 옵션에 '(기본 근무조)' 표기 */
-        const base = empWeekCode(emp, weekIdxOfMonth(ds));
+        /* 해당 일자가 속한 순번의 기본 근무조 — 옵션에 '(기본 근무조)' 표기 */
+        const base = empWeekCode(emp, cycleSlot(ds));
         const locked = !editable || ds < TODAY;
         if (locked) {
           /* 편집 모드에서 오늘 이전(근태 산정 완료) 셀 — 셀 중앙 우측에 잠금 아이콘 */
@@ -810,7 +964,8 @@
     const weeks = weeksOfMonth(rec.ym);
     if (STATE.weekIdx >= weeks.length) STATE.weekIdx = 0;
     const week = weeks[STATE.weekIdx];
-    const editable = st === 'submitted' && STATE.editMode;
+    /* 편성 대기·편성 완료 모두 편집 가능(지난 날짜 셀은 불가 — renderWeekTable 에서 처리). 마감은 조회만. */
+    const editable = (st === 'pending' || st === 'submitted') && STATE.editMode;
     if (!editable && STATE.selected.size) STATE.selected.clear();
 
     const weekTabs = weeks.map(w =>
@@ -821,12 +976,17 @@
     let actions;
     if (st === 'closed') actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button>`;
     else if (STATE.editMode) actions = `<button class="btn btn--sm" type="button" data-sb-edit-cancel>취소</button><button class="btn btn--sm btn--primary" type="button" data-sb-edit-save>저장</button>`;
-    else actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button><button class="btn btn--sm btn--primary" type="button" data-sb-edit>편집</button>`;
+    else {
+      /* 편성 대기 → [제출 완료] 노출(식권 정산 위해 필수). 편성 완료 → 편집만. */
+      const submitBtn = (st === 'pending') ? `<button class="btn btn--sm btn--primary" type="button" data-sb-submit>제출 완료</button>` : '';
+      actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button><button class="btn btn--sm" type="button" data-sb-edit>편집</button>${submitBtn}`;
+    }
 
     let capText;
     if (st === 'closed') capText = '근태 산정이 완료된 지난 근무조입니다. 조회만 가능합니다.';
-    else if (!editable) capText = '근무조 배정이 확정된 상태입니다. [편집]으로 수정할 수 있습니다.';
-    else capText = '';
+    else if (STATE.editMode) capText = '';
+    else if (st === 'pending') capText = '편성 대기 상태입니다. 식권 정산을 위해 전월에 [제출 완료]로 확정해 주세요. (편집도 가능)';
+    else capText = '편성 완료 상태입니다. [편집]으로 수정할 수 있습니다.';
 
     /* 편집 모드 + 선택 시 '총 N명' 우측에 일괄 변경 버튼 노출 (다른 탭과 동일하게 .toolbar__left 안에 배치) */
     const selN = STATE.selected.size;
@@ -885,7 +1045,7 @@
     render(pageEl);
   }
   function enterEdit(pageEl) {
-    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) !== 'submitted') return;
+    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) === 'closed') return;   /* 편성 대기·완료 모두 편집 가능, 마감만 불가 */
     STATE.editMode = true;
     STATE.editSnapshot = JSON.parse(JSON.stringify(rec.plan));
     STATE.selected.clear();
@@ -898,6 +1058,16 @@
     STATE.editSnapshot = null;
     STATE.selected.clear();
     renderDetail(pageEl);
+  }
+  /* 제출 완료 — 편성 대기 → 편성 완료 확정. 식권 정산 기준 회차로 잠금(편집은 여전히 가능). */
+  function submitRecord(pageEl) {
+    const rec = recordById(STATE.detailId);
+    if (!rec || recStatus(rec) !== 'pending') return;
+    rec.submitted = true;
+    rec.log = rec.log || [];
+    rec.log.unshift({ at: nowStamp(), content: '월별 근무스케줄 제출 완료 (편성 완료 확정)', by: HR_NAME });
+    renderDetail(pageEl);
+    toast(`${ymSlash(rec.ym)} 근무스케줄을 제출 완료했습니다. (편성 완료)`, 'success');
   }
 
   /* =========================================================
@@ -965,7 +1135,7 @@
     let created = 0, skipped = 0, firstNew = null;
     monthsInRange(from, to).forEach(ym => {
       if (STATE.records.some(r => r.ym === ym)) { skipped++; return; }
-      const rec = { id: ym, ym, dept, plan: {}, log: [] };
+      const rec = { id: ym, ym, dept, plan: {}, log: [], submitted: false };   /* 등록 직후 = 편성 대기 */
       ensureRecordSeed(rec);
       STATE.records.push(rec);
       created++; if (!firstNew) firstNew = ym;
@@ -1004,12 +1174,12 @@
         plan[`${emp.id}|${ds}`] = (v === undefined ? basePlanCode(emp, ds) : v);
       }));
     });
-    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [] };
+    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [], submitted: false };   /* 복제본 = 편성 대기 */
     ensureRecordSeed(rec);
     STATE.records.push(rec);
     sortRecords();
     renderMonthlyList(document.getElementById(PAGE_ID));
-    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다.`, 'success');
+    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다. (편성 대기 — 제출 완료 필요)`, 'success');
   }
 
   /* =========================================================
@@ -1221,6 +1391,7 @@
         const wk = e.target.closest('[data-sb-week]');
         if (wk) { STATE.weekIdx = Number(wk.dataset.sbWeek); renderDetail(pageEl); return; }
         if (e.target.closest('[data-sb-edit]')) { enterEdit(pageEl); return; }
+        if (e.target.closest('[data-sb-submit]')) { submitRecord(pageEl); return; }
         if (e.target.closest('[data-sb-edit-cancel]')) { cancelEdit(pageEl); return; }
         if (e.target.closest('[data-sb-edit-save]')) { openApplyModal(); return; }
         if (e.target.closest('[data-sb-log]')) { openLogModal(STATE.detailId); return; }
@@ -1232,7 +1403,7 @@
       {
         if (e.target.closest('[data-sb-new]')) { openCreateModal(); return; }
         const copy = e.target.closest('[data-sb-copy]');
-        if (copy) { doCopyNext(copy.dataset.sbCopy); return; }
+        if (copy) { if (!copy.disabled) doCopyNext(copy.dataset.sbCopy); return; }
         const del = e.target.closest('[data-sb-delete]');
         if (del) { if (!del.disabled) doDelete(del.dataset.sbDelete); return; }
         const open = e.target.closest('[data-sb-open]');
@@ -1250,7 +1421,7 @@
       const deptSel = e.target.closest('[data-sb-dept]');
       if (deptSel) {
         STATE.deptName = deptSel.value;
-        STATE.baseCodes = null; STATE.approvals = null; STATE.records = null;
+        STATE.baseCodes = null; STATE.cycleLen = null; STATE.baseMode = null; STATE.approvals = null; STATE.records = null;
         STATE.selected.clear();
         STATE.baseEdit = false; STATE.detailId = null; STATE.view = 'list';
         ensureLoaded();

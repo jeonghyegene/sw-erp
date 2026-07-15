@@ -785,19 +785,25 @@
     });
   }
 
-  /* ============ 일자별 근무조 해석 (주간 교대 반영) ============
-     달력 주차(일요일 시작) 인덱스로 순환. 부서에 주간/야간 근무조가 모두
-     있으면(생산본부 등) 주차마다 교대, 아니면 본인 기준 근무조 고정.
-     같은 직원·같은 주차는 항상 같은 값(결정적). */
-  function weekIndexOfDate(dateStr) {
+  /* ============ 일자별 근무조 해석 (연속 교대 반영) ============
+     기준 월요일로부터 '연속 주 일련번호'로 순환한다. 부서에 주간/야간 근무조가 모두
+     있으면(생산본부 등) 주마다 교대하되, 월(月) 경계에서 리셋되지 않아 교대가 틀어지지 않는다.
+     같은 직원·같은 주는 항상 같은 값(결정적). */
+  const ROTATION_ANCHOR = '2024-01-01';   /* 기준 월요일 — 이 주를 0 으로 연속 카운트 */
+  function weekSerial(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
-    let idx = 0;
-    for (let dd = 2; dd <= d; dd++) { if (new Date(y, m - 1, dd).getDay() === 0) idx++; }
-    return idx;
+    const wd = new Date(y, m - 1, d).getDay();                    /* 0=일 .. 6=토 */
+    const mon = new Date(y, m - 1, d - (wd === 0 ? 6 : wd - 1));     /* 그 주 월요일 */
+    const [ay, am, ad] = ROTATION_ANCHOR.split('-').map(Number);
+    return Math.round((mon - new Date(ay, am - 1, ad)) / 6048e5);   /* 6048e5 = 7일(ms) */
   }
   /* 부서 전용 교대 조 — useDepts 에 해당 부서가 명시된 조만(전부서공통 A·G·H 제외).
-     주간·야간 조가 모두 있으면 교대 부서로 보고 그 조들의 코드 배열을 반환, 아니면 null. */
+     ※ 교대 여부는 '근무정책=교대'로만 판정한다. 야간 근무조 사용 가능 여부와는 무관 —
+        통상근무 부서도 야간 근무조를 사용할 수 있으므로, 주간+야간이 있어도 통상이면 교대하지 않는다. */
   function deptRotation(dept) {
+    const P = App.AttWorkPolicy;
+    const pol = (P && P.deptPolicy) ? P.deptPolicy(dept) : null;
+    if (pol && pol.policy === 'regular') return null;   /* 통상근무 — 야간이 있어도 교대 아님(고정) */
     const list = (App.AttShifts && App.AttShifts.list) ? App.AttShifts.list() : [];
     const dedicated = list.filter(s => s.useDepts && s.useDepts.length && s.useDepts.includes(dept));
     const hasDay   = dedicated.some(s => !s.isNight);
@@ -811,7 +817,7 @@
     if (!rot) return baseCode;                /* 비교대 부서 — 본인 기준 근무조 고정 */
     let base = rot.indexOf(baseCode);
     if (base < 0) base = 0;
-    return rot[(base + weekIndexOfDate(dateStr)) % rot.length];   /* 주차마다 교대 */
+    return rot[(base + weekSerial(dateStr)) % rot.length];   /* 주마다 교대(월 경계 무관 연속) */
   }
   /* 레코드/표시용 — empId 로 사원 해석 (ME 는 EMP_LIST 에 없으므로 보강) */
   function empForShift(empId) {

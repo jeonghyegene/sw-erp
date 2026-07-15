@@ -1,6 +1,6 @@
 # 인사·근태 활성 화면 IA — 가독성 사본
 
-> 원본 문서의 25개 Page와 83개 하위 UI를 가독성 중심으로 재배치한 사본입니다.
+> 원본 문서의 25개 Page와 86개 하위 UI를 가독성 중심으로 재배치한 사본입니다.
 > 원본: [00_SCREEN_CATALOG_REVIEW.md](00_SCREEN_CATALOG_REVIEW.md) · 삭제 이력: [SCREEN_CATALOG_DELETE_HISTORY.md](SCREEN_CATALOG_DELETE_HISTORY.md)
 > 기준일: 2026-07-15
 
@@ -8,9 +8,9 @@
 
 | 구분 | 수 | 비고 |
 |---|---:|---|
-| 전체 활성 UI | 108 | Page 25 + 하위 UI 83 |
+| 전체 활성 UI | 111 | Page 25 + 하위 UI 86 |
 | Page | 25 | 인사 17, 근태 8 |
-| 하위 UI | 83 | Detail 16, Modal 63, OffCanvas 4 |
+| 하위 UI | 86 | Detail 17, Modal 65, OffCanvas 4 |
 | 하위 UI 연결 Page | 22 | 25개 Page 중 22개 |
 | 하위 UI 없는 Page | 3 | `ATT-MYW-001`, `ATT-SSV-001`, `ATT-MLV-001` |
 
@@ -26,7 +26,7 @@
 | 인사 > 복리후생 | 1 | 2 | 3 | `HR-MEAL-001` |
 | 인사 > 퇴사 관리 | 2 | 4 | 6 | `HR-RSG-001`, `HR-PEN-001` |
 | 근태 > 근태 관리 | 2 | 5 | 7 | `ATT-MYW-001`, `ATT-STS-001` |
-| 근태 > 근무스케줄 관리 | 3 | 12 | 15 | `ATT-SSV-001`, `ATT-SSB-001`, `ATT-WPL-001` |
+| 근태 > 근무스케줄 관리 | 3 | 15 | 18 | `ATT-SSV-001`, `ATT-SSB-001`, `ATT-WPL-001` |
 | 근태 > 휴무 관리 | 3 | 4 | 7 | `ATT-MLV-001`, `ATT-LVS-001`, `ATT-LVP-001` |
 
 ## 2. 읽는 방법
@@ -641,7 +641,7 @@
 
 ### 3.9 근태 > 근무스케줄 관리
 
-> Page 3개 · 하위 UI 12개 · 합계 15개
+> Page 3개 · 하위 UI 15개 · 합계 18개
 
 #### ATT-SSV-001 · 부서별 근무스케줄 현황
 
@@ -709,9 +709,9 @@
 | 메뉴 경로 | 근태 > 근무스케줄 관리 |
 | 라우트 | `att-work-policy → #page-att-work-policy` |
 | 프로세스 그룹 | 기초 설정 |
-| 주요 목적 | 조직 상속형 근무정책과 근무조 마스터 관리 |
-| 주요 액션 | 부서 정책 설정, 근무조 등록·수정·중지, 기본 근무조 지정 |
-| 하위 UI | **5건** |
+| 주요 목적 | 조직 상속형 근무정책·근무조 마스터·공휴일 및 회사 지정 휴무일 관리 |
+| 주요 액션 | 부서 정책 설정, 근무조 등록·수정·중지, 기본 근무조 지정, 휴일 조회·편집·공휴일 불러오기·전자결재 상신 |
+| 하위 UI | **8건** |
 
 | 하위 화면 ID | 화면명 | 유형 | 위치 | 주요 목적·액션 |
 |---|---|---|---|---|
@@ -720,18 +720,24 @@
 | ATT-WPL-001-D01 | 근무조 수정 | Detail | `page-att-work-policy` 내부 host (인-페이지) | 기존 근무조 시간·휴게·사용부서·상태 수정 (적용 시작일·사유 인라인 검증) |
 | ATT-WPL-001-M03 | 근무조 마스터 변경 이력 | Modal | `shift-log-modal` | 전체 근무조 코드의 변경 이력 조회 |
 | ATT-WPL-001-M04 | 근무조 사용 이력 | Modal | `shift-history-modal` | 특정 근무조의 사용·상태 변경 이력 조회 |
+| ATT-WPL-001-D02 | 휴일 관리 | Detail | `page-att-work-policy` 내부 `STATE.wpTab='holiday'` | 월간·연간 캘린더로 공휴일·회사 지정 휴무일 조회, 편집 모드, 공휴일 일괄 불러오기, 승인대기·기한 경과 반려 상태 확인 |
+| ATT-WPL-001-M05 | 휴일 추가·수정 | Modal | `hol-modal` (페이지 생성 Modal) | 휴일명·일자·비고 입력, 신규 등록·수정·삭제, 지난 날짜·동일 날짜 중복 검증 |
+| ATT-WPL-001-M06 | 휴일 관리 변경 승인 요청 | Modal | `[data-sysapr-host]` 공통 전자결재 Modal | 휴일 추가·수정·삭제 변경분 확인, 사유·결재선·첨부 입력 후 승인 요청 |
 
 <details>
 <summary>분석 상태·소스 근거 보기</summary>
 
 - **Page 분석 상태:** 확정
 - **Page 소스:** `page-att-settings.js`
-- **Page 근거:** 파일 헤더, `App.AttWorkPolicy`
+- **Page 근거:** 파일 헤더, `App.AttWorkPolicy`, `App.AttHolidays`
 - **ATT-WPL-001-M01** — 확정<br>근거: `renderDeptModal()`
 - **ATT-WPL-001-M02** — 확정<br>근거: `App.AttShifts.openEditor(null)` → `openAddModal()`, 트리거 `data-shift-act="add"`
 - **ATT-WPL-001-D01** — 확정<br>근거: `App.AttShifts.editInto(host, code)`, `renderEditInto()`
 - **ATT-WPL-001-M03** — 확정 — 근무정책 설정 > 근무조 관리 목록 toolbar 우측 [변경 이력] 버튼 클릭 시 진입 (2026-07-15 소스 확인)<br>근거: `openCodeLogModal()` (`page-att-settings.js:298` 버튼(`data-shift-log`) → `:961` 바인딩 → `:396` 정의)
 - **ATT-WPL-001-M04** — 확정 — 근무정책 설정 > 근무조 편집(인-페이지 수정) 화면 footer [사용 이력] 버튼 클릭 시 진입(잠금/편집 레이아웃 모두 노출) (2026-07-15 소스 확인). ※ 함수·버튼은 데이터 모듈 att-shift-data.js에 위치<br>근거: `openHistoryModal()` (`att-shift-data.js:558`(잠금)/`:563`(편집) 버튼(`data-shift-history`) → `:587` 바인딩 → `:691` 정의)
+- **ATT-WPL-001-D02** — 확정 — 근무정책 설정 「휴일 관리」 탭에서 진입<br>근거: `TABS`, `renderHoliday()`, `renderHolMonth()`, `renderHolYear()`, `App.AttHolidays`
+- **ATT-WPL-001-M05** — 확정 — 편집 모드의 [휴일 추가], 날짜 셀, 휴일 칩에서 진입<br>근거: `ensureHolModal()`, `openHolModal()`, `saveHoliday()`, `deleteHoliday()`
+- **ATT-WPL-001-M06** — 확정 — [적용]에서 승인 요청 Modal 진입 · 구현 갭 — 최종 승인 후 `pending→approved` 전환과 기한 경과 반려 처리는 본 화면 밖<br>근거: `applyHolEdit()`, `App.openSystemApprovalModal()`, `_buildSysAprModal()`, `commitHolEdit()`
 
 </details>
 
@@ -819,4 +825,3 @@
 
 - `확정`은 화면 존재와 프론트엔드 동작이 소스에서 확인됐다는 뜻이며, 백엔드 저장·권한 검증까지 확정한다는 뜻은 아니다.
 - 삭제되거나 현행 화면에서 제외된 항목은 [SCREEN_CATALOG_DELETE_HISTORY.md](SCREEN_CATALOG_DELETE_HISTORY.md)에서 확인한다.
-

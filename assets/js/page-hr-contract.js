@@ -66,15 +66,16 @@
   };
   const KINDS = ['근로계약서', '임금계약서'];
 
-  /* ============ 직원 마스터 ============
-   *   App.HRMembers(hr-members-data) 와 동일한 mock 데이터 공유.
+  /* ============ 계약 화면용 직원 표시 캐시 ============
+   *   단일 직원 마스터 App.HRInfoMgmt 에서 계약 화면에 필요한 필드만 투영한다.
+   *   원본 저장소가 아니며, 신규 계약 작성 대상 목록은 bulkRowsSource()에서 최신 마스터를 직접 조회한다.
    *   필드: id, name, dept, job, rank, position, empType, contractSubType, contractOut, jobCat, email
    *   contractSubType: '' (일반 계약직) | 'chotak' (촉탁) | 'intern' (인턴) — 계약직에만 적용
    *   colorIdx: 아바타 색 인덱스 (seed 기반 계산) — 공유 데이터에는 없으므로 여기서 부여
-   *   공유 데이터 없을 때를 위한 fallback 하드코딩은 비상용 (실제 사용 시 hr-members-data 가 먼저 로드됨) */
+   *   원본 데이터가 없을 때를 위한 fallback 하드코딩은 독립 실행 방어용이다. */
   const EMPLOYEES = (function buildEmployees() {
-    const members = (window.App && App.HRMembers && App.HRMembers.list)
-      ? App.HRMembers.list()
+    const members = (window.App && App.HRInfoMgmt && App.HRInfoMgmt.list)
+      ? App.HRInfoMgmt.list()
       : [];
     if (!members.length) {
       /* fallback — hr-members-data 미로드 케이스 (방어용, 일반적으로 발생 안 함) */
@@ -458,8 +459,8 @@ ${wageClauses(v)}
     // 각 계약서는 독립된 법적 문서. "갱신" 이라는 개념은 시스템에 두지 않고,
     // 한 직원에 대해 시기별로 별도 계약서를 누적 보존. 동일 직원의 다른 계약은
     // 상세 화면에서 시간순으로 조회만 한다.
-    /* ============ 계약 시드 — 공용 직원 마스터(App.HRMembers) 5명과 정합 ============
-     *   EMPLOYEES = App.HRMembers.list().slice(0,12) → 실제 5명(정규직/정수습/정일용/김도급/하계약).
+    /* ============ 계약 시드 — 임직원 통합 마스터(App.HRInfoMgmt) 5명과 정합 ============
+     *   EMPLOYEES = App.HRInfoMgmt.list().slice(0,12) → 실제 5명(정규직/정수습/정일용/김도급/하계약).
      *     emp:0 정규직(regular·무기)  emp:1 정수습(regular+수습·무기)
      *     emp:2 정일용(daily·기간제)   emp:3 김도급(도급 → contractOut 이라 아래 filter 제외)
      *     emp:4 하계약(contract·기간제)
