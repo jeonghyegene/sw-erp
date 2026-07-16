@@ -8,9 +8,9 @@
 
 | 구분 | 수 | 비고 |
 |---|---:|---|
-| 전체 활성 UI | 111 | Page 25 + 하위 UI 86 |
+| 전체 활성 UI | 114 | Page 25 + 하위 UI 89 |
 | Page | 25 | 인사 17, 근태 8 |
-| 하위 UI | 86 | Detail 17, Modal 65, OffCanvas 4 |
+| 하위 UI | 89 | Detail 20, Modal 65, OffCanvas 4 |
 | 하위 UI 연결 Page | 22 | 25개 Page 중 22개 |
 | 하위 UI 없는 Page | 3 | `ATT-MYW-001`, `ATT-SSV-001`, `ATT-MLV-001` |
 
@@ -22,11 +22,11 @@
 | 인사 > 인사 관리 | 3 | 13 | 16 | `HR-EMP-001`, `HR-EMP-002`, `HR-PRZ-001` |
 | 인사 > 계약·발령·휴직 | 3 | 9 | 12 | `HR-CTR-001`, `HR-APT-001`, `HR-LOA-001` |
 | 인사 > 평가 관리 | 5 | 24 | 29 | `HR-EVT-001`, `HR-EVR-001`, `HR-EVI-001`, `HR-PEV-001`, `HR-PES-001` |
-| 인사 > 급여 관리 | 2 | 8 | 10 | `HR-PAY-001`, `HR-PSL-001` |
+| 인사 > 급여 관리 | 2 | 9 | 11 | `HR-PAY-001`, `HR-PSL-001` |
 | 인사 > 복리후생 | 1 | 2 | 3 | `HR-MEAL-001` |
 | 인사 > 퇴사 관리 | 2 | 4 | 6 | `HR-RSG-001`, `HR-PEN-001` |
 | 근태 > 근태 관리 | 2 | 5 | 7 | `ATT-MYW-001`, `ATT-STS-001` |
-| 근태 > 근무스케줄 관리 | 3 | 15 | 18 | `ATT-SSV-001`, `ATT-SSB-001`, `ATT-WPL-001` |
+| 근태 > 근무스케줄 관리 | 3 | 17 | 20 | `ATT-SSV-001`, `ATT-SSB-001`, `ATT-WPL-001` |
 | 근태 > 휴무 관리 | 3 | 4 | 7 | `ATT-MLV-001`, `ATT-LVS-001`, `ATT-LVP-001` |
 
 ## 2. 읽는 방법
@@ -436,14 +436,15 @@
 | 메뉴 경로 | 인사 > 급여 관리 |
 | 라우트 | `hr-pay-settlement → #page-hr-pay-settlement` |
 | 프로세스 그룹 | 급여 운영 |
-| 주요 목적 | 정산 회차 개설과 계산·검증·확정, 급여대장 생성 |
-| 주요 액션 | 등록, 복제, 대상 선정, 계산, 수정·검증, 확정, 중단, 업로드 |
-| 하위 UI | **7건** |
+| 주요 목적 | 상용직·일용직 정산 회차 개설과 계산·검증·확정, 급여대장 생성 (상용직 5단계 / 일용직 3단계) |
+| 주요 액션 | 등록, 복제, 대상 선정(상용직/일용직), 계산, 수정·검증, 확정, 중단, 업로드 |
+| 하위 UI | **8건** |
 
 | 하위 화면 ID | 화면명 | 유형 | 위치 | 주요 목적·액션 |
 |---|---|---|---|---|
-| HR-PAY-001-D01 | 급여 정산 등록 마법사 | Detail | Page 내부 `STATE.view='create'` | 기본정보, 대상자, 지급·공제 항목 구성 |
-| HR-PAY-001-D02 | 급여 정산 상세 | Detail | Page 내부 `STATE.view='detail'` | 계산·검증·확정 단계와 급여대장 관리 |
+| HR-PAY-001-D01 | 급여 정산 등록 마법사 | Detail | Page 내부 `STATE.view='create'` | 기본정보, 대상자(상용직/일용직 그룹), 지급·공제 항목 구성 |
+| HR-PAY-001-D02 | 급여 정산 상세 (상용직) | Detail | Page 내부 `STATE.view='detail'` (`empGroup='standard'`) | 상용직 5단계 계산·검증·확정과 급여대장 관리 |
+| HR-PAY-001-D03 | 일용직 급여대장 | Detail | Page 내부 `STATE.view='detail'` (`empGroup='daily'`) | 일용직 3단계(대상자→급여대장→확정). 일자별 근무시간·과세급여·공제·실수령액 단일 급여대장 산출·검토·확정 |
 | HR-PAY-001-M01 | 정산 설정 | Modal | `modal-prs-config` | 기본정보·대상자·지급·공제 항목 수정 |
 | HR-PAY-001-M02 | 수기 지급항목 일괄 입력 | Modal | `modal-prs-bulk` | 상여·기타수당 등의 대상자 일괄 입력 |
 | HR-PAY-001-M03 | 4대보험 고지액 업로드 | Modal | `modal-prs-ded-insurance` | 파일 업로드·검증·적용 |
@@ -455,9 +456,10 @@
 
 - **Page 분석 상태:** 확정
 - **Page 소스:** `page-hr-pay-settlement.js`
-- **Page 근거:** 파일 헤더, 상태 5종, `App.HRPaySettlement`
+- **Page 근거:** 파일 헤더, 상태 5종, `App.HRPaySettlement`, `isDailyGroup()`(`:105`)
 - **HR-PAY-001-D01** — 확정<br>근거: `renderWizard()`
-- **HR-PAY-001-D02** — 확정<br>근거: `renderDetail()`
+- **HR-PAY-001-D02** — 확정 (상용직 상세, `empGroup='standard'`)<br>근거: `renderDetail()`, `PHASES_STD`(`:91`)
+- **HR-PAY-001-D03** — 확정 — 정산 회차 `targetFilter.empGroup='daily'` 일 때 상세 뷰가 일용직 급여대장으로 분기. 일용직 3단계(대상자→급여대장→확정), 「일당 × 근무일수」 통합 급여대장(엑셀 「일용직 급여대장」 시트 구성) (2026-07-16 소스 확인)<br>근거: `renderDailyLedgerTable()`(`:1916`), `PHASES_DAILY`(`:98`), `STAGE_NEXT_LABEL_DAILY`(`:67`)
 - **HR-PAY-001-M01** — 확정<br>근거: `openConfigModal()`
 - **HR-PAY-001-M02** — 확정<br>근거: `openBulkModal()`
 - **HR-PAY-001-M03** — 확정<br>근거: `openDeductUploadModal()` 계열
@@ -709,13 +711,15 @@
 | 메뉴 경로 | 근태 > 근무스케줄 관리 |
 | 라우트 | `att-work-policy → #page-att-work-policy` |
 | 프로세스 그룹 | 기초 설정 |
-| 주요 목적 | 조직 상속형 근무정책·근무조 마스터·공휴일 및 회사 지정 휴무일 관리 |
+| 주요 목적 | 조직 상속형 근무정책·근무조 마스터·공휴일 및 회사 지정 휴무일 관리 (탭 3개: 부서별 근무정책 설정 / 근무조 설정 / 휴일 관리) |
 | 주요 액션 | 부서 정책 설정, 근무조 등록·수정·중지, 기본 근무조 지정, 휴일 조회·편집·공휴일 불러오기·전자결재 상신 |
-| 하위 UI | **8건** |
+| 하위 UI | **10건** |
 
 | 하위 화면 ID | 화면명 | 유형 | 위치 | 주요 목적·액션 |
 |---|---|---|---|---|
+| ATT-WPL-001-D03 | 부서별 근무정책 설정 (탭) | Detail | `page-att-work-policy` 내부 `STATE.wpTab='dept'` (기본 탭) | 조직 상속형 부서별 근무정책·사용 근무조·기본 근무조를 조직 그리드로 조회·관리 |
 | ATT-WPL-001-M01 | 부서 근무정책 설정 | Modal | `wp-dept-modal` | 상위 조직 상속·별도 정책, 근무조·관리자·기본조 설정 |
+| ATT-WPL-001-D04 | 근무조 설정 (탭) | Detail | `page-att-work-policy` 내부 `STATE.wpTab='shift'` | 근무조 마스터 목록 조회, 근무조 등록·수정·중지·기본조 지정 (부서 관리 기본 근무조 선택의 선행 마스터) |
 | ATT-WPL-001-M02 | 근무조 추가 | Modal | `modal-shift-editor` | 신규 근무조 시간·휴게·사용부서·색상 등록 |
 | ATT-WPL-001-D01 | 근무조 수정 | Detail | `page-att-work-policy` 내부 host (인-페이지) | 기존 근무조 시간·휴게·사용부서·상태 수정 (적용 시작일·사유 인라인 검증) |
 | ATT-WPL-001-M03 | 근무조 마스터 변경 이력 | Modal | `shift-log-modal` | 전체 근무조 코드의 변경 이력 조회 |
@@ -729,8 +733,10 @@
 
 - **Page 분석 상태:** 확정
 - **Page 소스:** `page-att-settings.js`
-- **Page 근거:** 파일 헤더, `App.AttWorkPolicy`, `App.AttHolidays`
+- **Page 근거:** 파일 헤더, `TABS`(`:33` — dept/shift/holiday), `App.AttWorkPolicy`, `App.AttHolidays`
+- **ATT-WPL-001-D03** — 확정 — 근무정책 설정 진입 시 기본 탭(`STATE.wpTab='dept'`). 조직 상속형 부서별 근무정책 그리드 (2026-07-16 소스 확인)<br>근거: `renderDept()`(`page-att-settings.js:509`), `renderWpBody()`(`:1386`)
 - **ATT-WPL-001-M01** — 확정<br>근거: `renderDeptModal()`
+- **ATT-WPL-001-D04** — 확정 — 「근무조 설정」 탭(`STATE.wpTab='shift'`). 근무조 마스터 목록·등록·수정·중지. 부서 관리 기본 근무조 선택의 선행 마스터 (2026-07-16 소스 확인)<br>근거: `renderShift()`(`page-att-settings.js:317`), `renderWpBody()`(`:1387`)
 - **ATT-WPL-001-M02** — 확정<br>근거: `App.AttShifts.openEditor(null)` → `openAddModal()`, 트리거 `data-shift-act="add"`
 - **ATT-WPL-001-D01** — 확정<br>근거: `App.AttShifts.editInto(host, code)`, `renderEditInto()`
 - **ATT-WPL-001-M03** — 확정 — 근무정책 설정 > 근무조 관리 목록 toolbar 우측 [변경 이력] 버튼 클릭 시 진입 (2026-07-15 소스 확인)<br>근거: `openCodeLogModal()` (`page-att-settings.js:298` 버튼(`data-shift-log`) → `:961` 바인딩 → `:396` 정의)

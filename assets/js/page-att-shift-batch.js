@@ -9,11 +9,14 @@
  *    · 생산직: 직원별로 근무조를 바꿔 주/야 교대를 세팅 가능(정책 반영 — 월별 편성 기본값에 직접 반영).
  *    · 사무직/연구직: 근무조 변경 승인 내역을 'YY/MM ~ YY/MM 반영 예정'으로 표시(해당 기간 자동 산정 반영).
  *
- *  [월별 근무스케줄 편성] — 기본 근무조대로 월별 근무조를 제출(당월~미래, 여러 달 미리 제출 가능).
- *    · 그리드: 월 | 제목 | 상태(편성 대기/편성 완료/마감) | 관리(다음 달로 복제/삭제) | [상세 보기].
- *    · 상태 흐름: 등록 직후 '편성 대기' → 상세에서 [제출 완료] → '편성 완료' → 월말 지나면 '마감'.
- *      편성 대기·완료 모두 편집 가능(지난 날짜 셀 제외), 마감은 조회만. 제출 완료는 식권 정산 기준(전월 내 제출).
- *    · 삭제: 미래(도래 전) 월만 가능. 당월·지난 달은 삭제 불가. 복제: 마감 아닌 회차를 다음 달로.
+ *  [월별 근무스케줄 편성] — 기본 근무조대로 월별 근무조를 편성(당월~미래, 여러 달 미리 편성 가능).
+ *    · 그리드: 월 | 제목 | 상태(작성중/편성완료/마감) | 관리(다음 달로 복제/삭제) | [상세 보기].
+ *    · 상태 흐름(정책 v1.5 §7.5): 대상월 회차는 매월 반드시 생성·확정.
+ *      - 전월 20일 시스템이 자동 생성 → '편성완료'. (관리자가 그 전에 미리 만들면 '작성중')
+ *      - 작성중 → 상세에서 [편성완료] → '편성완료'. 전월 20일까지 미확정이면 시스템이 자동 확정.
+ *      - '편성완료' 회차로 대상월 근태 체크, 변경사항 수시 반영(지난 날짜 셀 제외).
+ *      - 대상월 다음달 1일 도래 → '마감'(조회만).
+ *    · 삭제: 미래(도래 전) 월만 가능. 당월·지난 달·마감은 삭제 불가. 복제: 마감 아닌 회차를 다음 달로.
  *    · 편성 안 한 월/미생성 기간은 기본 근무조로 자동 산정(soft fallback).
  *    · 상세 편집: 오늘 이전 날짜/주간은 수정 불가(근태 산정 완료). 편집 저장 시 '적용 내용' 입력 →
  *      변경 이력(편집 일시 | 적용 내용 | 처리자) 관리. '변경 이력' 버튼은 '편집' 왼쪽.
@@ -53,6 +56,13 @@
   function shiftMonth(ym, delta) { let [y, m] = ym.split('-').map(Number); m += delta; while (m <= 0) { m += 12; y -= 1; } while (m > 12) { m -= 12; y += 1; } return `${y}-${pad2(m)}`; }
   function nowStamp() { const d = new Date(); const p = TODAY.split('-'); return `${p[0].slice(2)}/${p[1]}/${p[2]}   ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
   function monthLastDate(ym) { return `${ym}-${pad2(daysInMonth(ym))}`; }
+  /* ---- 휴무일 판정 — 주말 + 휴일 관리(근무정책 설정) 승인 휴일 ----
+     근무스케줄 편성은 소정근로일(월~금, 비휴일)만 대상. 주말·휴일은 편성 제외 → 휴무('-').
+     휴일은 '근무정책 설정 > 휴일 관리'의 공유 API(App.AttHolidays) 승인분(approved)만 반영. */
+  function isWeekend(ds) { const wd = parseYMD(ds).getDay(); return wd === 0 || wd === 6; }
+  function holidayInfo(ds) { const H = window.App && App.AttHolidays; return (H && H.isHoliday && H.isHoliday(ds)) ? (H.get ? H.get(ds) : { name: '휴일' }) : null; }
+  function isHolidayDay(ds) { return !!holidayInfo(ds); }
+  function isOffDay(ds) { return isWeekend(ds) || isHolidayDay(ds); }
 
   /* ============ 인원 / 부서 (조직도 없음 — 부서명으로 직접 필터) ============ */
   function allEmps() {
@@ -195,8 +205,7 @@
     return (ds >= `${a.fromYm}-01` && ds <= monthLastDate(a.toYm)) ? a : null;
   }
   function basePlanCode(emp, ds) {
-    const wd = parseYMD(ds).getDay();
-    if (wd === 0 || wd === 6) return '-';
+    if (isOffDay(ds)) return '-';                 /* 주말·휴일(휴일 관리 승인분) → 편성 제외(휴무) */
     const ap = approvalAt(emp.id, ds);
     if (ap) return ap.toCode;
     return empWeekCode(emp, cycleSlot(ds));
@@ -285,21 +294,24 @@
     pageSize: 20,
   };
 
-  /* 회차 상태:
-     · 마감      — 월 전체가 오늘 이전(근태 산정 완료, 조회만)
-     · 편성 대기 — 등록 직후, 아직 '제출 완료' 안 됨(제출 필수)
-     · 편성 완료 — '제출 완료'를 눌러 확정(식권 정산 기준)
-     제출 여부(rec.submitted)와 날짜를 함께 본다. */
+  /* 회차 상태(정책 v1.5 §7.5):
+     · 마감     — 대상월 다음달 1일 도래(대상월 경과, 근태 산정 완료, 조회만)
+     · 편성완료 — 전월 20일 시스템 자동 생성·확정 / [편성완료] 확정 / 20일 잔여 작성중 자동 확정. 대상월 근태 체크 기준
+     · 작성중   — 관리자가 전월 20일 자동 생성 이전에 미리 생성. 아직 [편성완료] 전
+     수동 확정 여부(rec.submitted), 전월 20일(자동 확정 기준일), 대상월 경과를 함께 본다. */
+  function autoGenDate(ym) { return `${shiftMonth(ym, -1)}-20`; }   /* 대상월 전월 20일 = 자동 생성·확정 기준일 */
   function recStatus(rec) {
-    if (monthLastDate(rec.ym) < TODAY) return 'closed';
-    return rec.submitted ? 'submitted' : 'pending';
+    if (monthLastDate(rec.ym) < TODAY) return 'closed';            /* 대상월 경과 → 마감 */
+    if (rec.submitted) return 'submitted';                         /* 관리자 [편성완료] 확정 */
+    if (autoGenDate(rec.ym) <= TODAY) return 'submitted';          /* 전월 20일 지남 → 시스템 자동 편성완료 */
+    return 'draft';                                                /* 전월 20일 이전, 관리자 사전 생성분 */
   }
   const STATUS = {
-    pending:   { label: '편성 대기', pill: 'warning' },
-    submitted: { label: '편성 완료', pill: 'success' },
+    draft:     { label: '작성중',   pill: 'warning' },
+    submitted: { label: '편성완료', pill: 'success' },
     closed:    { label: '마감',     pill: 'muted' },
   };
-  function statusPill(st) { const s = STATUS[st] || STATUS.pending; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
+  function statusPill(st) { const s = STATUS[st] || STATUS.draft; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
   /* 삭제 가능 — 미래(도래 전) 월만. 당월·지난 달은 불가. */
   function deletable(rec) { return rec.ym > CUR_YM; }
 
@@ -347,9 +359,10 @@
     return ap;
   }
   function seedRecords(dept) {
-    const months = [shiftMonth(CUR_YM, -2), shiftMonth(CUR_YM, -1), CUR_YM, shiftMonth(CUR_YM, 1)];
-    /* 지난달·당월 = 제출 완료(편성 완료), 다음 달 = 편성 대기(제출 전) — 새 상태 흐름 데모 */
-    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [], submitted: ym <= CUR_YM }));
+    const months = [shiftMonth(CUR_YM, -2), shiftMonth(CUR_YM, -1), CUR_YM, shiftMonth(CUR_YM, 1), shiftMonth(CUR_YM, 2)];
+    /* 상태는 recStatus 가 날짜로 산출(전월 20일 자동 편성완료 / 대상월 경과 마감).
+       submitted=false 로 두면: 지난달·당월·다음달 = 편성완료(자동), +2개월 = 작성중(관리자 사전 생성, 전월 20일 전) — 3개 상태 데모 */
+    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [], submitted: false }));
     recs.forEach(ensureRecordSeed);
     /* 데모 변경 이력 — 이번 달 회차 1건 */
     const cur = recs.find(r => r.ym === CUR_YM);
@@ -383,7 +396,7 @@
     if (!emp) return;
     const days = daysInMonth(CUR_YM);
     let target = null;
-    for (let d = 1; d <= days; d++) { const ds = `${CUR_YM}-${pad2(d)}`; const wd = parseYMD(ds).getDay(); if (wd !== 0 && wd !== 6 && ds > TODAY) { target = ds; break; } }
+    for (let d = 1; d <= days; d++) { const ds = `${CUR_YM}-${pad2(d)}`; if (!isOffDay(ds) && ds > TODAY) { target = ds; break; } }
     if (!target || O.get(emp.id, target)) return;
     const codes = deptAllowedCodes(STATE.deptName);
     const base = empWeekCode(emp, cycleSlot(target));
@@ -751,21 +764,21 @@
    *  TAB 2 — 월별 근무스케줄 편성 (목록)
    * ========================================================= */
   function bannerHTML() {
-    /* ① 이번 달 회차 미편성 안내 / ② 다음 달 편성 대기(전월 제출 필요) 안내 — 식권 정산 기준 */
-    const nextYm = shiftMonth(CUR_YM, 1);
-    const nextRec = STATE.records.find(r => r.ym === nextYm);
+    /* ① 이번 달 회차 미편성 안내 / ② 작성중 회차 [편성완료] 확정 안내(미확정 시 전월 20일 자동 확정) */
     let inner = '';
+    /* 가장 이른 작성중 회차 */
+    const draftRec = STATE.records.slice().sort((a, b) => (a.ym < b.ym ? -1 : 1)).find(r => recStatus(r) === 'draft');
     if (!STATE.records.some(r => r.ym === CUR_YM)) {
       inner = `<div class="callout callout--warning callout--compact">
         <span class="callout__icon">⚠</span>
         <div class="callout__body">이번 달 <strong>${esc(ymSlash(CUR_YM))}</strong> 근무조가 편성되지 않아 <strong>부서 기본 근무조</strong>로 자동 산정됩니다.</div>
         <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-new>월별 편성하기</button></div>
       </div>`;
-    } else if (nextRec && recStatus(nextRec) === 'pending') {
-      inner = `<div class="callout callout--warning callout--compact">
-        <span class="callout__icon">⚠</span>
-        <div class="callout__body">다음 달 <strong>${esc(ymSlash(nextYm))}</strong> 근무스케줄이 <strong>편성 대기</strong>입니다. 식권 정산을 위해 이번 달 안에 제출 완료해 주세요.</div>
-        <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-open="${esc(nextRec.id)}">제출하러 가기</button></div>
+    } else if (draftRec) {
+      inner = `<div class="callout callout--brand callout--compact">
+        <span class="callout__icon">ℹ</span>
+        <div class="callout__body"><strong>${esc(ymSlash(draftRec.ym))}</strong> 근무스케줄이 <strong>작성중</strong>입니다. [편성완료]로 확정하거나, 미확정 시 전월 20일 시스템이 자동으로 편성완료합니다.</div>
+        <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-open="${esc(draftRec.id)}">확정하러 가기</button></div>
       </div>`;
     }
     return inner ? `<div style="flex:0 0 auto;padding:12px 20px 0;">${inner}</div>` : '';
@@ -912,16 +925,20 @@
     const dayHead = dates.map(ds => {
       const dt = parseYMD(ds); const wd = dt.getDay();
       const other = !inMonth(ds);
-      const cls = (wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '') + (other ? ' is-other' : '');
-      return `<th class="ssw-tbl__day ${cls}"${other ? ' style="opacity:.4;"' : ''}><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}/${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`;
+      const hol = other ? null : holidayInfo(ds);
+      const cls = (wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '') + (hol ? ' is-hol' : '') + (other ? ' is-other' : '');
+      const holName = hol ? `<span class="ssw-tbl__holname" title="${esc(hol.name)}">${esc(hol.name)}</span>` : '';
+      return `<th class="ssw-tbl__day ${cls}"${other ? ' style="opacity:.4;"' : ''}><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}/${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span>${holName}</th>`;
     }).join('');
     const rows = emps.map(emp => {
       const cells = dates.map(ds => {
         const dt = parseYMD(ds); const wd = dt.getDay();
         const other = !inMonth(ds);
-        const cls = (wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '') + (other ? ' is-other' : '');
+        const hol = other ? null : holidayInfo(ds);
+        const cls = (wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '') + (hol ? ' is-hol' : '') + (other ? ' is-other' : '');
         if (other) return `<td class="ssw-tbl__day ${cls}" style="opacity:.4;"><span class="t-muted">·</span></td>`;
-        if (wd === 0 || wd === 6) return `<td class="ssw-tbl__day ${cls}">${chip('-', true)}</td>`;
+        /* 주말·휴일 — 편성 제외(휴무, 비편집). 휴일이면 사유(휴일명) 툴팁 */
+        if (isOffDay(ds)) { const t = hol ? ` title="${esc(hol.name)} · 휴일"` : ''; return `<td class="ssw-tbl__day ${cls}"${t}>${chip('-', true)}</td>`; }
         const eff = effAt(rec, emp, ds);
         /* 개인 근무조 변경 승인일 — 셀 중앙 우측에 '승인' 배지(자물쇠 자리) + 편집 잠금(부서장 임의 변경 불가) */
         if (eff.ov) {
@@ -964,8 +981,8 @@
     const weeks = weeksOfMonth(rec.ym);
     if (STATE.weekIdx >= weeks.length) STATE.weekIdx = 0;
     const week = weeks[STATE.weekIdx];
-    /* 편성 대기·편성 완료 모두 편집 가능(지난 날짜 셀은 불가 — renderWeekTable 에서 처리). 마감은 조회만. */
-    const editable = (st === 'pending' || st === 'submitted') && STATE.editMode;
+    /* 작성중·편성완료 모두 편집 가능(지난 날짜 셀은 불가 — renderWeekTable 에서 처리). 마감은 조회만. */
+    const editable = (st === 'draft' || st === 'submitted') && STATE.editMode;
     if (!editable && STATE.selected.size) STATE.selected.clear();
 
     const weekTabs = weeks.map(w =>
@@ -977,16 +994,16 @@
     if (st === 'closed') actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button>`;
     else if (STATE.editMode) actions = `<button class="btn btn--sm" type="button" data-sb-edit-cancel>취소</button><button class="btn btn--sm btn--primary" type="button" data-sb-edit-save>저장</button>`;
     else {
-      /* 편성 대기 → [제출 완료] 노출(식권 정산 위해 필수). 편성 완료 → 편집만. */
-      const submitBtn = (st === 'pending') ? `<button class="btn btn--sm btn--primary" type="button" data-sb-submit>제출 완료</button>` : '';
+      /* 작성중 → [편성완료] 노출(확정). 편성완료 → 편집만. */
+      const submitBtn = (st === 'draft') ? `<button class="btn btn--sm btn--primary" type="button" data-sb-submit>편성완료</button>` : '';
       actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button><button class="btn btn--sm" type="button" data-sb-edit>편집</button>${submitBtn}`;
     }
 
     let capText;
     if (st === 'closed') capText = '근태 산정이 완료된 지난 근무조입니다. 조회만 가능합니다.';
     else if (STATE.editMode) capText = '';
-    else if (st === 'pending') capText = '편성 대기 상태입니다. 식권 정산을 위해 전월에 [제출 완료]로 확정해 주세요. (편집도 가능)';
-    else capText = '편성 완료 상태입니다. [편집]으로 수정할 수 있습니다.';
+    else if (st === 'draft') capText = '작성중 상태입니다. [편성완료]로 확정해 주세요. 미확정 시 전월 20일 시스템이 자동 확정합니다. (편집도 가능)';
+    else capText = '편성완료 상태입니다. 대상월 근태 체크 기준이며 [편집]으로 변경사항을 수시 반영할 수 있습니다.';
 
     /* 편집 모드 + 선택 시 '총 N명' 우측에 일괄 변경 버튼 노출 (다른 탭과 동일하게 .toolbar__left 안에 배치) */
     const selN = STATE.selected.size;
@@ -1045,7 +1062,7 @@
     render(pageEl);
   }
   function enterEdit(pageEl) {
-    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) === 'closed') return;   /* 편성 대기·완료 모두 편집 가능, 마감만 불가 */
+    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) === 'closed') return;   /* 작성중·편성완료 모두 편집 가능, 마감만 불가 */
     STATE.editMode = true;
     STATE.editSnapshot = JSON.parse(JSON.stringify(rec.plan));
     STATE.selected.clear();
@@ -1059,15 +1076,15 @@
     STATE.selected.clear();
     renderDetail(pageEl);
   }
-  /* 제출 완료 — 편성 대기 → 편성 완료 확정. 식권 정산 기준 회차로 잠금(편집은 여전히 가능). */
+  /* 편성완료 — 작성중 → 편성완료 확정. 대상월 근태 체크 기준 회차(편집은 여전히 가능). */
   function submitRecord(pageEl) {
     const rec = recordById(STATE.detailId);
-    if (!rec || recStatus(rec) !== 'pending') return;
+    if (!rec || recStatus(rec) !== 'draft') return;
     rec.submitted = true;
     rec.log = rec.log || [];
-    rec.log.unshift({ at: nowStamp(), content: '월별 근무스케줄 제출 완료 (편성 완료 확정)', by: HR_NAME });
+    rec.log.unshift({ at: nowStamp(), content: '월별 근무스케줄 편성완료 확정', by: HR_NAME });
     renderDetail(pageEl);
-    toast(`${ymSlash(rec.ym)} 근무스케줄을 제출 완료했습니다. (편성 완료)`, 'success');
+    toast(`${ymSlash(rec.ym)} 근무스케줄을 편성완료했습니다.`, 'success');
   }
 
   /* =========================================================
@@ -1135,7 +1152,7 @@
     let created = 0, skipped = 0, firstNew = null;
     monthsInRange(from, to).forEach(ym => {
       if (STATE.records.some(r => r.ym === ym)) { skipped++; return; }
-      const rec = { id: ym, ym, dept, plan: {}, log: [], submitted: false };   /* 등록 직후 = 편성 대기 */
+      const rec = { id: ym, ym, dept, plan: {}, log: [], submitted: false };   /* 관리자 사전 생성 = 작성중(전월 20일 전) / 이미 전월 20일 지난 월은 recStatus 가 편성완료로 산출 */
       ensureRecordSeed(rec);
       STATE.records.push(rec);
       created++; if (!firstNew) firstNew = ym;
@@ -1169,17 +1186,18 @@
       dstWeeks.forEach(w => weekDates7(w.monday).forEach(ds => {
         if (ds.slice(0, 7) !== dstYm) return;
         const wd = parseYMD(ds).getDay();
-        if (wd === 0 || wd === 6) return;
+        if (isOffDay(ds)) return;                 /* 주말·휴일은 복제 대상 제외(휴무 유지) */
         const v = srcMap[`${w.idx}|${wd}`];
         plan[`${emp.id}|${ds}`] = (v === undefined ? basePlanCode(emp, ds) : v);
       }));
     });
-    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [], submitted: false };   /* 복제본 = 편성 대기 */
+    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [], submitted: false };   /* 복제본 = 작성중(전월 20일 전) */
     ensureRecordSeed(rec);
     STATE.records.push(rec);
     sortRecords();
     renderMonthlyList(document.getElementById(PAGE_ID));
-    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다. (편성 대기 — 제출 완료 필요)`, 'success');
+    const dstSt = recStatus(rec);
+    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다. (${STATUS[dstSt].label}${dstSt === 'draft' ? ' — [편성완료] 확정 필요' : ''})`, 'success');
   }
 
   /* =========================================================
@@ -1329,7 +1347,7 @@
     const scopeChips = BULK_SCOPES.map(s => `<button type="button" class="chip-choice__item ${b.scope === s.v ? 'is-active' : ''}" data-sbb-scope="${s.v}">${esc(s.l)}</button>`).join('');
     body.innerHTML = `
       <div style="background:var(--color-active);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:var(--fs-sm);color:var(--color-text-sub);">
-        선택 <strong style="color:var(--color-brand-primary);">${STATE.selected.size}</strong>명에게 적용합니다. <span class="t-muted">(오늘 이전 날짜·주말 제외)</span>
+        선택 <strong style="color:var(--color-brand-primary);">${STATE.selected.size}</strong>명에게 적용합니다. <span class="t-muted">(오늘 이전 날짜·주말·휴일 제외)</span>
       </div>
       <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
         <div class="fm-tbl__row fm-tbl__row--1" style="grid-template-columns:96px 1fr;">
@@ -1350,12 +1368,12 @@
     renderBulkBody();
     openModal('modal-sb-bulk');
   }
-  /* 일괄 적용 대상 날짜 — 이 달 평일 중 오늘 이후 (범위: 표시 중인 주 / 이번 달 전체) */
+  /* 일괄 적용 대상 날짜 — 이 달 소정근로일(평일·비휴일) 중 오늘 이후 (범위: 표시 중인 주 / 이번 달 전체) */
   function bulkDates(rec, scope) {
     let dates;
     if (scope === 'week') { const week = weeksOfMonth(rec.ym)[STATE.weekIdx]; dates = weekMonthDates(rec, week); }
     else { dates = []; const days = daysInMonth(rec.ym); for (let d = 1; d <= days; d++) dates.push(`${rec.ym}-${pad2(d)}`); }
-    return dates.filter(ds => { const wd = parseYMD(ds).getDay(); return wd !== 0 && wd !== 6 && ds >= TODAY; });
+    return dates.filter(ds => !isOffDay(ds) && ds >= TODAY);   /* 주말·휴일 제외 */
   }
   function applyBulk() {
     const rec = recordById(STATE.detailId); if (!rec) return;

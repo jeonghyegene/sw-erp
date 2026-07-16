@@ -15,20 +15,20 @@
 
 | 구분 | 수 | 비고 |
 |---|---:|---|
-| 전체 식별 UI (활성) | 111 | Page 25 + 업무성 하위 UI 86 |
+| 전체 식별 UI (활성) | 114 | Page 25 + 업무성 하위 UI 89 |
 | Page 수준 화면 (활성) | 25 | 인사 17, 근태 8 |
 | 현재 메뉴 노출 Page | 24 | 인사 16, 근태 8 |
 | 프로필 진입 Page | 1 | 내 정보 |
-| 별도 업무성 Detail·Modal·OffCanvas (활성) | 86 | Detail 17, Modal 65, OffCanvas 4 |
+| 별도 업무성 Detail·Modal·OffCanvas (활성) | 89 | Detail 20, Modal 65, OffCanvas 4 |
 | 삭제 이력 (별도 문서) | 31 | Page 8, Modal 20, OffCanvas 3 · [삭제 이력](SCREEN_CATALOG_DELETE_HISTORY.md) |
 
 > `page-hr-eval-history.js`는 독립 Page가 아니라 평가 회차 결과 Modal 공급자이므로 3절의 `HR-EVR-001` 하위 UI에 포함했다.
 
 ## 3. 활성 화면 IA (Page → 하위 UI)
 
-25개 Page와 86개 업무성 하위 UI를 상위·하위 관계로 합친 IA다. 하위 UI는 부모 Page의 메뉴 경로와 프로세스 그룹을 상속한다.
+25개 Page와 89개 업무성 하위 UI를 상위·하위 관계로 합친 IA다. 하위 UI는 부모 Page의 메뉴 경로와 프로세스 그룹을 상속한다.
 
-- 86개 하위 UI는 모두 25개 Page 중 하나에 연결된다.
+- 89개 하위 UI는 모두 25개 Page 중 하나에 연결된다.
 - 하위 UI가 있는 Page는 22개이며, 하위 UI가 없는 Page는 `ATT-MYW-001`, `ATT-SSV-001`, `ATT-MLV-001` 3개다.
 
 | IA 구조 | 메뉴 경로·상위 | 화면명 | 유형 | 라우트·위치 | 프로세스 그룹 | 주요 목적·액션 | 소스·근거 | 분석 상태 |
@@ -93,9 +93,10 @@
 | **HR-PES-001**<br>하위 UI 2건 | 인사 > 평가 관리 | **수습평가 설정** | Page | `hr-eval-set-prob → #page-hr-eval-prob-set` | 평가 기초 설정 | 직책자·비직책자 수습평가 양식과 버전 관리<br>**주요 액션:** 양식 전환, 문항 편집, 변경 사유 입력, 저장, 버전 조회 | `page-hr-eval-prob-set.js`<br>파일 헤더, `App.HRProbEval.saveTemplate()` | 확정 |
 | ├─ HR-PES-001-D01 | ↳ HR-PES-001 | 수습평가 양식 편집 | Detail | Page 본문 | 상위 Page 상속 | 직책자·비직책자 문항·버전·변경 사유 관리 | `saveTemplate()` | 확정 |
 | └─ HR-PES-001-M01 | ↳ HR-PES-001 | 수습평가 설정 수정 사유 | Modal | `pset-reason-modal` | 상위 Page 상속 | 수습평가 양식·단계 설정 저장 전 변경 사유 입력 | `openReasonModal()` (양식 `page-hr-eval-prob-set.js:295`(`data-pset-save`) → `:603` 바인딩 → `:616` 호출 / 단계 `:393`(`data-pset-stage-save`) → `:722` 바인딩 → `:741` 호출 → `:182` 정의) | 확정 — 수습평가 설정에서 [저장] 클릭 시 진입, 경로 2개: (a) 양식 편집 [저장](`data-pset-save`), (b) 「단계 설정」 뷰 [저장](`data-pset-stage-save`) — 검증 통과 후 동일 모달 재사용 (2026-07-15 소스 확인) |
-| **HR-PAY-001**<br>하위 UI 7건 | 인사 > 급여 관리 | **급여 정산** | Page | `hr-pay-settlement → #page-hr-pay-settlement` | 급여 운영 | 정산 회차 개설과 계산·검증·확정, 급여대장 생성<br>**주요 액션:** 등록, 복제, 대상 선정, 계산, 수정·검증, 확정, 중단, 업로드 | `page-hr-pay-settlement.js`<br>파일 헤더, 상태 5종, `App.HRPaySettlement` | 확정 |
-| ├─ HR-PAY-001-D01 | ↳ HR-PAY-001 | 급여 정산 등록 마법사 | Detail | Page 내부 `STATE.view='create'` | 상위 Page 상속 | 기본정보, 대상자, 지급·공제 항목 구성 | `renderWizard()` | 확정 |
-| ├─ HR-PAY-001-D02 | ↳ HR-PAY-001 | 급여 정산 상세 | Detail | Page 내부 `STATE.view='detail'` | 상위 Page 상속 | 계산·검증·확정 단계와 급여대장 관리 | `renderDetail()` | 확정 |
+| **HR-PAY-001**<br>하위 UI 8건 | 인사 > 급여 관리 | **급여 정산** | Page | `hr-pay-settlement → #page-hr-pay-settlement` | 급여 운영 | 상용직·일용직 정산 회차 개설과 계산·검증·확정, 급여대장 생성 (그룹별 정산 방법 상이 — 상용직 5단계 / 일용직 3단계)<br>**주요 액션:** 등록, 복제, 대상 선정(상용직/일용직), 계산, 수정·검증, 확정, 중단, 업로드 | `page-hr-pay-settlement.js`<br>파일 헤더, 상태 5종, `App.HRPaySettlement`, `isDailyGroup()`(`:105`) | 확정 |
+| ├─ HR-PAY-001-D01 | ↳ HR-PAY-001 | 급여 정산 등록 마법사 | Detail | Page 내부 `STATE.view='create'` | 상위 Page 상속 | 기본정보, 대상자(상용직/일용직 그룹 선택), 지급·공제 항목 구성 | `renderWizard()` | 확정 |
+| ├─ HR-PAY-001-D02 | ↳ HR-PAY-001 | 급여 정산 상세 (상용직) | Detail | Page 내부 `STATE.view='detail'` (`empGroup='standard'`) | 상위 Page 상속 | 상용직 5단계(대상자→지급→공제→검토→확정) 계산·검증·확정과 급여대장 관리 | `renderDetail()`, `PHASES_STD` | 확정 |
+| ├─ HR-PAY-001-D03 | ↳ HR-PAY-001 | 일용직 급여대장 | Detail | Page 내부 `STATE.view='detail'` (`empGroup='daily'`) | 상위 Page 상속 | 일용직 3단계(대상자→급여대장→확정). 「일당 × 근무일수」 구조를 일자별 근무시간·과세급여·공제·실수령액 단일 급여대장으로 산출·검토·확정 (엑셀 「일용직 급여대장」 시트 구성) | `renderDailyLedgerTable()`(`:1916`), `PHASES_DAILY`(`:98`), `STAGE_NEXT_LABEL_DAILY`(`:67`) | 확정 — 정산 회차 `targetFilter.empGroup='daily'` 일 때 상세 뷰가 일용직 급여대장으로 분기 (2026-07-16 소스 확인) |
 | ├─ HR-PAY-001-M01 | ↳ HR-PAY-001 | 정산 설정 | Modal | `modal-prs-config` | 상위 Page 상속 | 기본정보·대상자·지급·공제 항목 수정 | `openConfigModal()` | 확정 |
 | ├─ HR-PAY-001-M02 | ↳ HR-PAY-001 | 수기 지급항목 일괄 입력 | Modal | `modal-prs-bulk` | 상위 Page 상속 | 상여·기타수당 등의 대상자 일괄 입력 | `openBulkModal()` | 확정 |
 | ├─ HR-PAY-001-M03 | ↳ HR-PAY-001 | 4대보험 고지액 업로드 | Modal | `modal-prs-ded-insurance` | 상위 Page 상속 | 파일 업로드·검증·적용 | `openDeductUploadModal()` 계열 | 확정 |
@@ -128,8 +129,10 @@
 | ├─ ATT-SSB-001-M04 | ↳ ATT-SSB-001 | 스케줄 변경 내용 저장 | Modal | `modal-sb-apply` | 상위 Page 상속 | 변경 사유 입력 후 저장·이력 생성 | `submitApply()` | 확정 |
 | ├─ ATT-SSB-001-M05 | ↳ ATT-SSB-001 | 스케줄 변경 이력 | Modal | `modal-sb-log` | 상위 Page 상속 | 변경일시·적용내용·처리자 조회 | `openLog()` | 확정 |
 | └─ ATT-SSB-001-M06 | ↳ ATT-SSB-001 | 월별 근무조 일괄 변경 | Modal | `modal-sb-bulk` | 상위 Page 상속 | 상세 편성의 다수 일자·직원 근무조 변경 | `openBulk()` | 확정 |
-| **ATT-WPL-001**<br>하위 UI 8건 | 근태 > 근무스케줄 관리 | **근무정책 설정** | Page | `att-work-policy → #page-att-work-policy` | 기초 설정 | 조직 상속형 근무정책·근무조 마스터·공휴일 및 회사 지정 휴무일 관리<br>**주요 액션:** 부서 정책 설정, 근무조 등록·수정·중지, 기본 근무조 지정, 휴일 조회·편집·공휴일 불러오기·전자결재 상신 | `page-att-settings.js`<br>파일 헤더, `App.AttWorkPolicy`, `App.AttHolidays` | 확정 |
+| **ATT-WPL-001**<br>하위 UI 10건 | 근태 > 근무스케줄 관리 | **근무정책 설정** | Page | `att-work-policy → #page-att-work-policy` | 기초 설정 | 조직 상속형 근무정책·근무조 마스터·공휴일 및 회사 지정 휴무일 관리 (탭 3개: 부서별 근무정책 설정 / 근무조 설정 / 휴일 관리)<br>**주요 액션:** 부서 정책 설정, 근무조 등록·수정·중지, 기본 근무조 지정, 휴일 조회·편집·공휴일 불러오기·전자결재 상신 | `page-att-settings.js`<br>파일 헤더, `TABS`(`:33`), `App.AttWorkPolicy`, `App.AttHolidays` | 확정 |
+| ├─ ATT-WPL-001-D03 | ↳ ATT-WPL-001 | 부서별 근무정책 설정 (탭) | Detail | `page-att-work-policy` 내부 `STATE.wpTab='dept'` (기본 탭) | 상위 Page 상속 | 조직 상속형 부서별 근무정책·사용 근무조·기본 근무조를 조직 그리드로 조회·관리 | `renderDept()`(`page-att-settings.js:509`), `renderWpBody()`(`:1386`) | 확정 — 근무정책 설정 진입 시 기본 탭 (2026-07-16 소스 확인) |
 | ├─ ATT-WPL-001-M01 | ↳ ATT-WPL-001 | 부서 근무정책 설정 | Modal | `wp-dept-modal` | 상위 Page 상속 | 상위 조직 상속·별도 정책, 근무조·관리자·기본조 설정 | `renderDeptModal()` | 확정 |
+| ├─ ATT-WPL-001-D04 | ↳ ATT-WPL-001 | 근무조 설정 (탭) | Detail | `page-att-work-policy` 내부 `STATE.wpTab='shift'` | 상위 Page 상속 | 근무조 마스터 목록(구분·출근·퇴근·근무시간·연장·심야·휴게)을 그리드로 조회, 근무조 등록·수정·중지·기본조 지정. **부서 관리 기본 근무조 선택의 선행 마스터** | `renderShift()`(`page-att-settings.js:317`), `renderWpBody()`(`:1387`) | 확정 — 근무정책 설정 「근무조 설정」 탭 (2026-07-16 소스 확인) |
 | ├─ ATT-WPL-001-M02 | ↳ ATT-WPL-001 | 근무조 추가 | Modal | `modal-shift-editor` | 상위 Page 상속 | 신규 근무조 시간·휴게·사용부서·색상 등록 | `App.AttShifts.openEditor(null)` → `openAddModal()`, 트리거 `data-shift-act="add"` | 확정 |
 | ├─ ATT-WPL-001-D01 | ↳ ATT-WPL-001 | 근무조 수정 | Detail | `page-att-work-policy` 내부 host (인-페이지) | 상위 Page 상속 | 기존 근무조 시간·휴게·사용부서·상태 수정 (적용 시작일·사유 인라인 검증) | `App.AttShifts.editInto(host, code)`, `renderEditInto()` | 확정 |
 | ├─ ATT-WPL-001-M03 | ↳ ATT-WPL-001 | 근무조 마스터 변경 이력 | Modal | `shift-log-modal` | 상위 Page 상속 | 전체 근무조 코드의 변경 이력 조회 | `openCodeLogModal()` (`page-att-settings.js:298` 버튼(`data-shift-log`) → `:961` 바인딩 → `:396` 정의) | 확정 — 근무정책 설정 > 근무조 관리 목록 toolbar 우측 [변경 이력] 버튼 클릭 시 진입 (2026-07-15 소스 확인) |
@@ -148,7 +151,7 @@
 ## 4. 문서 해석
 
 - `확정`은 화면 존재와 프론트엔드 동작이 소스에서 확인됐다는 뜻이며, 실제 백엔드 저장·권한 검증까지 확정한다는 뜻이 아니다.
-- 업무성 하위 UI 86건은 전부 상위 Page ID가 확인됐으며, 25개 Page 중 22개에 연결된다.
+- 업무성 하위 UI 89건은 전부 상위 Page ID가 확인됐으며, 25개 Page 중 22개에 연결된다.
 - `ATT-MYW-001`(나의 근태현황), `ATT-SSV-001`(부서별 근무스케줄 현황), `ATT-MLV-001`(나의 연차현황)은 별도 Detail·Modal·OffCanvas 없이 Page 자체에서 업무가 완료된다.
 - `page-hr-eval-history.js`는 독립 Page가 아니라 `HR-EVR-001`의 평가 결과 Modal 공급자다.
 - 삭제된 화면과 코드 정리 근거는 [SCREEN_CATALOG_DELETE_HISTORY.md](SCREEN_CATALOG_DELETE_HISTORY.md)에서 관리한다.

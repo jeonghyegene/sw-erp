@@ -905,6 +905,10 @@ textarea.input {
   border-left: 1px dashed var(--color-border);
   border-right: 1px dashed var(--color-border);
 }
+/* 휴일(근무정책 설정 > 휴일 관리 승인분) — 편성 제외(휴무). 빨간날 톤 + 헤더에 휴일명 표시 */
+.ssw-tbl th.ssw-tbl__day.is-hol, .ssw-tbl td.ssw-tbl__day.is-hol { background: rgba(220, 38, 38, 0.05); }
+.ssw-tbl th.ssw-tbl__day.is-hol .ssw-tbl__dnum { color: var(--color-danger); }
+.ssw-tbl__holname { display: block; margin-top: 2px; font-size: 11px; line-height: 1.2; color: var(--color-danger); }
 .ssw-tbl__dnum { font-weight: var(--fw-semibold); color: var(--color-text); margin-right: 4px; }
 .ssw-tbl__dw { font-size: 11px; opacity: 0.75; }
 .ssw-tbl td {
