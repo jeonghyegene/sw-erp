@@ -1399,10 +1399,10 @@
   function downloadTemplate() {
     const ym = STATE.month;
     const emps = activeMembers().filter(m => App.HRPension.isEnrolled(m.id));
-    const header = ['기준월', '사원유형', '가입자명', '주민등록번호 앞자리+뒷자리 첫번째 숫자만', '기업부담금(퇴직금)', '비고'];
+    const header = ['기준월', '가입자명', '주민등록번호 앞자리+뒷자리 첫번째 숫자만', '기업부담금(퇴직금)', '비고'];
     const lines = [header.join(',')];
     emps.forEach(m => {
-      lines.push([ym, jobCatLabel(m.jobCat), csvCell(m.name), '', App.HRPension.contribution(m.id), ''].map(csvCell).join(','));
+      lines.push([ym, csvCell(m.name), '', App.HRPension.contribution(m.id), ''].map(csvCell).join(','));
     });
     const csv = '﻿' + lines.join('\r\n');
     triggerDownload(`퇴직연금_기업부담금_양식_${ym.replace('-', '')}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '퇴직연금 기업부담금 양식');

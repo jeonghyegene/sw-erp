@@ -10,12 +10,12 @@
  *    · 사무직/연구직: 근무조 변경 승인 내역을 'YY/MM ~ YY/MM 반영 예정'으로 표시(해당 기간 자동 산정 반영).
  *
  *  [월별 근무스케줄 편성] — 기본 근무조대로 월별 근무조를 편성(당월~미래, 여러 달 미리 편성 가능).
- *    · 그리드: 월 | 제목 | 상태(작성중/편성완료/마감) | 관리(다음 달로 복제/삭제) | [상세 보기].
- *    · 상태 흐름(정책 v1.5 §7.5): 대상월 회차는 매월 반드시 생성·확정.
- *      - 전월 20일 시스템이 자동 생성 → '편성완료'. (관리자가 그 전에 미리 만들면 '작성중')
- *      - 작성중 → 상세에서 [편성완료] → '편성완료'. 전월 20일까지 미확정이면 시스템이 자동 확정.
+ *    · 그리드: 월 | 제목 | 상태(편성완료/마감) | 관리(다음 달로 복제/삭제) | [상세 보기].
+ *    · 상태 흐름(정책 v1.5 §7.5): 편성완료 → 마감. 대상월 회차는 매월 반드시 생성.
+ *      - 생성 시 곧바로 '편성완료'(전월 20일 시스템 자동 생성분·관리자 직접 생성분 모두 동일).
  *      - '편성완료' 회차로 대상월 근태 체크, 변경사항 수시 반영(지난 날짜 셀 제외).
  *      - 대상월 다음달 1일 도래 → '마감'(조회만).
+ *      - 근태 체크 시작 전 월별 근무스케줄은 '편성완료' 상태여야 한다(생성 즉시 충족).
  *    · 삭제: 미래(도래 전) 월만 가능. 당월·지난 달·마감은 삭제 불가. 복제: 마감 아닌 회차를 다음 달로.
  *    · 편성 안 한 월/미생성 기간은 기본 근무조로 자동 산정(soft fallback).
  *    · 상세 편집: 오늘 이전 날짜/주간은 수정 불가(근태 산정 완료). 편집 저장 시 '적용 내용' 입력 →
@@ -111,6 +111,22 @@
   }
   function jobCatLabel(jc) { return jc === 'production' ? '생산직' : jc === 'research' ? '연구직' : '사무직'; }
   function jobCatPill(jc) { const cls = jc === 'production' ? 'pill--purple' : jc === 'research' ? 'pill--success' : 'pill--info'; return `<span class="pill ${cls}">${esc(jobCatLabel(jc))}</span>`; }
+
+  /* ============ 고용형태 — HR 마스터의 empType ============ */
+  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직', outsourced: '도급직' };
+  function empTypeMap() {
+    const m = {};
+    const h = App.HRInfoMgmt;
+    if (h && h.list) { try { h.list().forEach(r => { if (r && r.id && r.empType) m[r.id] = r.empType; }); } catch (e) { /* noop */ } }
+    return m;
+  }
+  /* 고용형태 pill — 정규직=success / 계약직=info / 일용직=warning / 도급직=muted. 미지정은 '-'. */
+  function empTypePill(t) {
+    const label = EMP_TYPE_LABEL[t];
+    if (!label) return '<span class="t-muted">-</span>';
+    const cls = t === 'regular' ? 'pill--success' : t === 'contract' ? 'pill--info' : t === 'daily' ? 'pill--warning' : 'pill--muted';
+    return `<span class="pill ${cls}">${esc(label)}</span>`;
+  }
 
   /* ============ 기본 근무조 / 승인 반영 → 편성 산출 ============ */
   /* 기본 근무스케줄 편성 = 교대 순번(1번~N번)별 근무조. 교대(생산직)는 순번마다 다른 근무조로 로테이션.
@@ -294,24 +310,19 @@
     pageSize: 20,
   };
 
-  /* 회차 상태(정책 v1.5 §7.5):
+  /* 회차 상태(정책 v1.5 §7.5): 편성완료 → 마감 (2단계).
      · 마감     — 대상월 다음달 1일 도래(대상월 경과, 근태 산정 완료, 조회만)
-     · 편성완료 — 전월 20일 시스템 자동 생성·확정 / [편성완료] 확정 / 20일 잔여 작성중 자동 확정. 대상월 근태 체크 기준
-     · 작성중   — 관리자가 전월 20일 자동 생성 이전에 미리 생성. 아직 [편성완료] 전
-     수동 확정 여부(rec.submitted), 전월 20일(자동 확정 기준일), 대상월 경과를 함께 본다. */
-  function autoGenDate(ym) { return `${shiftMonth(ym, -1)}-20`; }   /* 대상월 전월 20일 = 자동 생성·확정 기준일 */
+     · 편성완료 — 그 외 전부. 시스템 자동 생성분·관리자 직접 생성분 모두 생성 즉시 편성완료.
+                  대상월 근태 체크 기준(근태 체크 시작 전 반드시 편성완료 상태여야 함 — 생성 즉시 충족). */
   function recStatus(rec) {
     if (monthLastDate(rec.ym) < TODAY) return 'closed';            /* 대상월 경과 → 마감 */
-    if (rec.submitted) return 'submitted';                         /* 관리자 [편성완료] 확정 */
-    if (autoGenDate(rec.ym) <= TODAY) return 'submitted';          /* 전월 20일 지남 → 시스템 자동 편성완료 */
-    return 'draft';                                                /* 전월 20일 이전, 관리자 사전 생성분 */
+    return 'submitted';                                            /* 생성 즉시 편성완료 */
   }
   const STATUS = {
-    draft:     { label: '작성중',   pill: 'warning' },
     submitted: { label: '편성완료', pill: 'success' },
     closed:    { label: '마감',     pill: 'muted' },
   };
-  function statusPill(st) { const s = STATUS[st] || STATUS.draft; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
+  function statusPill(st) { const s = STATUS[st] || STATUS.submitted; return `<span class="pill pill--${s.pill}">${esc(s.label)}</span>`; }
   /* 삭제 가능 — 미래(도래 전) 월만. 당월·지난 달은 불가. */
   function deletable(rec) { return rec.ym > CUR_YM; }
 
@@ -360,9 +371,9 @@
   }
   function seedRecords(dept) {
     const months = [shiftMonth(CUR_YM, -2), shiftMonth(CUR_YM, -1), CUR_YM, shiftMonth(CUR_YM, 1), shiftMonth(CUR_YM, 2)];
-    /* 상태는 recStatus 가 날짜로 산출(전월 20일 자동 편성완료 / 대상월 경과 마감).
-       submitted=false 로 두면: 지난달·당월·다음달 = 편성완료(자동), +2개월 = 작성중(관리자 사전 생성, 전월 20일 전) — 3개 상태 데모 */
-    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [], submitted: false }));
+    /* 상태는 recStatus 가 날짜로 산출: 대상월 경과분만 마감, 그 외 전부 편성완료.
+       지난달·당월·미래월 모두 편성완료로 산출(대상월 경과분만 마감) — 2개 상태 데모 */
+    const recs = months.map(ym => ({ id: ym, ym, dept, plan: {}, log: [] }));
     recs.forEach(ensureRecordSeed);
     /* 데모 변경 이력 — 이번 달 회차 1건 */
     const cur = recs.find(r => r.ym === CUR_YM);
@@ -428,6 +439,7 @@
     const dept = STATE.deptName;
     const emps = deptEmps(dept);
     const jm = jobCatMap();
+    const em = empTypeMap();
     const editing = STATE.baseEdit;
     const selN = STATE.selected.size;
 
@@ -479,12 +491,13 @@
       return `<tr>
         ${nameCell}
         <td style="text-align:center;">${jobCatPill(jc)}</td>
+        <td style="text-align:center;">${empTypePill(em[emp.id])}</td>
         ${modeCell}
         ${wkCells}
         <td>${apCell}</td>
       </tr>`;
     }).join('');
-    const colspan = shiftDept ? (N + 4) : 4;
+    const colspan = shiftDept ? (N + 5) : 5;
     const bodyRows = emps.length ? rows : `<tr><td colspan="${colspan}" style="text-align:center;color:var(--color-text-muted);padding:32px 0;">${esc(dept)} 부서에 등록된 인원이 없습니다.</td></tr>`;
 
     const allChecked = emps.length && emps.every(e => STATE.selected.has(e.id));
@@ -534,6 +547,7 @@
             <thead><tr>
               ${nameHead}
               <th style="width:90px;text-align:center;">사원 유형</th>
+              <th style="width:82px;text-align:center;">고용형태</th>
               ${shiftDept ? '<th style="width:88px;text-align:center;">교대 여부</th>' : ''}
               ${wkHead}
               <th style="min-width:240px;">근무조 변경 승인 반영</th>
@@ -764,21 +778,13 @@
    *  TAB 2 — 월별 근무스케줄 편성 (목록)
    * ========================================================= */
   function bannerHTML() {
-    /* ① 이번 달 회차 미편성 안내 / ② 작성중 회차 [편성완료] 확정 안내(미확정 시 전월 20일 자동 확정) */
+    /* 이번 달 회차 미편성 안내(미생성 시 기본 근무조로 자동 산정) */
     let inner = '';
-    /* 가장 이른 작성중 회차 */
-    const draftRec = STATE.records.slice().sort((a, b) => (a.ym < b.ym ? -1 : 1)).find(r => recStatus(r) === 'draft');
     if (!STATE.records.some(r => r.ym === CUR_YM)) {
       inner = `<div class="callout callout--warning callout--compact">
         <span class="callout__icon">⚠</span>
         <div class="callout__body">이번 달 <strong>${esc(ymSlash(CUR_YM))}</strong> 근무조가 편성되지 않아 <strong>부서 기본 근무조</strong>로 자동 산정됩니다.</div>
         <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-new>월별 편성하기</button></div>
-      </div>`;
-    } else if (draftRec) {
-      inner = `<div class="callout callout--brand callout--compact">
-        <span class="callout__icon">ℹ</span>
-        <div class="callout__body"><strong>${esc(ymSlash(draftRec.ym))}</strong> 근무스케줄이 <strong>작성중</strong>입니다. [편성완료]로 확정하거나, 미확정 시 전월 20일 시스템이 자동으로 편성완료합니다.</div>
-        <div class="callout__action"><button class="btn btn--sm btn--primary" type="button" data-sb-open="${esc(draftRec.id)}">확정하러 가기</button></div>
       </div>`;
     }
     return inner ? `<div style="flex:0 0 auto;padding:12px 20px 0;">${inner}</div>` : '';
@@ -919,6 +925,7 @@
 
   function renderWeekTable(rec, week, editable) {
     const emps = deptEmps(rec.dept);
+    const em = empTypeMap();
     /* 항상 7칸(월~일) 유지 — 부분 주차의 월 밖 날짜는 비활성 플레이스홀더로 채워 그리드 일관성 확보 */
     const dates = weekDates7(week.monday);
     const inMonth = (ds) => ds.slice(0, 7) === rec.ym;
@@ -960,15 +967,15 @@
       const nameCell = editable
         ? `<td class="ssw-tbl__namecell"><label class="cb" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" data-sb-emp="${esc(emp.id)}" ${STATE.selected.has(emp.id) ? 'checked' : ''}>${personCell(emp)}</label></td>`
         : `<td class="ssw-tbl__namecell">${personCell(emp)}</td>`;
-      return `<tr>${nameCell}${cells}</tr>`;
+      return `<tr>${nameCell}<td class="ssw-tbl__typecell">${empTypePill(em[emp.id])}</td>${cells}</tr>`;
     }).join('');
-    const rowsHTML = emps.length ? rows : `<tr><td colspan="${dates.length + 1}" style="text-align:center;padding:30px;color:var(--color-text-muted);">${esc(rec.dept)} 부서에 등록된 인원이 없습니다.</td></tr>`;
+    const rowsHTML = emps.length ? rows : `<tr><td colspan="${dates.length + 2}" style="text-align:center;padding:30px;color:var(--color-text-muted);">${esc(rec.dept)} 부서에 등록된 인원이 없습니다.</td></tr>`;
     const allChecked = emps.length && emps.every(e => STATE.selected.has(e.id));
     const nameHead = editable
       ? `<th class="ssw-tbl__namecell-h"><label class="cb" style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" data-sb-all ${allChecked ? 'checked' : ''}>성명</label></th>`
       : `<th class="ssw-tbl__namecell-h">성명</th>`;
     return `<table class="ssw-tbl ssw-tbl--sched${editable ? ' ssw-tbl--edit' : ''}">
-      <thead><tr>${nameHead}${dayHead}</tr></thead>
+      <thead><tr>${nameHead}<th class="ssw-tbl__typecell-h">고용형태</th>${dayHead}</tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>`;
   }
@@ -981,8 +988,8 @@
     const weeks = weeksOfMonth(rec.ym);
     if (STATE.weekIdx >= weeks.length) STATE.weekIdx = 0;
     const week = weeks[STATE.weekIdx];
-    /* 작성중·편성완료 모두 편집 가능(지난 날짜 셀은 불가 — renderWeekTable 에서 처리). 마감은 조회만. */
-    const editable = (st === 'draft' || st === 'submitted') && STATE.editMode;
+    /* 편성완료 회차는 편집 가능(지난 날짜 셀은 불가 — renderWeekTable 에서 처리). 마감은 조회만. */
+    const editable = (st === 'submitted') && STATE.editMode;
     if (!editable && STATE.selected.size) STATE.selected.clear();
 
     const weekTabs = weeks.map(w =>
@@ -994,15 +1001,13 @@
     if (st === 'closed') actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button>`;
     else if (STATE.editMode) actions = `<button class="btn btn--sm" type="button" data-sb-edit-cancel>취소</button><button class="btn btn--sm btn--primary" type="button" data-sb-edit-save>저장</button>`;
     else {
-      /* 작성중 → [편성완료] 노출(확정). 편성완료 → 편집만. */
-      const submitBtn = (st === 'draft') ? `<button class="btn btn--sm btn--primary" type="button" data-sb-submit>편성완료</button>` : '';
-      actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button><button class="btn btn--sm" type="button" data-sb-edit>편집</button>${submitBtn}`;
+      /* 편성완료 회차 — 변경 이력 / 편집. (별도 제출·확정 절차 없음) */
+      actions = `<button class="btn btn--sm" type="button" data-sb-log>변경 이력</button><button class="btn btn--sm" type="button" data-sb-edit>편집</button>`;
     }
 
     let capText;
     if (st === 'closed') capText = '근태 산정이 완료된 지난 근무조입니다. 조회만 가능합니다.';
     else if (STATE.editMode) capText = '';
-    else if (st === 'draft') capText = '작성중 상태입니다. [편성완료]로 확정해 주세요. 미확정 시 전월 20일 시스템이 자동 확정합니다. (편집도 가능)';
     else capText = '편성완료 상태입니다. 대상월 근태 체크 기준이며 [편집]으로 변경사항을 수시 반영할 수 있습니다.';
 
     /* 편집 모드 + 선택 시 '총 N명' 우측에 일괄 변경 버튼 노출 (다른 탭과 동일하게 .toolbar__left 안에 배치) */
@@ -1062,7 +1067,7 @@
     render(pageEl);
   }
   function enterEdit(pageEl) {
-    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) === 'closed') return;   /* 작성중·편성완료 모두 편집 가능, 마감만 불가 */
+    const rec = recordById(STATE.detailId); if (!rec || recStatus(rec) === 'closed') return;   /* 편성완료 회차는 편집 가능, 마감만 불가 */
     STATE.editMode = true;
     STATE.editSnapshot = JSON.parse(JSON.stringify(rec.plan));
     STATE.selected.clear();
@@ -1075,16 +1080,6 @@
     STATE.editSnapshot = null;
     STATE.selected.clear();
     renderDetail(pageEl);
-  }
-  /* 편성완료 — 작성중 → 편성완료 확정. 대상월 근태 체크 기준 회차(편집은 여전히 가능). */
-  function submitRecord(pageEl) {
-    const rec = recordById(STATE.detailId);
-    if (!rec || recStatus(rec) !== 'draft') return;
-    rec.submitted = true;
-    rec.log = rec.log || [];
-    rec.log.unshift({ at: nowStamp(), content: '월별 근무스케줄 편성완료 확정', by: HR_NAME });
-    renderDetail(pageEl);
-    toast(`${ymSlash(rec.ym)} 근무스케줄을 편성완료했습니다.`, 'success');
   }
 
   /* =========================================================
@@ -1152,7 +1147,7 @@
     let created = 0, skipped = 0, firstNew = null;
     monthsInRange(from, to).forEach(ym => {
       if (STATE.records.some(r => r.ym === ym)) { skipped++; return; }
-      const rec = { id: ym, ym, dept, plan: {}, log: [], submitted: false };   /* 관리자 사전 생성 = 작성중(전월 20일 전) / 이미 전월 20일 지난 월은 recStatus 가 편성완료로 산출 */
+      const rec = { id: ym, ym, dept, plan: {}, log: [] };   /* 관리자 직접 생성 = 생성 즉시 편성완료 (recStatus 산출) */
       ensureRecordSeed(rec);
       STATE.records.push(rec);
       created++; if (!firstNew) firstNew = ym;
@@ -1191,13 +1186,12 @@
         plan[`${emp.id}|${ds}`] = (v === undefined ? basePlanCode(emp, ds) : v);
       }));
     });
-    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [], submitted: false };   /* 복제본 = 작성중(전월 20일 전) */
+    const rec = { id: dstYm, ym: dstYm, dept: src.dept, plan, log: [] };   /* 복제본 = 생성 즉시 편성완료 */
     ensureRecordSeed(rec);
     STATE.records.push(rec);
     sortRecords();
     renderMonthlyList(document.getElementById(PAGE_ID));
-    const dstSt = recStatus(rec);
-    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다. (${STATUS[dstSt].label}${dstSt === 'draft' ? ' — [편성완료] 확정 필요' : ''})`, 'success');
+    toast(`${ymSlash(src.ym)} 편성을 다음 달 ${ymSlash(dstYm)}(으)로 복제했습니다. (${STATUS[recStatus(rec)].label})`, 'success');
   }
 
   /* =========================================================
@@ -1409,7 +1403,6 @@
         const wk = e.target.closest('[data-sb-week]');
         if (wk) { STATE.weekIdx = Number(wk.dataset.sbWeek); renderDetail(pageEl); return; }
         if (e.target.closest('[data-sb-edit]')) { enterEdit(pageEl); return; }
-        if (e.target.closest('[data-sb-submit]')) { submitRecord(pageEl); return; }
         if (e.target.closest('[data-sb-edit-cancel]')) { cancelEdit(pageEl); return; }
         if (e.target.closest('[data-sb-edit-save]')) { openApplyModal(); return; }
         if (e.target.closest('[data-sb-log]')) { openLogModal(STATE.detailId); return; }

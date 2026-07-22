@@ -88,7 +88,7 @@
     systemError: '시스템 오류',
   };
 
-  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', daily: '일용직', outsourced: '도급직' };
+  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직', outsourced: '도급직' };
   const JOB_CAT_LABEL  = { office:  '사무직', production: '생산직', research: '연구직' };
   /* 외부 인력 — 도급은 직접 고용이 아니라 계약 N/A 처리 */
   const EXTERNAL_EMP_TYPES = ['outsourced'];
@@ -409,6 +409,43 @@
           rh('2026-07-11T16:45:00', '미가입 상태 재안내 (반려 검토 중)', '정혜진'),
           rh('2026-07-09T11:20:00', '최초 안내 발송', '정혜진'),
         ],
+      }),
+      /* ============ 프리랜서 3명 — 급여 정산 「프리랜서 그룹」 데모 대상자 ============
+       *   전원 계정 등록완료 + 근로/임금 계약 서명완료(base 기본값) → 급여 정산 대상(completed).
+       *   프리랜서는 계약 기간의 정함 없이(무기) 표기 — 종료일 비움. 임금은 seedWageContract 가 자동 채움.
+       *   급여 정산에서는 「월 지급액(기본급)」 + 「3.3% 공제」 만 적용된다. */
+      base({
+        id: 'SW25090301', name: '유프리', fname: '유', gname: '프리', gender: 'F',
+        dept: '홍보팀', job: '디자인', rank: '대리', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'freelancer',
+        joinDate: '2025-09-03', registeredAt: '2025-08-28',
+        phone: '010-3325-7710', email: 'yu.fr@company.co.kr', birth: '1993-06-15', ssn: '930615-2******',
+        photoUrl: '', userId: 'yu.fr',
+        emailSentDate: '2025-08-24',
+        contractStartDate: '2025-09-03', contractEndDate: '',   // 프리랜서 — 기간의 정함 없음
+        contractSentDate: '2025-08-30', docsSentDate: '2025-09-02',
+      }),
+      base({
+        id: 'SW26020201', name: '오프리', fname: '오', gname: '프리', gender: 'M',
+        dept: '개발팀', job: '개발', rank: '과장', position: '팀원', jobCat: 'research', site: '성수동',
+        empType: 'freelancer',
+        joinDate: '2026-02-02', registeredAt: '2026-01-27',
+        phone: '010-7742-1180', email: 'oh.fr@company.co.kr', birth: '1989-10-08',
+        photoUrl: '', userId: 'oh.fr',
+        emailSentDate: '2026-01-23',
+        contractStartDate: '2026-02-02', contractEndDate: '',   // 프리랜서 — 기간의 정함 없음
+        contractSentDate: '2026-01-29', docsSentDate: '2026-02-01',
+      }),
+      base({
+        id: 'SW25110301', name: '서프리', fname: '서', gname: '프리', gender: 'F',
+        dept: '홍보팀', job: '마케팅', rank: '주임', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'freelancer',
+        joinDate: '2025-11-03', registeredAt: '2025-10-29',
+        phone: '010-5583-9942', email: 'seo.fr@company.co.kr', birth: '1995-03-21', ssn: '950321-2******',
+        photoUrl: '', userId: 'seo.fr',
+        emailSentDate: '2025-10-25',
+        contractStartDate: '2025-11-03', contractEndDate: '',   // 프리랜서 — 기간의 정함 없음
+        contractSentDate: '2025-10-31', docsSentDate: '2025-11-02',
       }),
     ];
     rows.forEach(r => { r.sentDate = r.emailSentDate; });   // 이메일 발송일 (기존 호환 필드)
@@ -4457,12 +4494,15 @@
   function isWageInfoComplete(emp) {
     if (!isWageContractApplicable(emp)) return true; // 해당없음 → 완료 취급
     /* 필수: 시작일·종료일·소득 유형·임금 유형·계약 금액·임금 지급일.
-     *   연봉/월급제는 추가로 임금 계약 유형·기본급 필수. */
+     *   연봉/월급제는 추가로 임금 계약 유형·기본급 필수. (단, 사업소득=프리랜서는 고정OT/포괄임금 유형 개념이 없어 제외) */
     const baseFilled = !!(
       emp.wageContractStartDate && (emp.wageContractEndDate || emp.wageIndefinite) &&
       emp.incomeType && emp.wageType && emp.contractAmount && emp.payDay
     );
     if (!baseFilled) return false;
+    if (emp.incomeType === 'business') {
+      return !!emp.baseSalary;   /* 사업소득(프리랜서) — 월 지급액(기본급)만 확인, 임금 계약 유형 불요 */
+    }
     if (['annual','monthly'].indexOf(emp.wageType) >= 0) {
       return !!(emp.wageContractKind && emp.baseSalary);
     }
@@ -4484,8 +4524,8 @@
       if (emp.empType === 'outsourced' && !emp.contractCompany) return false;
       return true;
     }
-    /* 내부: 정규직은 무기 계약 허용. 그 외는 종료일 필수. */
-    const indef = emp.empType === 'regular' && !emp.contractEndDate;
+    /* 내부: 정규직·프리랜서는 무기(기간의 정함 없음) 계약 허용. 그 외는 종료일 필수. */
+    const indef = (emp.empType === 'regular' || emp.empType === 'freelancer') && !emp.contractEndDate;
     if (!(indef || !!emp.contractEndDate)) return false;
     /* 상세 정보 — 통상근무는 근무조(근무시간)가 채워져야 완료. 교대근무는 근무조 없이도 완료(근무표에 따름). */
     let ws = emp.workSchedule || 'fixed';
@@ -5732,6 +5772,14 @@
         App.JoinDocs.addUpload(yoon.id, { docType: '경력증명서',     fileName: '경력증명서_윤성수.pdf',     size: 142336, uploadedAt: '26/03/05   11:05' });
       }
     }
+
+    /* --- 정규직 전 직원 — 입사 동의서류(priv) + 근무 보안서약서(sec) 서명완료 시드 ---
+       온보딩에서 서명한 서류가 「서류 보관함 > 회사 서류」에 서명완료로 표시되는 것을 재현. */
+    STATE.rows.forEach(r => {
+      if (r.empType !== 'regular' || r.status === 'retired') return;
+      if (!App.JoinDocs.getSignature(r.id, 'priv')) App.JoinDocs.recordSignature(r.id, 'priv', { signedAt: '26/04/01   09:30', version: ver.priv || 'v1' });
+      if (!App.JoinDocs.getSignature(r.id, 'sec'))  App.JoinDocs.recordSignature(r.id, 'sec',  { signedAt: '26/04/01   09:32', version: ver.sec  || 'v1' });
+    });
   }
 
   /* 입사 서류 양식이 본 직원에게 적용되는지 — 대상 태그(전체/생산직 등) vs 직원 속성 */
@@ -5809,7 +5857,65 @@
       visibility: 'public', body: upToolbar + upTable,
     });
 
-    return uploadSection;
+    /* ── 회사 서류 (서약서·동의서) — 대상 직원에게 적용되는 회사 양식 + 서명 상태 ──
+       입사 시 서명이 필요한 서류(입사 동의서류·근무 보안 서약서·안전 준수 서약서). 전문 확인 후 전자서명.
+       ⚠ 온보딩(신규입사자_정보등록.html) 서명 서류와 동일 집합만 노출 — pledge/wage 등 별도 양식은 제외.
+       · 입사 동의서류(priv) · 근무 보안 서약서(sec) — 전 직원 공통
+       · 안전 준수 서약서(safety) — 직책이 팀장·파트장인 경우만 (직군 무관, 온보딩과 동일 기준) */
+    const ONB_DOC_KEYS = ['priv', 'sec', 'safety'];
+    const isLeaderPos = /팀장|파트장/.test(emp.position || '');
+    const master = App.JoinDocs.masterDocs().filter(d => {
+      if (!ONB_DOC_KEYS.includes(d.key)) return false;
+      if (d.key === 'safety') return isLeaderPos;   // 팀장·파트장만
+      return true;                                   // priv·sec 공통
+    });
+    const docRows = master.map((d, i) => {
+      const isLast = i === master.length - 1;
+      const td = tdBase + (isLast ? '' : 'border-bottom:1px solid var(--color-divider);');
+      const sig = App.JoinDocs.getSignature(emp.id, d.key);
+      const signed = !!sig;
+      const statusPill = signed
+        ? '<span class="pill pill--success">서명 완료</span>'
+        : '<span class="pill">미서명</span>';
+      const signedAt = signed ? esc(sig.signedAt || '-') : dash;
+      /* 미리보기 — 서명완료는 서명본(서명란 포함), 미서명은 원본. 다운로드 대신 모달로 열람.
+         (신규입사자_정보등록.html 온보딩 서명 서류와 동일 본문) */
+      const stampAttr = signed && sig.signedAt ? ` data-empi-doc-signedat="${esc(sig.signedAt)}"` : '';
+      const previewBtn = `<button class="btn btn--xs" type="button" data-empi-doc-preview="doc:${esc(d.key)}" data-empi-doc-name="${esc(d.name)}" data-empi-doc-signed="${signed ? '1' : '0'}"${stampAttr}>${signed ? '서명본 보기' : '미리보기'}</button>`;
+      /* readonly(HR 열람) — 미리보기만. self-service(본인) — 미서명 시 [서명] 버튼 추가. */
+      let act;
+      if (readonly || signed) {
+        act = previewBtn;
+      } else {
+        act = `<button class="btn btn--xs btn--primary" type="button" data-myinfo-doc-sign="${esc(d.key)}" data-myinfo-doc-name="${esc(d.name)}">서명</button><span style="margin-left:8px;">${previewBtn}</span>`;
+      }
+      return `<tr>
+        <td style="${td}text-align:center;color:var(--color-text-muted);">${i + 1}</td>
+        <td style="${td}font-weight:var(--fw-medium);">${esc(d.name)}</td>
+        <td style="${td}text-align:center;">${statusPill}</td>
+        <td style="${td}">${signedAt}</td>
+        <td style="${td}text-align:center;">${act}</td>
+      </tr>`;
+    }).join('');
+    const docTable = master.length ? `<div class="empi-tblwrap"><table class="empi-tbl empi-tbl--data" style="width:100%;border-collapse:collapse;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:6px;overflow:hidden;">
+      <thead><tr>
+        <th style="${thStyle}width:40px;text-align:center;">No</th>
+        <th style="${thStyle}">서류명</th>
+        <th style="${thStyle}width:110px;text-align:center;">상태</th>
+        <th style="${thStyle}width:150px;">서명일시</th>
+        <th style="${thStyle}width:140px;text-align:center;">관리</th>
+      </tr></thead>
+      <tbody>${docRows}</tbody>
+    </table></div>` : `<div style="padding:32px 16px;background:var(--color-surface-alt);border-radius:var(--radius-md);text-align:center;color:var(--color-text-muted);font-size:var(--fs-sm);">적용되는 회사 서류가 없습니다.</div>`;
+    const companySection = sectionShellHTML({
+      key: 'company', level: 1, title: '회사 서류', descBlock: true,
+      description: readonly
+        ? ''
+        : '입사 시 서명이 필요한 회사 서류입니다. 전문 확인 후 전자서명하세요.',
+      visibility: 'public', body: docTable,
+    });
+
+    return companySection + uploadSection;
   }
 
   /* ===== 본인 제출 서류 업로드 모달 — 주민등록등본·원천징수영수증 등 ===== */
@@ -6744,6 +6850,7 @@
         openDocPreviewModal(emp, type || 'doc', key, {
           name: docPreviewBtn.dataset.empiDocName || '',
           signed: docPreviewBtn.dataset.empiDocSigned === '1',
+          signedAt: docPreviewBtn.dataset.empiDocSignedat || '',
         });
         return;
       }
@@ -6973,7 +7080,7 @@
     /* 근로 유형 — 도급직은 임직원 등록 단계의 「도급직 여부」에서 지정하므로 근로 계약 설정에서는 제외.
        (도급직은 근로/임금 계약 자체가 없어 이 폼에 진입하지 않는다.) */
     const empTypes = [
-      ['regular', '정규직'], ['contract', '계약직'], ['daily', '일용직'],
+      ['regular', '정규직'], ['contract', '계약직'], ['freelancer', '프리랜서'], ['daily', '일용직'],
     ];
     const jobCats = [['office','사무직'], ['production','생산직'], ['research','연구직']];
     const radio = (name, value, label, checked) =>
@@ -6982,10 +7089,11 @@
       `<label class="cb"><input type="checkbox" name="${name}" value="${esc(value)}" ${checked ? 'checked' : ''} /> ${esc(label)}</label>`;
 
     const isContract = emp.empType === 'contract';
+    const isFreelancer = emp.empType === 'freelancer';
     const isOutsourced = emp.empType === 'outsourced';
     const isRegular = emp.empType === 'regular';
     const csubGeneralChecked = !emp.contractSubType;
-    const showDetail = ['regular','contract','daily'].indexOf(emp.empType) >= 0;
+    const showDetail = ['regular','contract','freelancer','daily'].indexOf(emp.empType) >= 0;
     /* 근로 유형 잠금 조건 —
        (1) 계약 관리 개별 작성(계약서 종류 선택으로 근로 유형이 이미 결정됨), 또는
        (2) 실제 근로계약서 이력이 1건 이상 존재하는 경우(최초 계약서 작성 때만 근로 유형 선택 가능).
@@ -7142,7 +7250,7 @@
         <div class="field-error" data-empi-ce-err="shift" hidden></div>
       </div>
 
-      <div data-empi-ce-sign-wrap style="display:${['regular','contract','daily'].indexOf(emp.empType) >= 0 ? '' : 'none'};">
+      <div data-empi-ce-sign-wrap style="display:${['regular','contract','freelancer','daily'].indexOf(emp.empType) >= 0 ? '' : 'none'};">
         ${sectionDivider('서명 요청 정보', false)}
         <div class="fm-tbl fm-tbl--compact">
           <div class="fm-tbl__row fm-tbl__row--1">
@@ -7165,6 +7273,9 @@
    *     · 시급제 → 근로시간 정보 (1일·1주) / 기타 안내
    *   공통: 임금 지급일(기본 10, 설정 안내) / 임금 지급방법(계좌이체 고정) */
   function renderCardEditWage(emp) {
+    /* 프리랜서 — 임금계약을 「계약기간(개월) + 총 계약금액 → 월 지급액 자동」 단일 폼으로 분기.
+       (연봉제/시급제·고정OT·지급항목 등 일반 근로자용 구성은 사용하지 않음) */
+    if (emp.empType === 'freelancer') return renderFreelanceWage(emp);
     const radio = (name, value, label, checked) =>
       `<label class="cb"><input type="radio" name="${name}" value="${esc(value)}" ${checked ? 'checked' : ''} /> ${esc(label)}</label>`;
 
@@ -7397,6 +7508,73 @@
               <option value="계좌이체" selected>계좌이체</option>
             </select>
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* 프리랜서 임금계약 — 개월 수 선택 옵션 (월 위주 계약 기간) */
+  const FREELANCE_MONTHS = [1, 2, 3, 6, 9, 12, 18, 24, 36];
+
+  /* 프리랜서 임금 계약 정보 설정 폼 —
+   *   입력: 계약기간(입사일 = 시작일 고정 + 개월 수 선택 → 종료일 자동) / 총 계약금액
+   *   산출: 총 계약금액 · 월 지급액(= 총액 ÷ 개월). 실시간 계산은 wireWageEditDeps 의 프리랜서 블록이 담당. */
+  function renderFreelanceWage(emp) {
+    const reqMark = `<em style="color:var(--color-danger);font-style:normal;margin-right:2px;">*</em>`;
+    const cellPad = 'background:var(--color-surface);padding:6px 12px;';
+    const sectionDivider = (title, first) => `
+      <div style="display:flex;align-items:center;gap:10px;margin:${first ? '0' : '20px 0 0'};padding:0 0 10px;">
+        <span style="font-size:13px;font-weight:var(--fw-semibold);color:var(--color-text);letter-spacing:-0.2px;">${esc(title)}</span>
+        <span style="flex:1;height:1px;background:var(--color-divider);"></span>
+      </div>`;
+
+    const startDate   = emp.wageContractStartDate || emp.contractStartDate || emp.joinDate || '';
+    const months      = emp.contractMonths ? Number(emp.contractMonths) : '';
+    const totalAmount = emp.contractAmount || '';
+    const endDate     = (startDate && months) ? freelanceEndDate(startDate, months) : (emp.wageContractEndDate || '');
+    const monthly     = (months && totalAmount) ? Math.round(Number(totalAmount) / months) : 0;
+
+    const monthOpts = '<option value="">선택</option>' +
+      FREELANCE_MONTHS.map(m => `<option value="${m}" ${months === m ? 'selected' : ''}>${m}개월</option>`).join('');
+
+    return `
+      ${sectionDivider('필수 정보', true)}
+      <div class="fm-tbl fm-tbl--compact">
+        <div class="fm-tbl__row fm-tbl__row--1">
+          <div class="fm-tbl__label">${reqMark}계약기간</div>
+          <div class="fm-tbl__value" style="${cellPad}display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:44px;">
+            <input class="input" type="date" data-empi-cw-start value="${esc(startDate)}" style="width:160px;" />
+            <span style="color:var(--color-text-muted);">+</span>
+            <select class="select" data-empi-cw-months style="width:120px;">${monthOpts}</select>
+            <span style="color:var(--color-text-muted);">→</span>
+            <span data-empi-cw-fr-endtext style="font-size:13px;color:var(--color-text);">${endDate ? `종료일 ${esc(endDate)}` : '개월 수를 선택하세요'}</span>
+            <!-- 검증·저장 호환용 — 종료일은 개월 수에서 자동 계산되어 이 hidden 값에 반영된다. -->
+            <input type="hidden" data-empi-cw-end value="${esc(endDate)}" />
+            <div class="field-error" data-empi-cw-err="period" hidden style="width:100%;"></div>
+          </div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1">
+          <div class="fm-tbl__label">${reqMark}총 계약금액</div>
+          <div class="fm-tbl__value" style="${cellPad}gap:8px;flex-wrap:wrap;align-items:center;min-height:44px;">
+            <input class="input" type="text" inputmode="numeric" data-empi-cw-amount value="${esc(formatMoney(totalAmount))}" style="width:200px;text-align:right;" placeholder="0" />
+            <span style="font-size:12px;color:var(--color-text-muted);">원</span>
+            <div class="field-error" data-empi-cw-err="amount" hidden style="width:100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      ${sectionDivider('계약 금액 요약', false)}
+      <div style="padding:14px 16px;background:var(--color-surface-alt);border:1px solid var(--color-divider);border-radius:8px;">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+          <span style="font-size:12px;color:var(--color-text-muted);width:88px;">총 계약금액</span>
+          <strong data-empi-cw-fr-total style="font-size:15px;color:var(--color-text);">${totalAmount ? esc(formatMoney(totalAmount)) + '원' : '-'}</strong>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:12px;color:var(--color-text-muted);width:88px;">월 지급액</span>
+          <strong data-empi-cw-fr-monthly style="font-size:15px;color:var(--color-brand-primary);">${monthly ? esc(formatMoney(monthly)) + '원' : '-'}</strong>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--color-text-muted);line-height:1.6;">
+          총 계약금액을 계약 개월 수로 나누어 매월 지급합니다. (임금 지급일 매월 10일)
         </div>
       </div>
     `;
@@ -7795,6 +7973,31 @@
         refreshHoliday();
         refreshPreview();
       });
+    }
+
+    /* ===== 프리랜서 — 계약기간(개월) × 총 계약금액 → 종료일·월 지급액 실시간 계산 ===== */
+    const frMonths = $1('[data-empi-cw-months]');
+    if (frMonths) {
+      const frStart   = $1('[data-empi-cw-start]');
+      const frAmount  = $1('[data-empi-cw-amount]');
+      const frEndHid  = $1('[data-empi-cw-end]');
+      const frEndText = $1('[data-empi-cw-fr-endtext]');
+      const frTotal   = $1('[data-empi-cw-fr-total]');
+      const frMonthly = $1('[data-empi-cw-fr-monthly]');
+      const recomputeFr = () => {
+        const m = Number(frMonths.value || 0);
+        const total = Number(String((frAmount && frAmount.value) || '').replace(/[^0-9]/g, '')) || 0;
+        /* 시작일 = 계약 시작일(입사일). 잠금 처리 전 초기 계산에서도 입사일을 참조하도록 폴백. */
+        const start = (frStart && frStart.value) || ((modal.querySelector('#empi-c-joindate') || {}).value) || '';
+        const end = (m && start) ? freelanceEndDate(start, m) : '';
+        if (frEndHid)  frEndHid.value = end;
+        if (frEndText) frEndText.textContent = end ? `종료일 ${end}` : '개월 수를 선택하세요';
+        if (frTotal)   frTotal.textContent = total ? formatMoney(total) + '원' : '-';
+        if (frMonthly) frMonthly.textContent = (m && total) ? formatMoney(Math.round(total / m)) + '원' : '-';
+      };
+      frMonths.addEventListener('change', recomputeFr);
+      if (frAmount) frAmount.addEventListener('input', recomputeFr);
+      recomputeFr();
     }
 
     /* 임금 지급일 — 수정 시 toast 안내 (정책상 설정에서 관리) */
@@ -8571,8 +8774,8 @@
       }
       if (compR) compR.style.display = (v === 'outsourced') ? '' : 'none';
       if (v !== 'outsourced' && compS) compS.value = '';
-      /* 소정 근로시간 · 서명 요청 정보 — 정규/계약/일용직만 노출 (도급직 등 외부 인력은 근로계약서 미작성) */
-      const isInternal = ['regular','contract','daily'].indexOf(v) >= 0;
+      /* 소정 근로시간 · 서명 요청 정보 — 정규/계약/프리랜서/일용직만 노출 (도급직 등 외부 인력은 근로계약서 미작성) */
+      const isInternal = ['regular','contract','freelancer','daily'].indexOf(v) >= 0;
       if (detail) detail.style.display = isInternal ? '' : 'none';   /* hidden 값 보존 컨테이너 — 표시 영향 없음 */
       const signWrap = modal.querySelector('[data-empi-ce-sign-wrap]');
       if (signWrap) signWrap.style.display = isInternal ? '' : 'none';
@@ -9665,6 +9868,20 @@
     return `${y}-${m}-${dd}`;
   }
 
+  /* 프리랜서 계약 종료일 — 시작일 + N개월 - 1일 (기간 포함 계산: 예 7/14 + 6개월 → 1/13) */
+  function freelanceEndDate(startYmd, months) {
+    if (!startYmd || !months) return '';
+    const endExcl = addMonths(startYmd, Number(months));
+    if (!endExcl) return '';
+    const d = new Date(endExcl);
+    if (isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+
   /* form-field 검증 메시지 표시/숨김 — 빈 문자열이면 숨겨서 행 높이 변동 없음 */
   function setFieldMsg(selector, text) {
     const el = (typeof selector === 'string') ? document.querySelector(selector) : selector;
@@ -9842,6 +10059,9 @@
           if (ps) ps.value = j;
           if (pe && j) pe.value = addMonths(j, 3);
         }
+        /* 프리랜서 임금 폼 — 시작일(입사일) 변경 시 종료일·월 지급액 재계산 */
+        const frMo = modal.querySelector('[data-empi-cw-months]');
+        if (frMo) frMo.dispatchEvent(new Event('change'));
       });
     }
 
@@ -9952,14 +10172,18 @@
             if (ceProbEnd && !ceProbEnd.value) showCErr('[data-empi-ce-err="probend"]', '수습 종료일을 선택해 주세요.', ceProbEnd);
             else if (ceProbEnd && joinValForC && ceProbEnd.value <= joinValForC) showCErr('[data-empi-ce-err="probend"]', '수습 종료일은 입사일 이후로 설정해 주세요.', ceProbEnd);
           }
-        } else if (ceType === 'contract' || ceType === 'daily') {
+        } else if (ceType === 'contract' || ceType === 'freelancer' || ceType === 'daily') {
           if (ceEndEl && !ceEndEl.value) showCErr('[data-empi-ce-err="period"]', '계약 종료일을 선택해 주세요.', ceEndEl);
           else if (ceEndEl && joinValForC && ceEndEl.value <= joinValForC) showCErr('[data-empi-ce-err="period"]', '종료일은 시작일 이후로 설정해 주세요.', ceEndEl);
         }
-        /* 임금 — 계약 금액 필수 */
-        if (cwAmountEl && numOf(cwAmountEl.value) <= 0) showCErr('[data-empi-cw-err="amount"]', '계약 금액을 입력해 주세요.', cwAmountEl);
-        /* 임금 계약 종료일 — 기간의 정함 없음 아니면 시작일보다 미래 필수 */
-        if (!(cwIndefEl && cwIndefEl.checked)) {
+        /* 임금 — 계약 금액 필수 (프리랜서는 '총 계약금액') */
+        if (cwAmountEl && numOf(cwAmountEl.value) <= 0) showCErr('[data-empi-cw-err="amount"]', ceType === 'freelancer' ? '총 계약금액을 입력해 주세요.' : '계약 금액을 입력해 주세요.', cwAmountEl);
+        if (ceType === 'freelancer') {
+          /* 프리랜서 — 계약 기간(개월) 선택 필수. 종료일은 개월 수에서 자동 계산된다. */
+          const moEl = modal.querySelector('[data-empi-cw-months]');
+          if (moEl && !moEl.value) showCErr('[data-empi-cw-err="period"]', '계약 기간(개월)을 선택해 주세요.', moEl);
+        } else if (!(cwIndefEl && cwIndefEl.checked)) {
+          /* 임금 계약 종료일 — 기간의 정함 없음 아니면 시작일보다 미래 필수 */
           if (cwEndEl && !cwEndEl.value) showCErr('[data-empi-cw-err="period"]', '임금 계약 종료일을 선택해 주세요.', cwEndEl);
           else if (cwEndEl && joinValForC && cwEndEl.value <= joinValForC) showCErr('[data-empi-cw-err="period"]', '종료일은 시작일보다 미래로 설정해 주세요.', cwEndEl);
         }
@@ -10029,14 +10253,36 @@
       const probationStart = probationOn ? (((modal.querySelector('[data-empi-ce-probation-start]') || {}).value) || joinVal) : '';
       const probationEnd   = probationOn ? (((ceProbEnd || {}).value) || addMonths(joinVal, 3)) : '';
 
-      /* 계약 기간 — 시작일 = 입사일. 종료일: 정규직=무기(''), 계약직/일용직=입력값 */
+      /* 계약 기간 — 시작일 = 입사일. 종료일: 정규직=무기(''), 계약직/프리랜서/일용직=입력값 */
       const contractStartDate = isOut ? '' : joinVal;
-      const contractEndDate = (!isOut && (ceType === 'contract' || ceType === 'daily'))
+      const contractEndDate = (!isOut && (ceType === 'contract' || ceType === 'freelancer' || ceType === 'daily'))
         ? ((ceEndEl && ceEndEl.value) || '') : '';
 
       /* 임금 계약 필드 수집 (도급직=해당없음일 때만) */
       let wageFields = {};
-      if (!isOut) {
+      if (!isOut && empType === 'freelancer') {
+        /* 프리랜서 — 계약기간(개월) + 총 계약금액 → 월 지급액(총액÷개월) 파생 */
+        const total = numOf(cwAmountEl && cwAmountEl.value);
+        const monthsEl = modal.querySelector('[data-empi-cw-months]');
+        const months = monthsEl ? (Number(monthsEl.value) || 0) : 0;
+        const endHidEl = modal.querySelector('[data-empi-cw-end]');
+        const wageEnd = (endHidEl && endHidEl.value) || (months ? freelanceEndDate(joinVal, months) : '');
+        wageFields = {
+          incomeType: 'earned',
+          wageType: 'freelance',
+          contractAmount: total,          // 총 계약금액
+          contractMonths: months,         // 계약 개월 수
+          monthlyAmount: months ? Math.round(total / months) : 0,   // 월 지급액
+          hourlyWage: '',
+          wageContractKind: '',
+          wageContractStartDate: joinVal,
+          wageContractEndDate: wageEnd,
+          wageIndefinite: false,
+          deductionPolicy: '근로기준법 및 취업규칙에 따름',
+          payDay: 10,
+          payMethod: '계좌이체',
+        };
+      } else if (!isOut) {
         const cwType = (cwTypeEl || {}).value || (empType === 'daily' ? 'hourly' : 'annual');
         const isHourly = cwType === 'hourly';
         const amountRaw = numOf(cwAmountEl && cwAmountEl.value);
@@ -10146,7 +10392,7 @@
       if (empType === 'regular') {
         if (probationOn) { laborEndForPush = probationEnd; laborIndef = false; }
         else { laborEndForPush = ''; laborIndef = true; }
-      } else if (empType === 'contract' || empType === 'daily') { laborEndForPush = contractEndDate; laborIndef = false; }
+      } else if (empType === 'contract' || empType === 'freelancer' || empType === 'daily') { laborEndForPush = contractEndDate; laborIndef = false; }
 
       /* 커밋에 필요한 정보 보관 — 도급직이면 계약 없이 바로 등록, 그 외엔 계약서 미리보기 모달을 거쳐 발송 */
       _pendingCreate = { row, isOut, empId, joinVal, laborEndForPush, laborIndef };
@@ -10175,7 +10421,7 @@
     if (!HRC || !HRC.TEMPLATES || !pc) return '<div style="padding:24px;color:var(--color-text-muted);">미리보기를 생성할 수 없습니다.</div>';
     const r = pc.row;
     const isLabor = kind === '근로계약서';
-    const empTypeLabel = { regular:'정규직', contract:'계약직', daily:'일용직', outsourced:'도급직' }[r.empType] || '';
+    const empTypeLabel = { regular:'정규직', contract:'계약직', freelancer:'프리랜서', daily:'일용직', outsourced:'도급직' }[r.empType] || '';
     const jobCatLabel  = { office:'사무직', production:'생산직', research:'연구직' }[r.jobCat] || '';
     const startDate = isLabor ? (r.contractStartDate || pc.joinVal) : (r.wageContractStartDate || pc.joinVal);
     const endDate   = isLabor ? pc.laborEndForPush : (r.wageContractEndDate || '');
@@ -11377,6 +11623,25 @@
         r.wageContractEndDate   = '';
         r.wageIndefinite = true;                                      // 시급제 무기한
         r.deductionPolicy = '4대보험·소득세 일괄 공제';
+        return;
+      }
+      if (r.empType === 'freelancer') {
+        /* 프리랜서 — 사업소득. 총 계약금액 ÷ 계약 개월 = 월 지급액(= 급여 정산 기본급). 3.3% 원천징수. */
+        const monthly = Math.round((3000000 + (idx % 6) * 400000) / 10000) * 10000;   // 300~500만
+        const months  = 12;
+        const start   = r.contractStartDate || r.joinDate || '';
+        r.incomeType = 'business';
+        r.wageType   = 'monthly';
+        r.contractMonths = months;
+        r.contractAmount = monthly * months;                         // 총 계약금액
+        r.baseSalary     = monthly;                                  // 월 지급액(= 총액 ÷ 개월) → 정산 월 지급액
+        r.wageContractKind = '';
+        r.payDay   = 10;
+        r.payMethod = '계좌이체';
+        r.wageContractStartDate = start;
+        r.wageContractEndDate   = freelanceEndDate(start, months);
+        r.wageIndefinite = false;
+        r.deductionPolicy = '사업소득세 3.3% 원천징수';
         return;
       }
       /* 정규직·계약직 — 전원 연봉제(월급제 제거). 동일 직위라도 사원별 ±5% 변동 (idx 기반 결정적) */

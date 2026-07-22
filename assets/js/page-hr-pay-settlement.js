@@ -59,13 +59,22 @@
 
   function isConfigEditable(f) { return f && f.status === 'pending' && (Number(f.stage) || 0) === 0; }
   function isDeletable(s)      { return s === 'pending' || s === 'canceled'; }
-  /* 작업 단계 별 라벨 (다음 단계 = 액션 버튼 라벨) */
-  /* 다음 단계 버튼 라벨 — 그룹별. 상용직 5단계 / 일용직 3단계(대상자→급여대장→확정) */
-  /* 각 stage 에서 누르는 액션 버튼 라벨. 정산검토(STD 마지막 직전)/급여대장(일용직 마지막 직전)
-   *   단계의 「정산 확정」 버튼이 곧 마감(finalized) → 정산완료 단계로 체크 이동. */
-  const STAGE_NEXT_LABEL_STD   = ['지급항목 검토', '공제항목 검토', '정산 검토', '정산 확정'];
-  const STAGE_NEXT_LABEL_DAILY = ['급여대장 산출', '정산 검토', '정산 확정'];
-  function nextLabelsOf(f) { return isDailyGroup(f) ? STAGE_NEXT_LABEL_DAILY : STAGE_NEXT_LABEL_STD; }
+  /* 액션 버튼 라벨 — 「현재 단계 확정」 방식.
+   *   각 stage 에서 누르는 버튼은 "지금 단계를 확정하고 다음으로 진행" 하는 의미이므로
+   *   라벨은 *현재 단계* 를 확정하는 문구(대상자 확정 / 지급항목 확정 / …)로 표기한다.
+   *   마지막 직전 단계(STD 정산검토 / 일용직 정산검토)의 「정산 확정」 = 마감(finalized) → 정산완료 체크 이동.
+   *   index = stage 번호. */
+  const STAGE_CONFIRM_LABEL_STD   = ['대상자 확정', '지급항목 확정', '공제항목 확정', '정산 확정'];
+  const STAGE_CONFIRM_LABEL_DAILY = ['대상자 확정', '급여대장 확정', '정산 확정'];
+  /* 기타 정산 — 공제 항목이 없어 「공제항목 검토」 단계를 건너뛴다 (지급항목 확정 → 바로 정산 확정). */
+  const STAGE_CONFIRM_LABEL_ETC   = ['대상자 확정', '지급항목 확정', '정산 확정'];
+  function confirmLabelsOf(f) {
+    if (isDailyGroup(f)) return STAGE_CONFIRM_LABEL_DAILY;
+    if (isEtcSettle(f))  return STAGE_CONFIRM_LABEL_ETC;
+    return STAGE_CONFIRM_LABEL_STD;
+  }
+  /* 현재 단계(프론티어)를 확정하는 버튼 라벨 — 열람 중인 페이즈와 무관하게 항상 현재 stage 기준. */
+  function confirmLabelOf(f) { return confirmLabelsOf(f)[stageOf(f)] || ''; }
   /* 등록 위저드 단계 수 — 1 기본정보 / 2 대상자 / 3 지급·공제 항목(나란히) */
   const WIZARD_LAST_STEP = 3;
 
@@ -101,12 +110,27 @@
     { key: 'review',  label: '정산검토' },
     { key: 'done',    label: '정산완료' },
   ];
+  /* 기타 정산(상용직) — 공제 항목이 없어 「공제항목 검토」 를 뺀 4단계:
+   *   대상자 → 지급항목 검토 → 정산검토 → 정산완료 */
+  const PHASES_ETC = [
+    { key: 'target',  label: '대상자'   },
+    { key: 'pay',     label: '지급항목 검토' },
+    { key: 'review',  label: '정산검토' },
+    { key: 'done',    label: '정산완료' },
+  ];
   /* 정산 그룹이 일용직인지 — targetFilter.empGroup 기준 (round / form 공용) */
   function isDailyGroup(f) {
     return !!(f && f.targetFilter && f.targetFilter.empGroup === 'daily');
   }
-  /* 그룹별 페이즈 배열 — 모든 단계/인덱스 계산의 단일 진실원 */
-  function phasesOf(f) { return isDailyGroup(f) ? PHASES_DAILY : PHASES_STD; }
+  /* 정산 유형이 기타인지 — 공제 항목 없음 → 공제 검토 단계 생략 */
+  function isEtcSettle(f) { return !!(f && f.settlementType === 'etc'); }
+  /* 그룹별 페이즈 배열 — 모든 단계/인덱스 계산의 단일 진실원.
+   *   일용직 > 기타 > 정기 급여(기본) 순으로 판정 (일용직 단일 급여대장 구조가 우선). */
+  function phasesOf(f) {
+    if (isDailyGroup(f)) return PHASES_DAILY;
+    if (isEtcSettle(f))  return PHASES_ETC;
+    return PHASES_STD;
+  }
   /* 라운드 r 의 작업 단계 — 그룹 페이즈 수에 맞춰 클램프. finalized 면 마지막 단계 유지 */
   function stageOf(r) {
     const s = Number((r && r.stage) || 0);
@@ -157,7 +181,7 @@
     'PAY-SYS-004', /* 야간근무수당 */
     'PAY-SYS-006', /* 야간연장근무수당 */
     'PAY-SYS-005', /* 휴일근무수당 */
-    'PAY-SYS-020', /* 상여금 (수기 입력) */
+    /* 상여금(PAY-SYS-020) — 상용직/일용직 기본 지급항목에서 제외 (2026-07 정책). 필요 시 [+ 항목 추가]로 수동 추가. */
     'PAY-SYS-021', /* 상여금2 — 주 52시간 초과 시 지급 (수기 입력) */
     'PAY-SYS-022', /* 연차수당 (수기 입력) */
     'PAY-SYS-023', /* 기타수당 (수기 입력) */
@@ -168,6 +192,38 @@
   /* 보호 항목 — 어디서도 삭제 불가 (사이드바·모달·마법사 공통). */
   const PROTECTED_PAY_ITEM_CODES = DEFAULT_PAY_ITEM_CODES.slice();
   function isPayItemProtected(code) { return PROTECTED_PAY_ITEM_CODES.includes(code); }
+
+  /* 정산 유형별 기본 항목 세팅.
+   *   · regular(정기 급여) : 지급 항목 = DEFAULT_PAY_ITEM_CODES / 공제 항목 = DEDUCT_DEFAULT_CODES(법정+정산 전체)
+   *   · etc(기타)          : 지급 항목 = 상여금(PAY-SYS-020) 1개 / 공제 항목 = 없음
+   *   (DEDUCT_DEFAULT_CODES 는 아래에서 선언 — 함수는 런타임 호출이라 참조 문제 없음) */
+  const ETC_PAY_ITEM_CODES = ['PAY-SYS-020'];   /* 상여금 */
+  function defaultPayCodesFor(type)    { return type === 'etc' ? ETC_PAY_ITEM_CODES.slice() : DEFAULT_PAY_ITEM_CODES.slice(); }
+  function defaultDeductCodesFor(type) { return type === 'etc' ? [] : DEDUCT_DEFAULT_CODES.slice(); }
+
+  /* 프리랜서 그룹 — 지급 항목 = 기본급(월 지급액) 1개 / 공제 항목 = 3.3% 공제 1개.
+   *   (사업소득 원천징수 3.3% = 사업소득세 3% + 지방소득세 0.3%. 4대보험·소득세 등 근로소득 공제는 제외.) */
+  const FREELANCER_PAY_ITEM_CODES    = ['PAY-SYS-001'];   /* 기본급 → 프리랜서에서는 '월 지급액' 으로 표기 */
+  const FREELANCER_DEDUCT_CODES      = ['withhold33'];    /* 3.3% 공제 (DED-SYS-018) */
+  /* 정산 그룹이 프리랜서인지 — targetFilter.empGroup 기준 (round / form 공용) */
+  function isFreelancerGroup(f) {
+    return !!(f && f.targetFilter && f.targetFilter.empGroup === 'freelancer');
+  }
+  /* 지급 항목 표시명 — 프리랜서 그룹의 기본급(PAY-SYS-001)은 '월 지급액' 으로 노출. */
+  function payItemLabelFor(code, f) {
+    if (isFreelancerGroup(f) && code === 'PAY-SYS-001') return '월 지급액';
+    const it = payItemByCode(code);
+    return it ? it.name : code;
+  }
+  /* 폼 기준(그룹 + 정산유형) 기본 지급·공제 항목 — 그룹이 최우선(프리랜서 > 정산유형). */
+  function formDefaultPayCodes(f) {
+    if (isFreelancerGroup(f)) return FREELANCER_PAY_ITEM_CODES.slice();
+    return defaultPayCodesFor(f && f.settlementType);
+  }
+  function formDefaultDeductCodes(f) {
+    if (isFreelancerGroup(f)) return FREELANCER_DEDUCT_CODES.slice();
+    return defaultDeductCodesFor(f && f.settlementType);
+  }
 
   /* 계약 동기화 항목 — 기본급/고정연장근무수당은 근로·임금 계약에서 산출되므로
    *   지급항목 검토·검증 단계에서도 셀 값을 직접 편집할 수 없다(읽기 전용). */
@@ -198,17 +254,21 @@
     'PAY-SYS-023': 110,  /* 기타수당 */
     'PAY-SYS-024': 110,  /* 소급분 */
   };
-  function buildPayItemCols(payItemCodes) {
+  function buildPayItemCols(payItemCodes, f) {
     return (payItemCodes || []).map(code => {
-      const it = payItemByCode(code);
       return {
         key:   'item:' + code,
         code,
-        label: it ? it.name : code,
+        label: payItemLabelFor(code, f),
         group: 'item',
         width: PAY_ITEM_COL_WIDTH[code] || 130,
       };
     });
+  }
+  /* 지급/정산검토 테이블의 「기준 임금」 5 컬럼 — 프리랜서는 초과근무·통상임금 개념이 없어 노출하지 않는다
+   *   (월 지급액 + 3.3% 공제만 표시). 그 외 그룹은 기존 5 컬럼 그대로. */
+  function payBaseColsOf(f) {
+    return isFreelancerGroup(f) ? [] : PAY_PHASE_BASE_COLS;
   }
 
   /* 지급 항목별 「근무시간」 컬럼 — 수당 컬럼 바로 좌측에 실제 근무시간(h)을 함께 노출.
@@ -540,6 +600,8 @@
         status: 'pending',   stage: 2, settlementType: 'etc',     payOffset: [-30, -1], otOffset: [-30, -1] },
       { name: '2026년 5월 일용직 급여 정산', accruedMonth: '2026-05', payDate: '2026-06-12',
         status: 'pending',   stage: 1, settlementType: 'regular', payOffset: [-30, -1], otOffset: [-30, -1], empGroup: 'daily' },
+      { name: '2026년 5월 프리랜서 급여 정산', accruedMonth: '2026-05', payDate: '2026-06-10',
+        status: 'pending',   stage: 1, settlementType: 'regular', payOffset: [-30, -1], otOffset: [-30, -1], empGroup: 'freelancer' },
     ];
     return cases.map((c, i) => {
       const payFrom = ymd(addDays(new Date(TODAY), c.payOffset[0]));
@@ -562,9 +624,16 @@
         status:       c.status,
         stage:        c.stage,
         targetCount:  targetN,
-        payItemCodes: DEFAULT_PAY_ITEM_CODES.slice(),
+        payItemCodes:    c.empGroup === 'freelancer'
+          ? FREELANCER_PAY_ITEM_CODES.slice()
+          : defaultPayCodesFor(c.settlementType || 'regular'),
+        deductItemCodes: c.empGroup === 'freelancer'
+          ? FREELANCER_DEDUCT_CODES.slice()
+          : defaultDeductCodesFor(c.settlementType || 'regular'),
         targetFilter: c.empGroup === 'daily'
           ? Object.assign(defaultTargetFilter(), { empGroup: 'daily', empType: ['daily'] })
+          : c.empGroup === 'freelancer'
+          ? Object.assign(defaultTargetFilter(), { empGroup: 'freelancer', empType: ['freelancer'] })
           : defaultTargetFilter(),
         targetEmpIds: null,
         ledger:       null,                       /* 계산 결과 — 단계 1+ 부터 사용 */
@@ -925,7 +994,7 @@
       step:         1,
       /* 작업 단계 (0-4) — r 객체에 저장된 stage 복제 */
       stage:        Number(r.stage || 0),
-      /* 상세 화면 작업 상태 */
+      /* 상세 화면 작업 상태 — 진입 시 현재 단계(프론티어) 페이즈를 기본 열람 */
       activePhase:    defaultPhaseByStage(Number(r.stage || 0), r),
       activeItemCode: codes[0] || '__sum',
       staffFilter:    'active',  /* 재직자만 표시 — 「재직자 N명」 라벨과 일치 */
@@ -960,7 +1029,9 @@
       if (s === 'canceled')  return `<button class="btn btn--sm" type="button" data-prs-form-delete>삭제</button>`;
       /* pending */
       const st = stageOf(f);
-      const nextLabel = nextLabelsOf(f)[st] || '';
+      /* 버튼 라벨 = 「현재 단계 확정」 — 열람 중인 페이즈가 무엇이든 항상 현재 stage 를 확정·전진.
+         (예: 공제 단계에서 지급 검토로 돌아가 열람 중이어도 버튼은 "공제항목 확정") */
+      const nextLabel = confirmLabelOf(f);
       const saveBtn   = `<button class="btn btn--sm" type="button" data-prs-form-save>임시 저장</button>`;
       const cancelBtn = st >= 1
         ? `<button class="btn btn--sm btn--soft-danger" type="button" data-prs-form-delete>삭제</button>`
@@ -1097,16 +1168,23 @@
    *   - renderPhaseStepperItems(f) 는 stepper 안 내용만, renderPhaseStepper(f) 는 wrap 포함. */
   function renderPhaseStepperItems(f) {
     const active = f.activePhase || defaultPhaseByStage(f.stage, f);
-    const doneIdx = progressIndex(f);
+    const doneIdx = progressIndex(f);        /* 확정 완료(✓) 경계 — stage 와 일치 (finalized 면 전체) */
+    const frontier = stageOf(f);             /* 현재 진행 단계 — 도달한 최대 페이즈(클릭 가능 경계) */
     const activeIdx = phaseIndex(active, f);
 
     return phasesOf(f).map((p, i) => {
-      let cls = '';
-      if (i < doneIdx)     cls = 'is-done';
-      if (i === activeIdx) cls = (cls ? cls + ' ' : '') + 'is-active';
+      /* 상태 클래스:
+       *   i < doneIdx  → is-done  (확정 완료, ✓, 초록·클릭 가능)
+       *   i === frontier(미확정) → is-current (현재 단계, 초록·클릭 가능, 숫자)
+       *   i === activeIdx → is-active (지금 열람 중, 파랑 하이라이트 — 위 색을 덮어씀)
+       *   그 외(미래)  → 기본 회색, 클릭 불가 */
+      const cls = [];
+      if (i < doneIdx)                              cls.push('is-done');
+      else if (i === frontier)                      cls.push('is-current');
+      if (i === activeIdx)                          cls.push('is-active');
       const num = i < doneIdx ? '✓' : (i + 1);
       return `
-        <button class="prs-phase ${cls}" type="button" data-prs-phase="${p.key}">
+        <button class="prs-phase ${cls.join(' ')}" type="button" data-prs-phase="${p.key}">
           <span class="prs-phase__num">${num}</span>
           <span class="prs-phase__label">${esc(p.label)}</span>
         </button>
@@ -1171,9 +1249,10 @@
           <ul class="prs-tree__list">
             ${items.map(it => {
               const showX = editable && !isPayItemProtected(it.code);
+              const nm = payItemLabelFor(it.code, f);
               return `
                 <li class="prs-tree__item">
-                  <span class="prs-tree__name" title="${esc(it.name)}">${esc(it.name)}</span>
+                  <span class="prs-tree__name" title="${esc(nm)}">${esc(nm)}</span>
                   ${showX ? `<button class="prs-tree__del" type="button" data-prs-pi-remove="${esc(it.code)}" aria-label="삭제" title="제거">✕</button>` : ''}
                 </li>
               `;
@@ -1303,6 +1382,7 @@
           <div class="prs-editor__toolbar-right">
             ${filterToggleHTML}
             ${(editable && (phase === 'pay' || phase === 'deduct')) ? `<button class="btn btn--sm" type="button" data-prs-tool="bulk" title="상여금·기타수당 등 수기 입력 항목을 전 대상자에게 한 번에 입력">일괄 입력</button>` : ''}
+            ${(editable && phase === 'deduct') ? `<button class="btn btn--sm" type="button" data-prs-tool="yearend-upload" title="연말정산 엑셀을 업로드하면 정산소득세·정산지방소득세(중도 포함)에 반영됩니다">${(window.Icons && window.Icons.upload) || ''} 연말정산 엑셀 업로드</button>` : ''}
             <span class="prs-toolbar-div" aria-hidden="true"></span>
             <button class="btn btn--sm" type="button" data-prs-tool="excel-down"><span style="display:inline-flex;align-items:center;gap:4px;">${dlIcon}<span>엑셀 다운로드</span></span></button>
             <button class="btn btn--sm" type="button" data-prs-tool="excel-down-ylw" title="영림원 ERP 업로드 양식으로 다운로드"><span style="display:inline-flex;align-items:center;gap:4px;">${dlIcon}<span>영림원용 엑셀 다운로드</span></span></button>
@@ -1377,7 +1457,7 @@
 
   /* ----- 페이즈: 대상자 ----- */
   function renderTargetTable(f, rows) {
-    const empTypeLabel = (v) => ({ regular: '정규직', contract: '계약직', daily: '일용직' }[v] || v || '-');
+    const empTypeLabel = (v) => ({ regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직' }[v] || v || '-');
     /* 근로내역(근로일수·근로시간) — 근태 자동 반영(mock). 일용직은 일자별 합계(workHours), 상용직은 기본+가산. */
     const workHoursOf = (r) => isDailyGroup(f) ? (Number(r.workHours) || (Number(r.workDays) || 0) * 8) : stdWorkHours(r);
     /* 미사용 연차 — 퇴직자 + 잔여 연차가 있을 때만 일수 표시(연차수당 정산 근거), 그 외 '-' */
@@ -1423,8 +1503,8 @@
 
   /* ----- 페이즈: 지급 — 와이드 테이블 (2행 헤더: 기준 임금 / 지급) ----- */
   function renderPayTable(f, rows, editable) {
-    const baseCols = PAY_PHASE_BASE_COLS;
-    const itemCols = buildPayItemCols(f.payItemCodes);
+    const baseCols = payBaseColsOf(f);
+    const itemCols = buildPayItemCols(f.payItemCodes, f);
     const itemSubTotal = payItemSubTotal(itemCols);
 
     /* 행 */
@@ -1532,7 +1612,7 @@
               <th rowspan="2" class="prs-sticky-left prs-sticky-left--name" style="width:90px;">이름</th>
               ${workStateHead2()}
               <th colspan="${WORK_SUMMARY_COLS.length}" class="prs-th-group prs-th-group--work">근로내역</th>
-              <th colspan="${baseCols.length}" class="prs-th-group prs-th-group--base">기준 임금</th>
+              ${baseCols.length ? `<th colspan="${baseCols.length}" class="prs-th-group prs-th-group--base">기준 임금</th>` : ''}
               <th colspan="${itemSubTotal}" class="prs-th-group prs-th-group--pay">지급항목</th>
               <th rowspan="2" class="prs-sticky-right" style="width:140px;text-align:right;">지급합계</th>
             </tr>
@@ -1569,12 +1649,15 @@
     { key: 'debtCollect',     code: 'DED-SYS-017', label: '채권추심',             width: 110, manual: true, deletable: true },
     { key: 'tuition',         code: 'DED-SYS-009', label: '학자금공제',           width: 110, manual: true, deletable: true },
     { key: 'etcDed',          code: 'DED-SYS-010', label: '기타공제',             width: 100, manual: true, deletable: true },
+    /* 프리랜서 전용 — 사업소득 원천징수 3.3% (사업소득세 3% + 지방소득세 0.3%). 상용직/일용직 기본 공제에는 미포함. */
+    { key: 'withhold33',      code: 'DED-SYS-018', label: '3.3% 공제',            width: 110 },
   ];
   /* 법정 공제 — 필수(보호) 항목. */
   const DEDUCT_PROTECTED_KEYS = ['pension', 'health', 'ltcare', 'employ', 'incomeTax', 'localTax'];
   /* 정산 개설 시 기본 시드되는 공제 항목 — 법정 6종 + 정산 항목/기타 공제 전체(요구 세팅).
-   *   smeReduction(감면율 표시)은 소득세에 종속된 표시 컬럼이라 선택 목록에서는 제외. */
-  const DEDUCT_DEFAULT_CODES  = DEDUCT_COLUMNS.map(c => c.key).filter(k => k !== 'smeReduction');
+   *   smeReduction(감면율 표시)은 소득세에 종속된 표시 컬럼이라 선택 목록에서는 제외.
+   *   withhold33(3.3% 공제)은 프리랜서 전용이라 상용직/일용직 기본 세트에서 제외. */
+  const DEDUCT_DEFAULT_CODES  = DEDUCT_COLUMNS.map(c => c.key).filter(k => k !== 'smeReduction' && k !== 'withhold33');
   /* 삭제 가능 공제 — 채권추심 / 학자금공제 / 기타공제 (deletable 플래그). */
   function isDeductDeletable(key) { const c = deductColByKey(key); return !!(c && c.deletable); }
   function deductColByKey(key) { return DEDUCT_COLUMNS.find(c => c.key === key) || null; }
@@ -1758,8 +1841,8 @@
   }
 
   function renderReviewTable(f, rows) {
-    const baseCols = PAY_PHASE_BASE_COLS;
-    const itemCols = buildPayItemCols(f.payItemCodes);
+    const baseCols = payBaseColsOf(f);
+    const itemCols = buildPayItemCols(f.payItemCodes, f);
     const itemSubTotal = payItemSubTotal(itemCols);
     const dedCols = deductColsOf(f);
     const totalCols = 2 + (hasDistribCol(f) ? 1 : 0) + 1 /* 재직 상태 */ + WORK_SUMMARY_COLS.length + baseCols.length + itemSubTotal + dedCols.length + 3;
@@ -1869,7 +1952,7 @@
               ${distribHead(f)}
               ${workStateHead2()}
               <th colspan="${WORK_SUMMARY_COLS.length}" class="prs-th-group prs-th-group--work">근로내역</th>
-              <th colspan="${baseCols.length}" class="prs-th-group prs-th-group--base">기준 임금</th>
+              ${baseCols.length ? `<th colspan="${baseCols.length}" class="prs-th-group prs-th-group--base">기준 임금</th>` : ''}
               <th colspan="${itemSubTotal}" class="prs-th-group prs-th-group--pay">지급항목</th>
               <th colspan="${dedCols.length}" class="prs-th-group prs-th-group--ded">공제항목</th>
               <th rowspan="2" style="text-align:right;width:120px;">지급합계</th>
@@ -1897,6 +1980,13 @@
    *   - 일별 근무시간 칸은 「뉴ERP 근로일수 자동 반영」 값(근태 연동, mock).
    *   - 좌측 사번/이름 + 우측 실수령액 sticky, 일자 칸이 많아 가로 스크롤.
    *   - 초안: 조회 전용(셀 직접 수정 없음). 금액은 computeDailyLedger 산출값. */
+  /* 초과수당 컬럼(연장/야간/야간연장/휴일) — 일용직 급여대장. mult 는 통상시급 배율(툴팁 표시용). */
+  const DAILY_OT_COLS = [
+    { key: 'otRegular',  label: '연장',     mult: 1.5, hoursW: 100, payW: 110 },
+    { key: 'otNight',    label: '야간',     mult: 1.5, hoursW: 100, payW: 110 },
+    { key: 'otNightExt', label: '야간연장', mult: 2.0, hoursW: 120, payW: 130 },
+    { key: 'otHoliday',  label: '휴일',     mult: 1.5, hoursW: 100, payW: 110 },
+  ];
   const DAILY_DED_COLS = [
     { key: 'incomeTax', label: '소득세',       width: 100 },
     { key: 'localTax',  label: '지방소득세',   width: 110 },
@@ -1918,7 +2008,7 @@
     const days = [];
     for (let d = 1; d <= dim; d++) days.push(d);
     const DAY_W = 34;
-    const totalCols = 2 + (hasDistribCol(f) ? 1 : 0) + 1 + dim + 3 + 2 + DAILY_DED_COLS.length + 2;
+    const totalCols = 2 + (hasDistribCol(f) ? 1 : 0) + 1 + dim + 3 + DAILY_OT_COLS.length * 2 + 2 + DAILY_DED_COLS.length + 2;
     const money = (v) => (Number(v) === 0 ? '<span class="t-muted">-</span>' : fmtMoney(v));
 
     const bodyHTML = !rows.length
@@ -1928,6 +2018,13 @@
           const dayCells = days.map(d => {
             const h = Number(hrs[d - 1] || 0);
             return `<td class="prs-col--day${h ? '' : ' is-zero'}" style="text-align:center;">${h ? h : '<span class="t-muted">·</span>'}</td>`;
+          }).join('');
+          const otCells = DAILY_OT_COLS.map(c => {
+            const hrs = (r.otHours || {})[c.key] || 0;
+            const pay = (r.otPay || {})[c.key] || 0;
+            const hoursCell = `<td class="prs-col prs-col--hours${hrs === 0 ? ' is-zero' : ''}" style="text-align:right;">${fmtHourCell(hrs)}</td>`;
+            const payCell = `<td class="prs-col prs-col--ot${pay === 0 ? ' is-zero' : ''}" style="text-align:right;">${money(pay)}</td>`;
+            return hoursCell + payCell;
           }).join('');
           const dedCells = DAILY_DED_COLS.map(c => {
             const v = (r.deductions || {})[c.key] || 0;
@@ -1943,6 +2040,7 @@
               <td class="prs-col--calc" style="text-align:right;">${r.workDays || 0}</td>
               <td class="prs-col--calc" style="text-align:right;">${r.workHours || 0}</td>
               <td class="prs-col--calc" style="text-align:right;">${fmtMoney(r.dailyWage)}</td>
+              ${otCells}
               <td class="prs-col--pay" style="text-align:right;">${fmtMoney(r.taxablePay)}</td>
               <td class="prs-col--pay" style="text-align:right;font-weight:var(--fw-medium);color:var(--color-brand-primary);">${fmtMoney(r.total)}</td>
               ${dedCells}
@@ -1964,6 +2062,7 @@
           <td class="prs-col--calc" style="text-align:right;">${sum(r => r.workDays)}</td>
           <td class="prs-col--calc" style="text-align:right;">${sum(r => r.workHours)}</td>
           <td class="prs-col--calc"></td>
+          ${DAILY_OT_COLS.map(c => `<td class="prs-col prs-col--hours" style="text-align:right;">${hourNum(sum(r => (r.otHours || {})[c.key]))}</td><td class="prs-col prs-col--ot" style="text-align:right;">${fmtMoney(sum(r => (r.otPay || {})[c.key]))}</td>`).join('')}
           <td class="prs-col--pay" style="text-align:right;">${fmtMoney(sum(r => r.taxablePay))}</td>
           <td class="prs-col--pay" style="text-align:right;color:var(--color-brand-primary);">${fmtMoney(sum(r => r.total))}</td>
           ${DAILY_DED_COLS.map(c => `<td class="prs-col prs-col--ded" style="text-align:right;">${fmtMoney(sum(r => (r.deductions || {})[c.key]))}</td>`).join('')}
@@ -1983,6 +2082,7 @@
               ${distribHead(f)}
               <th colspan="1" class="prs-th-group prs-th-group--info">사원정보</th>
               <th colspan="${dim + 3}" class="prs-th-group prs-th-group--day">근로내역 (일자별 근무시간)</th>
+              <th colspan="${DAILY_OT_COLS.length * 2}" class="prs-th-group prs-th-group--ot">초과수당</th>
               <th colspan="2" class="prs-th-group prs-th-group--pay">지급항목</th>
               <th colspan="${DAILY_DED_COLS.length}" class="prs-th-group prs-th-group--ded">공제항목</th>
               <th rowspan="2" style="width:110px;text-align:right;">공제합계</th>
@@ -1994,6 +2094,7 @@
               <th class="prs-col--calc" style="width:90px;text-align:right;">과세일수</th>
               <th class="prs-col--calc" style="width:90px;text-align:right;">근무시간</th>
               <th class="prs-col--calc" style="width:110px;text-align:right;">일당</th>
+              ${DAILY_OT_COLS.map(c => `<th class="prs-col--hours" style="width:${c.hoursW}px;text-align:right;">${esc(c.label)}근무시간</th><th class="prs-col--ot" style="width:${c.payW}px;text-align:right;">${esc(c.label)}근무수당</th>`).join('')}
               <th class="prs-col--pay" style="width:120px;text-align:right;">과세급여</th>
               <th class="prs-col--pay" style="width:120px;text-align:right;">총지급액</th>
               ${DAILY_DED_COLS.map(c => `<th class="prs-col--ded" style="width:${c.width}px;text-align:right;">${esc(c.label)}</th>`).join('')}
@@ -2169,6 +2270,7 @@
     const dis = editable ? '' : 'disabled';
     const group = tf.empGroup || 'standard';
     const isDaily = group === 'daily';
+    const isFree  = group === 'freelancer';
 
     const chkboxes = (items, selected, name) => items.map(o => `
       <label class="cb"><input type="checkbox" data-prs-tf="${name}" value="${esc(o.value)}" ${selected.includes(o.value) ? 'checked' : ''} ${dis} /> ${esc(o.label)}</label>
@@ -2183,16 +2285,18 @@
 
     const row2GT = 'grid-template-columns:130px 1fr 110px 1fr;';
 
-    /* 근로유형 셀 — 상용직이면 정규직/계약직 체크박스, 일용직이면 단일 유형 안내 */
+    /* 근로유형 셀 — 상용직이면 정규직/계약직 체크박스, 일용직·프리랜서는 단일 유형 안내 */
     const workTypeCell = isDaily
       ? `<span class="t-muted" style="font-size:var(--fs-sm);">일용직 (단일 유형)</span>`
+      : isFree
+      ? `<span class="t-muted" style="font-size:var(--fs-sm);">프리랜서 (단일 유형)</span>`
       : `<div style="display:flex;gap:14px;flex-wrap:wrap;">${chkboxes(WORK_TYPE_OPTIONS, tf.empType || [], 'empType')}</div>`;
 
     return sectionCard(2, '정산 대상자 조건', `
       <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
         <div class="fm-tbl__row fm-tbl__row--2" style="${row2GT}">
           <div class="fm-tbl__label">정산 그룹 ${REQ_MARK}</div>
-          <div class="fm-tbl__value" style="gap:18px;flex-wrap:wrap;">${radio('standard', '상용직 그룹')}${radio('daily', '일용직 그룹')}</div>
+          <div class="fm-tbl__value" style="gap:18px;flex-wrap:wrap;">${radio('standard', '상용직 그룹')}${radio('daily', '일용직 그룹')}${radio('freelancer', '프리랜서 그룹')}</div>
           <div class="fm-tbl__label">근로유형</div>
           <div class="fm-tbl__value" style="gap:14px;flex-wrap:wrap;">${workTypeCell}</div>
         </div>
@@ -2229,7 +2333,7 @@
     const total = matched.length;
     const allChecked = total > 0 && selCount === total;
     const noneChecked = selCount === 0;
-    const empTypeLabel = (v) => ({ regular: '정규직', contract: '계약직', daily: '일용직' }[v] || v || '-');
+    const empTypeLabel = (v) => ({ regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직' }[v] || v || '-');
     const jobCatLabel  = (v) => ({ office: '사무직', production: '생산직', research: '연구직' }[v] || v || '-');
 
     const rowsHTML = !total
@@ -2313,7 +2417,9 @@
           <div><strong>공제 항목 (${chosenDed.length})</strong></div>
         </div>
         <ul class="prs-pi-list">
-          ${chosenDed.map((c, idx) => renderDeductItemRow(c, idx, editable)).join('')}
+          ${chosenDed.length
+            ? chosenDed.map((c, idx) => renderDeductItemRow(c, idx, editable)).join('')
+            : `<li class="prs-pi-item"><div class="prs-pi-item__body"><span class="t-muted">이 정산 유형은 공제 항목이 없습니다.</span></div></li>`}
         </ul>
       </div>`;
 
@@ -2375,7 +2481,7 @@
     const editable = f.status === 'calculated';   /* 검증 단계 = 계산 결과 수정 가능 */
     const chosen = (f.payItemCodes || []).map(code => payItemByCode(code) || { code, name: '(미정의)' });
 
-    const headPay = chosen.map(it => `<th style="text-align:right;min-width:110px;">${esc(it.name)}</th>`).join('');
+    const headPay = chosen.map(it => `<th style="text-align:right;min-width:110px;">${esc(payItemLabelFor(it.code, f))}</th>`).join('');
 
     const totalsPay = chosen.map(it => {
       const sum = ledger.rows.reduce((a, r) => a + (Number((r.amounts || {})[it.code]) || 0), 0);
@@ -2476,6 +2582,8 @@
 
       if (action === 'advance') {
         const st = stageOf(r);
+        /* [확정] 버튼은 열람 중인 페이즈와 무관하게 항상 *현재 단계(stage)* 를 확정·전진한다.
+           (공제 단계에서 지급 검토를 보고 있어도 「공제항목 확정」 → 정산검토 단계로 전진) */
         /* stage 0 → 1 : 「지급」 전이 — 정산 설정 잠금 + ledger 산출. 모달 확인 필요 */
         if (st === 0) {
           if (!validateStep(1)) return;
@@ -2536,15 +2644,17 @@
       const key = b.dataset.prsPhase;
       const f = STATE.form;
       if (!f) return;
-      const idx     = phaseIndex(key, f);
-      const doneIdx = progressIndex(f);
-      if (idx >= doneIdx)         return;  /* 미완료 페이즈 → 클릭 차단 */
+      const idx = phaseIndex(key, f);
+      /* 도달한 페이즈(완료 + 현재 단계)까지만 클릭 가능 — 미래(미도달) 페이즈는 차단.
+         현재 단계(프론티어) 도 클릭 허용 → 지급 검토로 돌아갔다가 다시 공제 검토로 복귀 가능. */
+      if (idx > stageOf(f))       return;  /* 미도달 페이즈 → 클릭 차단 */
       if (key === f.activePhase)  return;  /* 이미 활성 */
       f.activePhase = key;
       phasesHost.innerHTML = renderPhaseStepperItems(f);
       refreshDetailSection(pageEl, 'work');
       const detail = pageEl.querySelector('.prs-detail');
       if (detail) applySearchToDOM(detail, f.search);
+      /* [확정] 버튼 라벨은 현재 단계(stage) 기준이라 열람 페이즈 변경과 무관하게 그대로 유지된다. */
     });
 
     /* 마법사 네비게이션 (create 전용) */
@@ -2584,6 +2694,9 @@
           const ot = otPeriodFromMonth(f.accruedMonth);   // 정기 급여 전환 — 전월26~귀속월25 재계산
           if (ot) { f.otFrom = ot.from; f.otTo = ot.to; }
         }
+        /* 정산 유형에 맞는 기본 지급·공제 항목으로 재세팅 (기타=상여금 1개·공제 없음 / 프리랜서=월 지급액·3.3%) */
+        f.payItemCodes    = formDefaultPayCodes(f);
+        f.deductItemCodes = formDefaultDeductCodes(f);
         renderFormView(pageEl);
       });
     });
@@ -2611,7 +2724,12 @@
       el.addEventListener('change', () => {
         if (!el.checked) return;
         tf.empGroup = el.value;
-        tf.empType  = el.value === 'daily' ? ['daily'] : ['regular', 'contract'];
+        tf.empType  = el.value === 'daily'      ? ['daily']
+                    : el.value === 'freelancer' ? ['freelancer']
+                    : ['regular', 'contract'];
+        /* 그룹 전환 시 지급·공제 항목을 그룹 기본값으로 재세팅 (프리랜서=월 지급액 / 3.3% 공제) */
+        f.payItemCodes    = formDefaultPayCodes(f);
+        f.deductItemCodes = formDefaultDeductCodes(f);
         renderFormView(pageEl);
       });
     });
@@ -2696,7 +2814,8 @@
     }
     if (step === 3) {
       if (!(f.payItemCodes || []).length)    { window.toast && window.toast('지급 항목을 1개 이상 추가하세요.', 'warning'); return false; }
-      if (!(f.deductItemCodes || []).length) { window.toast && window.toast('공제 항목을 1개 이상 선택하세요.', 'warning'); return false; }
+      /* 기타 정산은 공제 항목이 없어도 진행 가능 (정기 급여만 최소 1개 요구) */
+      if (isRegularSettle(f) && !(f.deductItemCodes || []).length) { window.toast && window.toast('공제 항목을 1개 이상 선택하세요.', 'warning'); return false; }
       return true;
     }
     return true;
@@ -2717,7 +2836,7 @@
       const selCount = f.targetEmpIds ? matched.filter(e => f.targetEmpIds.has(e.id)).length : matched.length;
       return selCount > 0;
     }
-    if (step === 3) return (f.payItemCodes || []).length > 0 && (f.deductItemCodes || []).length > 0;
+    if (step === 3) return (f.payItemCodes || []).length > 0 && (!isRegularSettle(f) || (f.deductItemCodes || []).length > 0);
     return true;
   }
 
@@ -2845,6 +2964,7 @@
       if (tool) {
         const t = tool.dataset.prsTool;
         if (t === 'bulk') { openBulkModal(); return; }
+        if (t === 'yearend-upload') { _yeOpen(); return; }
         if (t === 'excel-down') window.toast && window.toast('급여대장 엑셀 다운로드 (mock)', 'info');
         if (t === 'excel-down-ylw') window.toast && window.toast('영림원 ERP 업로드용 엑셀 다운로드 (mock) — 영림원 계정/항목 코드 매핑 양식으로 변환됩니다.', 'info');
         return;
@@ -3392,7 +3512,27 @@
 
       const workHours = dayHours.reduce((a, h) => a + h, 0);
       const workDays  = dayHours.filter(h => h > 0).length;
-      const total = Math.round(workHours * hourly);
+      const basePay   = Math.round(workHours * hourly);
+
+      /* 초과수당 (연장/야간/야간연장/휴일) — 근태 자동반영(mock, seed 기반 결정적).
+       *   일용직도 기본시급(=통상시급) 기준으로 가산: 연장·야간·휴일 ×1.5, 야간연장 ×2.0.
+       *   첫 행(i=0)은 엑셀 예시 정합 유지를 위해 초과 없음. */
+      const otHours = { otRegular: 0, otNight: 0, otNightExt: 0, otHoliday: 0 };
+      if (i !== 0) {
+        otHours.otRegular  = (seed % 6) * 2;              /* 연장 0~10h */
+        otHours.otNight    = (seed % 5 === 0) ? 3 : 0;    /* 야간 */
+        otHours.otNightExt = (seed % 7 === 0) ? 2 : 0;    /* 야간연장 */
+        otHours.otHoliday  = (seed % 4 === 0) ? 8 : 0;    /* 휴일 */
+      }
+      const otPay = {
+        otRegular:  Math.round(hourly * otHours.otRegular  * 1.5),
+        otNight:    Math.round(hourly * otHours.otNight    * 1.5),
+        otNightExt: Math.round(hourly * otHours.otNightExt * 2.0),
+        otHoliday:  Math.round(hourly * otHours.otHoliday  * 1.5),
+      };
+      const otTotal = otPay.otRegular + otPay.otNight + otPay.otNightExt + otPay.otHoliday;
+
+      const total = basePay + otTotal;
       const taxablePay = total;   /* 전액 과세 (mock) */
 
       /* 공제 (10원 절사) */
@@ -3412,7 +3552,7 @@
         empId: e.id, name: e.name, dept: e.dept, position: e.position, empStatus: e.status, empType: e.empType,
         workState: mockWorkState(i), unusedLeave: 0,
         bank, account, dayHours, workDays, workHours, dailyWage, hourly,
-        total, taxablePay,
+        basePay, otHours, otPay, otTotal, total, taxablePay,
         deductions: { incomeTax, localTax, pension, employ, health, ltcare, etc1, etc2 },
         dedTotal, netPay,
       };
@@ -3539,12 +3679,22 @@
       const adjLocalTax      = 0;
       const adjFarmTax       = 0;
       const debtCollect      = 0;
-      const dedTotal = pension + health + ltcare + employ
-                     + incomeTax + localTax
-                     + adjIncomeTax + adjLocalTax
-                     + adjIncomeTaxMid + adjLocalTaxMid
-                     + adjHealth + adjLtcare + adjFarmTax
-                     + debtCollect + tuition + etcDed;
+      /* 프리랜서 — 사업소득 원천징수 3.3% (지급총액 × 3.3%). 4대보험·소득세 등은 미선택이라 실제 공제에서 제외됨. */
+      const withhold33 = Math.round(total * 0.033);
+      /* 공제 항목은 정산에 선택된 항목만 반영 — 기타 정산(공제 항목 없음)은 공제 0, 실지급액 = 지급 총액 */
+      const dedAll = {
+        pension, health, ltcare, employ,
+        incomeTax, localTax,
+        adjIncomeTax, adjLocalTax,
+        adjIncomeTaxMid, adjLocalTaxMid,
+        adjHealth, adjLtcare, adjFarmTax,
+        debtCollect, tuition, etcDed,
+        withhold33,
+      };
+      const dedSel = new Set(r.deductItemCodes || DEDUCT_DEFAULT_CODES);
+      const deductions = {};
+      Object.keys(dedAll).forEach(k => { if (dedSel.has(k)) deductions[k] = dedAll[k]; });
+      const dedTotal = Object.keys(deductions).reduce((a, k) => a + (Number(deductions[k]) || 0), 0);
       const netPay    = total - dedTotal;
 
       return {
@@ -3566,14 +3716,7 @@
         },
         amounts, total,
         smeRate, incomeTaxBase,
-        deductions: {
-          pension, health, ltcare, employ,
-          incomeTax, localTax,
-          adjIncomeTax, adjLocalTax,
-          adjIncomeTaxMid, adjLocalTaxMid,
-          adjHealth, adjLtcare, adjFarmTax,
-          debtCollect, tuition, etcDed,
-        },
+        deductions,
         dedTotal, netPay,
       };
     });
@@ -3738,7 +3881,7 @@
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(r.goji)}</td>
       </tr>`).join('')).join('');
     return _insSummary(data.length, total) + `
-      <div class="table-card"><div class="table-card__body" style="max-height:340px;">
+      <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:980px;">
           <thead><tr>
             <th style="width:48px;text-align:right;">순번</th>
@@ -3770,7 +3913,7 @@
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(p.worker)}</td>
       </tr>`).join('');
     return _insSummary(data.length, total) + `
-      <div class="table-card"><div class="table-card__body" style="max-height:340px;">
+      <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:760px;">
           <thead><tr>
             <th style="width:48px;text-align:right;">순번</th>
@@ -3798,7 +3941,7 @@
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(p.goji)}</td>
       </tr>`).join('');
     return _insSummary(data.length, total) + `
-      <div class="table-card"><div class="table-card__body" style="max-height:340px;">
+      <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:760px;">
           <thead><tr>
             <th style="width:48px;text-align:right;">순번</th>
@@ -3818,15 +3961,12 @@
   const _insRender = { health: renderInsHealth, pension: renderInsPension, employment: renderInsEmployment };
   const _insLabel  = { health: '건강보험', pension: '국민연금', employment: '고용보험' };
 
-  /* ============ 적용 기간/고지월 모델 (보험별 독립) ============
-   *   _insStore[sub] = { periods:[ {id, from:'YYYY-MM', to:'YYYY-MM', uploads:{ 'YYYY-MM':{ fileName,fileSize,uploadedAt,data,applied } } } ],
-   *                       selPeriodId, selMonth, newMode, newStart }
-   *   - periods 는 from 오름차순 정렬 유지(마지막 = 최신 = 편집 가능 기간).
-   *   - 과거 기간은 조회 전용(이력 보관). */
+  /* ============ 고지월/업로드 모델 (보험별 독립) ============
+   *   _insStore[sub] = { uploads:{ 'YYYY-MM':{ fileName,fileSize,uploadedAt,data,applied } }, selMonth }
+   *   - 고지액은 공단 고지서 기준으로 매월 새로 업로드 → 적용 기간 개념 없이 고지월(YYYY-MM) 단위로만 관리.
+   *   - 고지월 드롭다운은 최근 6개월만 노출(_insRecentMonths). */
   const _insStore = {};
   let _insActiveSub = 'health';
-  let _insPmTab = 'edit';   /* 적용 기간 관리 모달 탭: 'edit' | 'create' */
-  let _insPeriodSeq = 0;
 
   /* YYYY-MM 산술/표기 — 문자열 비교로 대소 비교 가능(zero-pad). */
   function _ymParts(ym) { const [y, m] = String(ym).split('-').map(Number); return [y, m]; }
@@ -3837,12 +3977,6 @@
     return _ymOf(Math.floor(total / 12), (total % 12) + 1);
   }
   function _ymToYYMM2(ym) { const [y, m] = _ymParts(ym); return String(y).slice(-2) + '/' + String(m).padStart(2, '0'); }
-  function _insPeriodLabel(p) { return _ymToYYMM2(p.from) + ' ~ ' + _ymToYYMM2(p.to); }
-  function _insPeriodMonths(p) {
-    const out = []; let cur = p.from;
-    while (cur <= p.to) { out.push(cur); cur = _ymAdd(cur, 1); }
-    return out;
-  }
   /* 업로드 일시 — YY/MM/DD HH:MM */
   function _insStampNow() {
     const d = new Date();
@@ -3851,35 +3985,36 @@
   }
   function _insSeedStamp() { const [y, m, dd] = TODAY.split('-'); return `${y.slice(-2)}/${m}/${dd}   09:14`; }
 
-  /* 보험별 최초 적용 기간 — 건강·고용: 당해 4월~익년 3월 / 국민연금: 당해 7월~익년 6월 */
-  function _insInitialPeriod(sub) {
-    const [y] = _ymParts(TODAY);
-    return sub === 'pension' ? { from: _ymOf(y, 7), to: _ymOf(y + 1, 6) }
-                             : { from: _ymOf(y, 4), to: _ymOf(y + 1, 3) };
+  /* 고지월 드롭다운 기준월 — 편집 중 정산의 귀속월, 없으면 당월 */
+  function _insAnchorMonth() {
+    const f = STATE.form;
+    return (f && f.accruedMonth) || TODAY.slice(0, 7);
+  }
+  /* 최근 6개월(기준월 포함) — 최신월이 위로 */
+  function _insRecentMonths() {
+    const base = _insAnchorMonth();
+    const out = [];
+    for (let i = 0; i < 6; i++) out.push(_ymAdd(base, -i));
+    return out;
   }
   function _insSeed() {
-    const f = STATE.form;
-    const ym = (f && f.accruedMonth) || TODAY.slice(0, 7);
+    const selMonth = _insAnchorMonth();
     ['health', 'pension', 'employment'].forEach(sub => {
-      _insPeriodSeq += 1;
-      const per = _insInitialPeriod(sub);
-      const p = { id: 'IPD-' + _insPeriodSeq, from: per.from, to: per.to, uploads: {} };
-      const months = _insPeriodMonths(p);
-      const selMonth = months.indexOf(ym) >= 0 ? ym : p.from;
-      /* 데모용 시드 업로드 — 기본 고지월 1건(미적용). 우측 패널이 바로 채워지고 예외 흐름 시연 가능 */
-      p.uploads[selMonth] = {
-        fileName:   `${_insLabel[sub]}_월고지액_${selMonth}.xlsx`,
-        fileSize:   28160,
-        uploadedAt: _insSeedStamp(),
-        data:       _insGen[sub](),
-        applied:    false,
+      /* 데모용 시드 업로드 — 기준월 1건(미적용). 우측 패널이 바로 채워짐 */
+      _insStore[sub] = {
+        selMonth,
+        uploads: {
+          [selMonth]: {
+            fileName:   `${_insLabel[sub]}_월고지액_${selMonth}.xlsx`,
+            fileSize:   28160,
+            uploadedAt: _insSeedStamp(),
+            data:       _insGen[sub](),
+            applied:    false,
+          },
+        },
       };
-      _insStore[sub] = { periods: [p], selPeriodId: p.id, selMonth, newMode: false, newStart: '', newEnd: '' };
     });
   }
-
-  function _insSelPeriod(sub)    { const s = _insStore[sub]; return s.periods.find(p => p.id === s.selPeriodId) || s.periods[s.periods.length - 1]; }
-  function _insLatestPeriod(sub) { const s = _insStore[sub]; return s.periods[s.periods.length - 1]; }
 
   /* 공제 합계/실지급액 재계산 — 보험/세액 반영 후 공통 호출 */
   function _insRecalcRow(row) {
@@ -3891,30 +4026,14 @@
     row.netPay = (Number(row.total) || 0) - row.dedTotal;
   }
 
-  /* 적용 기간 관리 모달의 인라인 에러 — sel 로 대상 .field-error 지정 */
-  function _insPmErr(sel, msg) {
-    const el = document.querySelector('#modal-prs-ins-period ' + sel);
-    if (el) { el.textContent = msg; el.hidden = false; }
-  }
+  function _insRenderAll(sub) { _insRenderLeft(sub); _insRenderRight(sub); }
 
-  function _insRenderAll(sub) { _insRenderCtx(sub); _insRenderLeft(sub); _insRenderRight(sub); }
-
-  /* ============ 상단 컨텍스트 바 — 적용 기간은 좌측 패널(고지월 위)로 이동 ============ */
-  function _insRenderCtx(sub) {
-    const host = document.querySelector('[data-ins-ctx]'); if (!host) return;
-    host.innerHTML = '';   /* 적용 기간/기간 관리는 _insRenderLeft 로 이동 */
-  }
-
-  /* ============ 좌측 패널 — 적용 기간 + 고지월 선택 + 엑셀 업로드 ============ */
+  /* ============ 좌측 패널 — 고지월 선택 + 엑셀 업로드 ============ */
   function _insRenderLeft(sub) {
     const host = document.querySelector('[data-ins-left]'); if (!host) return;
     const s = _insStore[sub];
-    const latest = _insLatestPeriod(sub);
-    const periodOpts = s.periods.slice().reverse().map(p =>
-      `<option value="${esc(p.id)}" ${p.id === s.selPeriodId ? 'selected' : ''}>${esc(_insPeriodLabel(p))}${p.id === latest.id ? ' (현재)' : ''}</option>`).join('');
-    const sel = _insSelPeriod(sub);
-    const monthOpts = _insPeriodMonths(sel).map(m => {
-      const up = sel.uploads[m];
+    const monthOpts = _insRecentMonths().map(m => {
+      const up = s.uploads[m];
       const tag = up ? (up.applied ? ' · 적용완료' : ' · 업로드됨') : '';
       return `<option value="${esc(m)}" ${m === s.selMonth ? 'selected' : ''}>${esc(_ymToYYMM2(m))}${tag}</option>`;
     }).join('');
@@ -3922,15 +4041,9 @@
     host.innerHTML = `
       <div style="padding:14px 12px;display:flex;flex-direction:column;gap:16px;">
         <div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
-            <label class="form-label" style="margin:0;">적용 기간 ${REQ_MARK}</label>
-            <button class="btn btn--sm" type="button" data-ins-manage style="flex-shrink:0;">기간 관리</button>
-          </div>
-          <select class="select" data-ins-period style="width:100%;">${periodOpts}</select>
-        </div>
-        <div>
           <label class="form-label" style="display:block;margin-bottom:6px;">고지월 선택 ${REQ_MARK}</label>
           <select class="select" data-ins-month style="width:100%;">${monthOpts}</select>
+          <p class="form-help" style="margin-top:6px;">최근 6개월까지 조회할 수 있습니다.</p>
         </div>
         <div>
           <label class="form-label" style="display:block;margin-bottom:6px;">엑셀 업로드</label>
@@ -3946,53 +4059,11 @@
       </div>`;
   }
 
-  /* ============ 적용 기간 관리 모달 본문 — 탭(적용 기간 수정 | 적용 기간 생성) ============ */
-  function _insRenderPeriodModal(sub) {
-    const titleEl = document.querySelector('#modal-prs-ins-period [data-ins-pm-title]');
-    if (titleEl) titleEl.textContent = `${_insLabel[sub]} 적용 기간 관리`;
-    const host = document.querySelector('#modal-prs-ins-period [data-ins-pm-body]');
-    if (!host) return;
-    const latest = _insLatestPeriod(sub);
-    const isEdit = _insPmTab !== 'create';
-    const cs = _ymAdd(latest.to, 1);
-    const ce = _ymAdd(cs, 11);
-
-    const panel = isEdit ? `
-      <label class="form-label" style="display:block;margin-bottom:6px;">현재 적용 기간 시작월 ${REQ_MARK}</label>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input class="input" type="month" data-ins-pm-start value="${esc(latest.from)}" style="flex:1;min-width:0;" />
-        <span style="color:var(--color-text-muted);">~</span>
-        <input class="input" type="month" data-ins-pm-end value="${esc(latest.to)}" disabled style="flex:1;min-width:0;background:var(--color-surface-alt);" />
-      </div>
-      <div class="field-error" data-ins-pm-err hidden></div>
-      <p class="form-help" style="margin-top:6px;">시작월을 바꾸면 종료월이 1년 기간으로 맞춰집니다.</p>
-    ` : `
-      <label class="form-label" style="display:block;margin-bottom:6px;">신규 적용 기간 ${REQ_MARK}</label>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input class="input" type="month" data-ins-pm-cstart value="${esc(cs)}" style="flex:1;min-width:0;" />
-        <span style="color:var(--color-text-muted);">~</span>
-        <input class="input" type="month" data-ins-pm-cend value="${esc(ce)}" style="flex:1;min-width:0;" />
-      </div>
-      <div class="field-error" data-ins-pm-err hidden></div>
-      <p class="form-help" style="margin-top:6px;">기존 기간의 업로드·적용 내역은 이력으로 보관됩니다.</p>
-    `;
-
-    host.innerHTML = `
-      <div class="tabs" style="margin-bottom:16px;">
-        <div class="tabs__nav">
-          <button type="button" class="tabs__tab${isEdit ? ' is-active' : ''}" data-ins-pm-tab="edit">적용 기간 수정</button>
-          <button type="button" class="tabs__tab${isEdit ? '' : ' is-active'}" data-ins-pm-tab="create">적용 기간 생성</button>
-        </div>
-      </div>
-      <div>${panel}</div>`;
-  }
-
   /* ============ 우측 패널 — 업로드 정보 + 직원별 고지액 내역 + [적용] ============ */
   function _insRenderRight(sub) {
     const host = document.querySelector('[data-ins-right]'); if (!host) return;
     const s = _insStore[sub];
-    const sel = _insSelPeriod(sub);
-    const up = sel.uploads[s.selMonth];
+    const up = s.uploads[s.selMonth];
 
     if (!up) {
       host.innerHTML = `<div class="split__empty" style="flex-direction:column;gap:6px;text-align:center;line-height:1.6;">
@@ -4005,7 +4076,6 @@
     const head = `
       <div class="split__head" style="align-items:center;height:auto;min-height:44px;padding:10px 14px;">
         <div style="display:flex;flex-wrap:wrap;gap:4px 20px;font-size:var(--fs-sm);color:var(--color-text-sub);align-items:center;">
-          <span>적용 기간 <strong style="color:var(--color-text);">${esc(_insPeriodLabel(sel))}</strong></span>
           <span>고지월 <strong style="color:var(--color-text);">${esc(_ymToYYMM2(s.selMonth))}</strong></span>
           <span>업로드일 <strong style="color:var(--color-text);">${esc(up.uploadedAt)}</strong></span>
           <span>파일 <a href="javascript:;" data-ins-download style="color:var(--color-brand-primary);">${esc(up.fileName)} <span style="font-size:10px;">↓</span></a></span>
@@ -4032,7 +4102,6 @@
   /* ============ 동작 ============ */
   function _insOpen() {
     if (!_insStore.health) _insSeed();
-    ['health', 'pension', 'employment'].forEach(sub => { _insStore[sub].newMode = false; });
     _insSetTab('health');
     openModal('modal-prs-ded-insurance');
   }
@@ -4040,86 +4109,17 @@
     _insActiveSub = sub;
     const m = document.getElementById('modal-prs-ded-insurance'); if (!m) return;
     m.querySelectorAll('[data-ins-tab]').forEach(b => b.classList.toggle('is-active', b.dataset.insTab === sub));
-    _insStore[sub].newMode = false;
     _insRenderAll(sub);
   }
 
-  /* 적용 기간 생성 탭 — 시작월 설정 즉시 순차/중복 검증(설정 시점 체크) */
-  function _insPmLiveValidateCreate(sub) {
-    const m = document.getElementById('modal-prs-ins-period'); if (!m) return;
-    const errEl = m.querySelector('[data-ins-pm-err]'); if (!errEl) return;
-    const latest = _insLatestPeriod(sub);
-    const start = (m.querySelector('[data-ins-pm-cstart]') || {}).value || '';
-    if (!start) { errEl.hidden = true; return; }
-    if (start <= latest.to) { errEl.textContent = '이미 등록된 적용 기간과 중복되는 기간입니다. 기존 적용 기간과 겹치지 않는 기간으로 설정해주세요.'; errEl.hidden = false; return; }
-    if (start !== _ymAdd(latest.to, 1)) { errEl.textContent = '적용기간은 이전 적용기간의 종료월 다음 달부터 순차적으로 생성해야 합니다.'; errEl.hidden = false; return; }
-    errEl.hidden = true;
-  }
-
-  /* [적용] — 활성 탭에 따라 시작월 변경(예외①) 또는 신규 기간 생성(예외②③) */
-  function _insPmApply(sub) {
-    const m = document.getElementById('modal-prs-ins-period'); if (!m) return;
-    if (_insPmTab === 'create') {
-      const cs = (m.querySelector('[data-ins-pm-cstart]') || {}).value || '';
-      const ce = (m.querySelector('[data-ins-pm-cend]')   || {}).value || '';
-      _insCreatePeriodApply(sub, cs, ce);
-    } else {
-      const v = (m.querySelector('[data-ins-pm-start]') || {}).value || '';
-      _insEditStartApply(sub, v);
-    }
-  }
-  /* 적용 기간 수정 — 시작월 변경. 업로드 내역 있으면 변경 불가(예외 ①). */
-  function _insEditStartApply(sub, newStart) {
-    const latest = _insLatestPeriod(sub);
-    if (!newStart) { _insPmErr('[data-ins-pm-err]', '시작월을 선택하세요.'); return; }
-    const hasUploads = Object.keys(latest.uploads).length > 0;
-    if (hasUploads && newStart !== latest.from) {
-      _insPmErr('[data-ins-pm-err]', '해당 적용기간에 이미 업로드된 월 고지 내역이 있어 변경할 수 없습니다. 업로드된 월 고지내역을 삭제 후 변경해주세요.');
-      return;
-    }
-    latest.from = newStart;
-    latest.to   = _ymAdd(newStart, 11);
-    const s = _insStore[sub];
-    if (s.selPeriodId === latest.id && _insPeriodMonths(latest).indexOf(s.selMonth) < 0) s.selMonth = latest.from;
-    closeModal('modal-prs-ins-period');
-    _insRenderAll(sub);
-    window.toast && window.toast(`적용 기간이 ${_insPeriodLabel(latest)}(으)로 설정되었습니다.`, 'success');
-  }
-  /* 적용 기간 생성 — 중복(②)·순차(③) 검증 후 신규 기간 추가. */
-  function _insCreatePeriodApply(sub, start, end) {
-    const s = _insStore[sub];
-    const latest = _insLatestPeriod(sub);
-    if (!start) { _insPmErr('[data-ins-pm-err]', '시작월을 선택하세요.'); return; }
-    if (!end)   { _insPmErr('[data-ins-pm-err]', '종료월을 선택하세요.'); return; }
-    if (end < start) { _insPmErr('[data-ins-pm-err]', '종료월은 시작월보다 빠를 수 없습니다.'); return; }
-    if (start <= latest.to) {
-      _insPmErr('[data-ins-pm-err]', '이미 등록된 적용 기간과 중복되는 기간입니다. 기존 적용 기간과 겹치지 않는 기간으로 설정해주세요.');
-      return;
-    }
-    if (start !== _ymAdd(latest.to, 1)) {
-      _insPmErr('[data-ins-pm-err]', '적용기간은 이전 적용기간의 종료월 다음 달부터 순차적으로 생성해야 합니다.');
-      return;
-    }
-    if (!confirm('적용 기간을 생성하시겠습니까? 기존 적용기간의 업로드 및 적용 내역은 이력으로 보관됩니다.')) return;
-    _insPeriodSeq += 1;
-    const p = { id: 'IPD-' + _insPeriodSeq, from: start, to: end, uploads: {} };
-    s.periods.push(p);
-    s.selPeriodId = p.id;
-    s.selMonth    = p.from;
-    closeModal('modal-prs-ins-period');
-    _insRenderAll(sub);
-    window.toast && window.toast(`신규 적용 기간(${_insPeriodLabel(p)})이 생성되었습니다.`, 'success');
-  }
-
-  /* 엑셀 업로드 — 같은 고지월에 기존 파일이 있으면 재업로드 확인(예외 ③) */
+  /* 엑셀 업로드 — 같은 고지월에 기존 파일이 있으면 재업로드 확인 */
   function _insAddFile(sub, file) {
     const s = _insStore[sub];
-    const sel = _insSelPeriod(sub);
     const m = s.selMonth;
-    if (sel.uploads[m]) {
+    if (s.uploads[m]) {
       if (!confirm('해당 고지월에 이미 업로드된 월 고지 내역이 있습니다. 기존 파일을 삭제하고 새 파일로 다시 업로드하시겠습니까?')) return;
     }
-    sel.uploads[m] = {
+    s.uploads[m] = {
       fileName:   file ? file.name : `${_insLabel[sub]}_월고지액_${m}.xlsx`,
       fileSize:   file ? file.size : 28160,
       uploadedAt: _insStampNow(),
@@ -4132,26 +4132,24 @@
 
   function _insDelUpload(sub) {
     const s = _insStore[sub];
-    const sel = _insSelPeriod(sub);
     const m = s.selMonth;
-    if (!sel.uploads[m]) return;
+    if (!s.uploads[m]) return;
     if (!confirm(`${_ymToYYMM2(m)} 월 고지 내역을 삭제하시겠습니까?`)) return;
-    delete sel.uploads[m];
+    delete s.uploads[m];
     _insRenderLeft(sub); _insRenderRight(sub);
     window.toast && window.toast('월 고지 내역이 삭제되었습니다.', 'success');
   }
 
   function _insDownload(sub) {
-    const sel = _insSelPeriod(sub);
-    const up = sel.uploads[_insStore[sub].selMonth];
+    const s = _insStore[sub];
+    const up = s.uploads[s.selMonth];
     if (up && typeof App.downloadFile === 'function') App.downloadFile(up.fileName, { context: _insLabel[sub] + ' 월 고지액' });
   }
 
   /* [적용] — 해당 고지월 고지액을 급여 정산(ledger)에 반영. 편집 중인 정산이 없으면 기준 자료로만 등록. */
   function _insApply(sub) {
     const s = _insStore[sub];
-    const sel = _insSelPeriod(sub);
-    const up = sel.uploads[s.selMonth];
+    const up = s.uploads[s.selMonth];
     if (!up) return;
     up.applied = true;
     _insApplyToLedger(sub);
@@ -4181,35 +4179,6 @@
     refreshDetailSection(document.getElementById('page-hr-pay-settlement'), 'editor');
   }
 
-  function _insOpenPeriodModal(sub) {
-    _insPmTab = 'edit';
-    _insRenderPeriodModal(sub);
-    openModal('modal-prs-ins-period');
-  }
-
-  function bindInsPeriodModal() {
-    const m = document.getElementById('modal-prs-ins-period');
-    if (!m || m.dataset.insBound === '1') return;
-    m.dataset.insBound = '1';
-    m.addEventListener('click', e => {
-      if (e.target === m || e.target.closest('[data-ins-pm-close]')) { closeModal('modal-prs-ins-period'); return; }
-      const sub = _insActiveSub;
-      const tab = e.target.closest('[data-ins-pm-tab]');
-      if (tab) { _insPmTab = tab.dataset.insPmTab; _insRenderPeriodModal(sub); return; }
-      if (e.target.closest('[data-ins-pm-apply]')) { _insPmApply(sub); return; }
-    });
-    /* 시작월 변경 시 종료월(=시작월+1년) 미리보기 갱신 — 커밋은 [적용] 시 */
-    m.addEventListener('change', e => {
-      if (e.target.matches('[data-ins-pm-start]') || e.target.matches('[data-ins-pm-cstart]')) {
-        const v = e.target.value;
-        const endSel = e.target.matches('[data-ins-pm-start]') ? '[data-ins-pm-end]' : '[data-ins-pm-cend]';
-        const endEl = m.querySelector(endSel);
-        if (endEl && v) endEl.value = _ymAdd(v, 11);
-        if (e.target.matches('[data-ins-pm-cstart]')) _insPmLiveValidateCreate(_insActiveSub);
-      }
-    });
-  }
-
   function bindInsuranceModal() {
     const m = document.getElementById('modal-prs-ded-insurance');
     if (!m || m.dataset.insBound === '1') return;
@@ -4219,7 +4188,6 @@
       const tab = e.target.closest('[data-ins-tab]'); if (tab) { _insSetTab(tab.dataset.insTab); return; }
       const sub = _insActiveSub;
       if (e.target.closest('[data-ins-dz]'))         { const inp = m.querySelector('[data-ins-dz-input]'); if (inp) inp.click(); return; }
-      if (e.target.closest('[data-ins-manage]'))     { _insOpenPeriodModal(sub); return; }
       if (e.target.closest('[data-ins-apply]'))      { _insApply(sub); return; }
       if (e.target.closest('[data-ins-del-upload]')) { _insDelUpload(sub); return; }
       if (e.target.closest('[data-ins-download]'))   { e.preventDefault(); _insDownload(sub); return; }
@@ -4228,12 +4196,6 @@
     m.addEventListener('change', e => {
       const sub = _insActiveSub;
       const s = _insStore[sub];
-      if (e.target.matches('[data-ins-period]')) {
-        s.selPeriodId = e.target.value;
-        const p = _insSelPeriod(sub);
-        if (_insPeriodMonths(p).indexOf(s.selMonth) < 0) s.selMonth = p.from;
-        _insRenderLeft(sub); _insRenderRight(sub); return;
-      }
       if (e.target.matches('[data-ins-month]'))     { s.selMonth = e.target.value; _insRenderLeft(sub); _insRenderRight(sub); return; }
       if (e.target.matches('[data-ins-dz-input]'))  { const file = e.target.files && e.target.files[0]; if (file) _insAddFile(sub, file); e.target.value = ''; return; }
     });
@@ -4250,53 +4212,35 @@
   }
 
   /* =========================================================
-   *  간이세액표 업로드 — 4대보험과 동일한 분할 화면(적용 기간/업로드/미리보기/적용)
-   *    단일 표(보험별 탭 없음). 업로드 시 미리보기, [적용] 시 정산 ledger 소득세/지방세 반영.
+   *  간이세액표 업로드 — 업로드하면 그 즉시 급여 정산(소득세·지방소득세)에 반영. 이력만 관리.
+   *    versions: 적용된 버전(최신순). versions[0] = 현재 적용. 업로드 = 즉시 신규 버전 등록·반영.
    * ========================================================= */
-  /* 근로소득 간이세액표 미리보기 — 샘플 구간(월급여 천원 · 공제대상가족 1~5인 세액). mock. */
-  const TAX_PREVIEW = [
-    { wage: 2500, tax: [41630, 28600, 16530, 13990, 11450] },
-    { wage: 3000, tax: [84850, 62460, 32490, 28720, 24950] },
-    { wage: 3500, tax: [142220, 110920, 62600, 56500, 50400] },
-    { wage: 4000, tax: [219500, 180220, 96850, 88840, 80830] },
-    { wage: 4500, tax: [309480, 264150, 154860, 144860, 134860] },
-    { wage: 5000, tax: [414520, 363590, 240070, 226240, 212410] },
-    { wage: 6000, tax: [702940, 645510, 481200, 462840, 444480] },
-    { wage: 8000, tax: [1411600, 1339880, 1095430, 1067430, 1039430] },
-  ];
-  /* versions: 적용 완료된 버전(이력, 삭제 불가) — applyFrom 내림차순. draft: 업로드만 된(미적용) 신규 파일. */
-  const _taxStore = { versions: [], draft: null, seq: 0 };
+  const _taxStore = { versions: [], seq: 0, histPage: 1 };
+  const TAX_HIST_PAGE = 12;  /* 적용 이력 모달 — 페이지당 행 수 (초과 시 페이지네이션 노출) */
   function _taxLatest() { return _taxStore.versions[0] || null; }
 
   function _taxSeed() {
     const f = STATE.form;
     const ym = (f && f.accruedMonth) || TODAY.slice(0, 7);
     const [y] = _ymParts(ym);
-    /* 데모 — 직전 적용 버전 1건(이력 보관). 신규 업로드 시 새 버전으로 적용된다. */
+    /* 데모 — 직전 적용 버전 1건(이력 보관). */
     _taxStore.seq = 1;
-    _taxStore.versions = [{ id: 'TAX-1', applyFrom: _ymOf(y, 1), fileName: `근로소득_간이세액표_${y}.xlsx`, fileSize: 36240, uploadedAt: _insSeedStamp() }];
-    _taxStore.draft = null;
+    _taxStore.versions = [{ id: 'TAX-1', fileName: `근로소득_간이세액표_${y}.xlsx`, fileSize: 36240, appliedAt: _insSeedStamp() }];
   }
   function _taxOpen() {
-    if (!_taxStore.versions.length && !_taxStore.draft) _taxSeed();
-    _taxRenderAll();
+    if (!_taxStore.versions.length) _taxSeed();
+    _taxRender();
     openModal('modal-prs-ded-tax');
   }
-  function _taxRenderAll() { _taxRenderCtx(); _taxRenderLeft(); _taxRenderRight(); }
 
-  function _taxRenderCtx() {
-    const host = document.querySelector('[data-tax-ctx]'); if (!host) return;
+  function _taxRender() {
+    const host = document.querySelector('[data-tax-body]'); if (!host) return;
+    const btn = document.querySelector('#modal-prs-ded-tax [data-tax-open-history]');
+    const n = _taxStore.versions.length;
+    if (btn) btn.textContent = `적용 이력${n ? ` (${n})` : ''}`;
+    const latest = _taxLatest();
     host.innerHTML = `
-      <div style="padding:10px 2px 12px;">
-        <span class="form-help" style="margin:0;">국세청 <strong style="color:var(--color-text);">근로소득 간이세액표</strong>를 업로드하고, 우측에서 <strong style="color:var(--color-text);">반영 시작월</strong>을 지정해 [적용]하면 정산의 소득세·지방소득세에 반영됩니다.</span>
-      </div>`;
-  }
-  function _taxRenderLeft() {
-    const host = document.querySelector('[data-tax-left]'); if (!host) return;
-    const d = _taxStore.draft;
-    host.innerHTML = `
-      <div class="split__head"><h3 style="font-size:var(--fs-md);">새 간이세액표 업로드</h3></div>
-      <div class="split__body" style="padding:14px;">
+      <div>
         <label class="form-label" style="display:block;margin-bottom:6px;">엑셀 업로드</label>
         <div class="file-field">
           <div class="dz" data-tax-dz tabindex="0">
@@ -4306,159 +4250,116 @@
             <input type="file" hidden data-tax-dz-input accept=".xlsx,.xls,.csv,.pdf" />
           </div>
         </div>
-        ${d ? `<div class="dz-file" style="margin-top:10px;"><span>📄</span><span class="dz-file__name">${esc(d.fileName)}</span><span class="dz-file__size">${(d.fileSize / 1024).toFixed(1)} KB</span><span class="pill pill--warning" style="margin-left:auto;font-size:11px;">미적용</span></div>` : ''}
-        <p class="form-help" style="margin-top:8px;">업로드 후 우측에서 <strong>반영 시작월</strong>을 지정하고 [적용]하면 신규 버전으로 반영되며, 기존 버전은 이력으로 보관됩니다.</p>
+        <p class="form-help" style="margin-top:8px;">업로드하면 즉시 소득세·지방소득세에 반영되며, 이전 파일은 이력으로 보관됩니다.</p>
+        ${latest ? `
+          <div style="margin-top:14px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);">
+            <span class="pill pill--success" style="flex-shrink:0;">현재 적용</span>
+            <a href="javascript:;" data-tax-vdownload="${esc(latest.id)}" style="color:var(--color-brand-primary);">${esc(latest.fileName)} <span style="font-size:10px;">↓</span></a>
+            <span style="color:var(--color-text-muted);margin-left:auto;white-space:nowrap;">${esc(latest.appliedAt)}</span>
+          </div>` : ''}
       </div>`;
   }
-  function _taxPreview() {
-    const body = TAX_PREVIEW.map(r => `
-      <tr>
-        <td style="text-align:right;white-space:nowrap;">${fmtMoney(r.wage)}</td>
-        ${r.tax.map(t => `<td style="text-align:right;">${fmtMoney(t)}</td>`).join('')}
-      </tr>`).join('');
-    return `
-      <div class="table-card" style="margin:14px 0 10px;">
-        <table class="tbl">
-          <thead><tr><th style="text-align:center;">표기 구간</th><th style="text-align:center;">공제대상가족 수</th></tr></thead>
-          <tbody><tr>
-            <td style="text-align:center;">${TAX_PREVIEW.length}개 구간</td>
-            <td style="text-align:center;">1인 ~ 5인</td>
-          </tr></tbody>
-        </table>
-      </div>
-      <div class="table-card"><div class="table-card__body" style="max-height:300px;">
-        <table class="tbl tbl--hover" style="min-width:560px;">
-          <thead><tr>
-            <th style="width:120px;text-align:right;">월급여(천원)</th>
-            <th style="text-align:right;">1인</th>
-            <th style="text-align:right;">2인</th>
-            <th style="text-align:right;">3인</th>
-            <th style="text-align:right;">4인</th>
-            <th style="text-align:right;">5인</th>
-          </tr></thead>
-          <tbody>${body}</tbody>
-        </table>
-      </div></div>`;
-  }
-  /* 적용 이력 테이블 — 적용 완료 버전(삭제 불가) */
+
+  /* 적용 이력 — 업로드(=적용)된 버전 목록. 최신 = 현재 적용. 행별 삭제 가능(현재 적용 포함).
+     모달 높이는 업로드 모달에 맞춰 고정되므로, 데이터 행 영역만 스크롤되고 이력이 많아지면
+     페이지네이션(페이지당 TAX_HIST_PAGE 행)으로 분할한다. */
   function _taxHistory() {
     const vs = _taxStore.versions;
-    if (!vs.length) return '';
-    const rows = vs.map((v, i) => `
+    if (!vs.length) return `<div style="flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);">적용 이력이 없습니다.</div>`;
+
+    const total = vs.length;
+    const totalPages = Math.max(1, Math.ceil(total / TAX_HIST_PAGE));
+    if (_taxStore.histPage > totalPages) _taxStore.histPage = totalPages;
+    if (_taxStore.histPage < 1) _taxStore.histPage = 1;
+    const page = _taxStore.histPage;
+    const start = (page - 1) * TAX_HIST_PAGE;
+    const pageRows = vs.slice(start, start + TAX_HIST_PAGE);
+
+    const thSticky = 'position:sticky;top:0;background:var(--color-surface);z-index:1;';
+    const rows = pageRows.map((v) => {
+      const isCurrent = v === vs[0];
+      return `
       <tr>
-        <td style="text-align:center;">${_ymToYYMM2(v.applyFrom)} ~</td>
-        <td><a href="javascript:;" data-tax-vdownload="${esc(v.id)}" style="color:var(--color-brand-primary);">${esc(v.fileName)} <span style="font-size:10px;">↓</span></a></td>
-        <td style="text-align:center;white-space:nowrap;">${esc(v.uploadedAt)}</td>
-        <td style="text-align:center;">${i === 0 ? '<span class="pill pill--success">현재 적용</span>' : '<span class="pill pill--muted">이력</span>'}</td>
-      </tr>`).join('');
+        <td style="text-align:center;white-space:nowrap;">${esc(v.appliedAt)}</td>
+        <td style="white-space:nowrap;"><a href="javascript:;" data-tax-vdownload="${esc(v.id)}" style="color:var(--color-brand-primary);">${esc(v.fileName)} <span style="font-size:10px;">↓</span></a></td>
+        <td style="text-align:center;">${isCurrent ? '<span class="pill pill--success">현재 적용</span>' : '<span class="pill pill--muted">이력</span>'}</td>
+        <td style="text-align:center;"><button class="btn btn--sm" type="button" data-tax-del-version="${esc(v.id)}" style="color:var(--color-danger);">삭제</button></td>
+      </tr>`;
+    }).join('');
+
+    let pager = '';
+    if (total > TAX_HIST_PAGE) {
+      const btns = [];
+      btns.push(`<button class="pagination__btn" data-tax-hist-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`);
+      btns.push(`<button class="pagination__btn" data-tax-hist-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>‹</button>`);
+      const win = 5;
+      let s = Math.max(1, page - Math.floor(win / 2));
+      let e = Math.min(totalPages, s + win - 1);
+      if (e - s < win - 1) s = Math.max(1, e - win + 1);
+      for (let i = s; i <= e; i++) btns.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-tax-hist-page="${i}">${i}</button>`);
+      btns.push(`<button class="pagination__btn" data-tax-hist-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>›</button>`);
+      btns.push(`<button class="pagination__btn" data-tax-hist-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`);
+      pager = `
+        <div class="pagination" style="flex-shrink:0;">
+          <div class="pagination__info">${start + 1}-${Math.min(start + TAX_HIST_PAGE, total)} / 총 ${total}건</div>
+          <div class="pagination__list">${btns.join('')}</div>
+        </div>`;
+    }
+
     return `
-      <div class="table-card" style="margin-top:14px;">
-        <div class="table-card__cap"><strong>적용 이력</strong><span class="t-muted" style="font-size:var(--fs-xs);">${vs.length}건 · 적용 완료 버전은 삭제할 수 없습니다</span></div>
-        <div class="table-card__body" style="max-height:200px;">
-          <table class="tbl" style="min-width:520px;">
+      <div class="table-card" style="flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
+        <div class="table-card__cap" style="flex-shrink:0;"><strong>적용 이력</strong><span class="t-muted" style="font-size:var(--fs-xs);">${total}건</span></div>
+        <div class="table-card__body" style="flex:1 1 auto;min-height:0;">
+          <table class="tbl" style="width:100%;">
             <thead><tr>
-              <th style="width:120px;text-align:center;">반영 시작월</th>
-              <th>파일</th>
-              <th style="width:140px;text-align:center;">업로드일</th>
-              <th style="width:90px;text-align:center;">상태</th>
+              <th style="width:150px;text-align:center;${thSticky}">적용일시</th>
+              <th style="${thSticky}">파일</th>
+              <th style="width:90px;text-align:center;${thSticky}">상태</th>
+              <th style="width:70px;text-align:center;${thSticky}">삭제</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
+        ${pager}
       </div>`;
   }
 
-  function _taxRenderRight() {
-    const host = document.querySelector('[data-tax-right]'); if (!host) return;
-    const d = _taxStore.draft;
-    const latest = _taxLatest();
-
-    if (!d && !latest) {
-      host.innerHTML = `<div class="split__empty" style="flex-direction:column;gap:6px;text-align:center;line-height:1.6;">업로드된 간이세액표가 없습니다.<br><span style="font-size:var(--fs-sm);">좌측에서 엑셀을 업로드하세요.</span></div>`;
-      return;
+  /* 적용 이력 모달 — 업로드 모달 위에 오버레이.
+     이력을 넉넉히 볼 수 있도록 업로드 모달보다 크게(뷰포트 85% 한도) 띄운다. */
+  function _taxOpenHistory() {
+    _taxStore.histPage = 1;
+    _taxRenderHistory();
+    openModal('modal-prs-tax-history');
+    const hist = document.querySelector('#modal-prs-tax-history .modal');
+    if (hist) {
+      const h = Math.min(720, Math.round((window.innerHeight || 900) * 0.85));
+      hist.style.height = h + 'px';
     }
-
-    /* 헤더 — 미적용 신규(draft) 우선, 없으면 현재 적용 버전 */
-    const head = d
-      ? `<div class="split__head" style="align-items:center;height:auto;min-height:44px;padding:10px 14px;">
-           <div style="display:flex;flex-wrap:wrap;gap:4px 20px;font-size:var(--fs-sm);color:var(--color-text-sub);align-items:center;">
-             <span>신규 업로드 <strong style="color:var(--color-text);">${esc(d.fileName)}</strong></span>
-             <span>업로드일 <strong style="color:var(--color-text);">${esc(d.uploadedAt)}</strong></span>
-           </div>
-           <span class="pill pill--warning" style="flex-shrink:0;">미적용</span>
-         </div>`
-      : `<div class="split__head" style="align-items:center;height:auto;min-height:44px;padding:10px 14px;">
-           <div style="display:flex;flex-wrap:wrap;gap:4px 20px;font-size:var(--fs-sm);color:var(--color-text-sub);align-items:center;">
-             <span>현재 적용 <strong style="color:var(--color-text);">${esc(latest.fileName)}</strong></span>
-             <span>반영 시작 <strong style="color:var(--color-text);">${_ymToYYMM2(latest.applyFrom)}</strong></span>
-           </div>
-           <span class="pill pill--success" style="flex-shrink:0;">적용 완료</span>
-         </div>`;
-
-    const body = `<div class="split__body" style="padding:8px 12px;">${_taxPreview()}${_taxHistory()}</div>`;
-
-    const foot = d
-      ? `<div style="padding:10px 14px;border-top:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:var(--color-surface);">
-           <button class="btn btn--sm" type="button" data-tax-del-upload style="color:var(--color-danger);">업로드 삭제</button>
-           <div style="display:flex;align-items:center;gap:10px;">
-             <label style="font-size:var(--fs-sm);color:var(--color-text-sub);white-space:nowrap;">반영 시작월</label>
-             <input class="input" type="month" data-tax-applyfrom value="${esc(d.applyFrom)}" style="width:150px;" />
-             <button class="btn btn--sm btn--primary" type="button" data-tax-apply>적용</button>
-           </div>
-         </div>`
-      : `<div style="padding:10px 14px;border-top:1px solid var(--color-divider);display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;background:var(--color-surface);">
-           <span class="form-help" style="margin:0;">새 간이세액표는 좌측에서 업로드하세요. 적용 완료된 버전은 삭제할 수 없습니다.</span>
-         </div>`;
-
-    host.innerHTML = head + body + foot;
+  }
+  function _taxRenderHistory() {
+    const host = document.querySelector('[data-tax-hist-body]'); if (!host) return;
+    host.innerHTML = _taxHistory();
   }
 
-  function _taxAddFile(file) {
-    if (_taxStore.draft) {
-      if (!confirm('업로드 대기 중인(미적용) 파일이 있습니다. 새 파일로 교체하시겠습니까?')) return;
-    }
-    const latest = _taxLatest();
-    const defFrom = latest ? _ymAdd(latest.applyFrom, 1) : ((STATE.form && STATE.form.accruedMonth) || TODAY.slice(0, 7));
-    const [y] = _ymParts(defFrom);
-    _taxStore.draft = {
-      fileName:   file ? file.name : `근로소득_간이세액표_${y}.xlsx`,
-      fileSize:   file ? file.size : 36240,
-      uploadedAt: _insStampNow(),
-      applyFrom:  defFrom,
-    };
-    _taxRenderLeft(); _taxRenderRight();
-    window.toast && window.toast('간이세액표 업로드 완료 — 반영 시작월 지정 후 [적용]하세요.', 'success');
-  }
-  /* 미적용(draft) 만 삭제 가능. 적용 완료 버전(versions)은 삭제 불가. */
-  function _taxDelUpload() {
-    if (!_taxStore.draft) return;
-    if (!confirm('업로드한(미적용) 간이세액표를 삭제하시겠습니까?')) return;
-    _taxStore.draft = null;
-    _taxRenderLeft(); _taxRenderRight();
-    window.toast && window.toast('미적용 간이세액표가 삭제되었습니다.', 'success');
-  }
-  function _taxDownload() {
-    const f = _taxStore.draft || _taxLatest();
-    if (f && typeof App.downloadFile === 'function') App.downloadFile(f.fileName, { context: '간이세액표' });
-  }
-  function _taxVDownload(id) {
+  /* 이력 삭제 — 현재 적용 포함 모든 행 삭제 가능. */
+  function _taxDelVersion(id) {
     const v = _taxStore.versions.find(x => x.id === id);
-    if (v && typeof App.downloadFile === 'function') App.downloadFile(v.fileName, { context: '간이세액표' });
+    if (!v) return;
+    const isCurrent = _taxStore.versions[0] && _taxStore.versions[0].id === id;
+    if (!confirm(`'${v.fileName}' 이력을 삭제하시겠습니까?${isCurrent ? '\n현재 적용 중인 파일입니다.' : ''}`)) return;
+    _taxStore.versions = _taxStore.versions.filter(x => x.id !== id);
+    _taxRenderHistory();   /* 이력 모달 갱신 */
+    _taxRender();          /* 업로드 모달의 현재 적용 요약·버튼 카운트 갱신 */
+    window.toast && window.toast('간이세액표 이력이 삭제되었습니다.', 'success');
   }
-  /* [적용] — draft 를 신규 적용 버전으로 등록(이전 버전은 이력 보관) + 정산 ledger 소득세/지방세 반영 */
-  function _taxApply() {
-    const d = _taxStore.draft; if (!d) return;
-    if (!d.applyFrom) { window.toast && window.toast('반영 시작월을 선택해 주세요.', 'warning'); return; }
-    const latest = _taxLatest();
-    if (latest && d.applyFrom <= latest.applyFrom) {
-      window.toast && window.toast(`반영 시작월은 현재 적용 버전(${_ymToYYMM2(latest.applyFrom)}) 이후로 지정해 주세요.`, 'warning');
-      return;
-    }
+
+  /* 엑셀 업로드 = 즉시 신규 버전 등록 + 정산 ledger 소득세/지방세 반영. 이전 버전은 이력 보관. */
+  function _taxAddFile(file) {
+    const [y] = _ymParts((STATE.form && STATE.form.accruedMonth) || TODAY.slice(0, 7));
+    const fileName = file ? file.name : `근로소득_간이세액표_${y}.xlsx`;
+    if (!confirm(`'${fileName}'을(를) 업로드하여 지금 바로 급여 정산(소득세·지방소득세)에 반영하시겠습니까? 이전 파일은 이력으로 보관됩니다.`)) return;
     _taxStore.seq += 1;
-    _taxStore.versions.unshift({ id: 'TAX-' + _taxStore.seq, applyFrom: d.applyFrom, fileName: d.fileName, fileSize: d.fileSize, uploadedAt: d.uploadedAt });
-    _taxStore.versions.sort((a, b) => b.applyFrom.localeCompare(a.applyFrom));
-    const fromTxt = _ymToYYMM2(d.applyFrom);
-    _taxStore.draft = null;
+    _taxStore.versions.unshift({ id: 'TAX-' + _taxStore.seq, fileName, fileSize: file ? file.size : 36240, appliedAt: _insStampNow() });
 
     const f = STATE.form;
     if (f) {
@@ -4478,8 +4379,13 @@
         refreshDetailSection(document.getElementById('page-hr-pay-settlement'), 'editor');
       }
     }
-    _taxRenderLeft(); _taxRenderRight();
-    window.toast && window.toast(f ? `간이세액표가 ${fromTxt}부터 급여 정산(소득세·지방소득세)에 반영됩니다.` : `간이세액표 등록 완료 — ${fromTxt}부터 정산 시 자동 반영됩니다.`, 'success');
+    _taxRender();
+    window.toast && window.toast(f ? '간이세액표가 급여 정산(소득세·지방소득세)에 반영되었습니다.' : '간이세액표 등록 완료 — 정산 시 자동 반영됩니다.', 'success');
+  }
+
+  function _taxVDownload(id) {
+    const v = _taxStore.versions.find(x => x.id === id);
+    if (v && typeof App.downloadFile === 'function') App.downloadFile(v.fileName, { context: '간이세액표' });
   }
 
   function bindTaxModal() {
@@ -4488,15 +4394,12 @@
     m.dataset.taxBound = '1';
     m.addEventListener('click', e => {
       if (e.target === m || e.target.closest('[data-tax-close]')) { closeModal('modal-prs-ded-tax'); return; }
+      if (e.target.closest('[data-tax-open-history]')) { _taxOpenHistory(); return; }
       if (e.target.closest('[data-tax-dz]'))         { const inp = m.querySelector('[data-tax-dz-input]'); if (inp) inp.click(); return; }
-      if (e.target.closest('[data-tax-apply]'))      { _taxApply(); return; }
-      if (e.target.closest('[data-tax-del-upload]')) { _taxDelUpload(); return; }
-      if (e.target.closest('[data-tax-download]'))   { e.preventDefault(); _taxDownload(); return; }
       const vdl = e.target.closest('[data-tax-vdownload]');
       if (vdl) { e.preventDefault(); _taxVDownload(vdl.dataset.taxVdownload); return; }
     });
     m.addEventListener('change', e => {
-      if (e.target.matches('[data-tax-applyfrom]')) { if (_taxStore.draft) _taxStore.draft.applyFrom = e.target.value; return; }
       if (e.target.matches('[data-tax-dz-input]'))  { const file = e.target.files && e.target.files[0]; if (file) _taxAddFile(file); e.target.value = ''; return; }
     });
     m.addEventListener('dragover',  e => { const dz = e.target.closest('[data-tax-dz]'); if (dz) { e.preventDefault(); dz.classList.add('is-over'); } });
@@ -4506,6 +4409,251 @@
       e.preventDefault(); dz.classList.remove('is-over');
       const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (file) _taxAddFile(file);
+    });
+  }
+
+  function bindTaxHistoryModal() {
+    const m = document.getElementById('modal-prs-tax-history');
+    if (!m || m.dataset.taxHistBound === '1') return;
+    m.dataset.taxHistBound = '1';
+    m.addEventListener('click', e => {
+      if (e.target === m || e.target.closest('[data-tax-hist-close]')) { closeModal('modal-prs-tax-history'); return; }
+      const pg = e.target.closest('[data-tax-hist-page]');
+      if (pg) { _taxStore.histPage = Number(pg.dataset.taxHistPage) || 1; _taxRenderHistory(); return; }
+      const del = e.target.closest('[data-tax-del-version]');
+      if (del) { _taxDelVersion(del.dataset.taxDelVersion); return; }
+      const vdl = e.target.closest('[data-tax-vdownload]');
+      if (vdl) { e.preventDefault(); _taxVDownload(vdl.dataset.taxVdownload); return; }
+    });
+  }
+
+  /* =========================================================
+   *  연말정산 자료 업로드 — 업로드하면 그 즉시 급여 정산의
+   *    정산소득세 · 정산지방소득세(중도 포함)에 반영. 이력만 관리.
+   *    간이세액표 업로드 엔진(_tax*)과 동일 구조 — title/반영 대상만 다름.
+   * ========================================================= */
+  const _yeStore = { versions: [], seq: 0, histPage: 1 };
+  const YE_HIST_PAGE = 12;  /* 적용 이력 모달 — 페이지당 행 수 */
+  function _yeLatest() { return _yeStore.versions[0] || null; }
+
+  function _yeSeed() {
+    const f = STATE.form;
+    const ym = (f && f.accruedMonth) || TODAY.slice(0, 7);
+    const [y] = _ymParts(ym);
+    _yeStore.seq = 1;
+    _yeStore.versions = [{ id: 'YE-1', fileName: `연말정산_${y - 1}년귀속.xlsx`, fileSize: 41280, appliedAt: _insSeedStamp() }];
+  }
+  function _yeOpen() {
+    if (!_yeStore.versions.length) _yeSeed();
+    _yeRender();
+    openModal('modal-prs-ded-yearend');
+  }
+
+  function _yeRender() {
+    const host = document.querySelector('[data-ye-body]'); if (!host) return;
+    const btn = document.querySelector('#modal-prs-ded-yearend [data-ye-open-history]');
+    const n = _yeStore.versions.length;
+    if (btn) btn.textContent = `적용 이력${n ? ` (${n})` : ''}`;
+    const latest = _yeLatest();
+    host.innerHTML = `
+      <div>
+        <label class="form-label" style="display:block;margin-bottom:6px;">엑셀 업로드</label>
+        <div class="file-field">
+          <div class="dz" data-ye-dz tabindex="0">
+            <svg class="dz__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="dz__title">파일을 끌어 놓거나 클릭하여 선택</div>
+            <div class="dz__sub">엑셀(.xlsx/.xls) · CSV · PDF</div>
+            <input type="file" hidden data-ye-dz-input accept=".xlsx,.xls,.csv,.pdf" />
+          </div>
+        </div>
+        <p class="form-help" style="margin-top:8px;">업로드하면 즉시 정산소득세·정산지방소득세(중도 포함)에 반영되며, 이전 파일은 이력으로 보관됩니다.</p>
+        ${latest ? `
+          <div style="margin-top:14px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 12px;background:var(--color-surface-alt);border-radius:var(--radius-md);font-size:var(--fs-sm);">
+            <span class="pill pill--success" style="flex-shrink:0;">현재 적용</span>
+            <a href="javascript:;" data-ye-vdownload="${esc(latest.id)}" style="color:var(--color-brand-primary);">${esc(latest.fileName)} <span style="font-size:10px;">↓</span></a>
+            <span style="color:var(--color-text-muted);margin-left:auto;white-space:nowrap;">${esc(latest.appliedAt)}</span>
+          </div>` : ''}
+      </div>`;
+  }
+
+  function _yeHistory() {
+    const vs = _yeStore.versions;
+    if (!vs.length) return `<div style="flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);">적용 이력이 없습니다.</div>`;
+
+    const total = vs.length;
+    const totalPages = Math.max(1, Math.ceil(total / YE_HIST_PAGE));
+    if (_yeStore.histPage > totalPages) _yeStore.histPage = totalPages;
+    if (_yeStore.histPage < 1) _yeStore.histPage = 1;
+    const page = _yeStore.histPage;
+    const start = (page - 1) * YE_HIST_PAGE;
+    const pageRows = vs.slice(start, start + YE_HIST_PAGE);
+
+    const thSticky = 'position:sticky;top:0;background:var(--color-surface);z-index:1;';
+    const rows = pageRows.map((v) => {
+      const isCurrent = v === vs[0];
+      return `
+      <tr>
+        <td style="text-align:center;white-space:nowrap;">${esc(v.appliedAt)}</td>
+        <td style="white-space:nowrap;"><a href="javascript:;" data-ye-vdownload="${esc(v.id)}" style="color:var(--color-brand-primary);">${esc(v.fileName)} <span style="font-size:10px;">↓</span></a></td>
+        <td style="text-align:center;">${isCurrent ? '<span class="pill pill--success">현재 적용</span>' : '<span class="pill pill--muted">이력</span>'}</td>
+        <td style="text-align:center;"><button class="btn btn--sm" type="button" data-ye-del-version="${esc(v.id)}" style="color:var(--color-danger);">삭제</button></td>
+      </tr>`;
+    }).join('');
+
+    let pager = '';
+    if (total > YE_HIST_PAGE) {
+      const btns = [];
+      btns.push(`<button class="pagination__btn" data-ye-hist-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`);
+      btns.push(`<button class="pagination__btn" data-ye-hist-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>‹</button>`);
+      const win = 5;
+      let s = Math.max(1, page - Math.floor(win / 2));
+      let e = Math.min(totalPages, s + win - 1);
+      if (e - s < win - 1) s = Math.max(1, e - win + 1);
+      for (let i = s; i <= e; i++) btns.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-ye-hist-page="${i}">${i}</button>`);
+      btns.push(`<button class="pagination__btn" data-ye-hist-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>›</button>`);
+      btns.push(`<button class="pagination__btn" data-ye-hist-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`);
+      pager = `
+        <div class="pagination" style="flex-shrink:0;">
+          <div class="pagination__info">${start + 1}-${Math.min(start + YE_HIST_PAGE, total)} / 총 ${total}건</div>
+          <div class="pagination__list">${btns.join('')}</div>
+        </div>`;
+    }
+
+    return `
+      <div class="table-card" style="flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
+        <div class="table-card__cap" style="flex-shrink:0;"><strong>적용 이력</strong><span class="t-muted" style="font-size:var(--fs-xs);">${total}건</span></div>
+        <div class="table-card__body" style="flex:1 1 auto;min-height:0;">
+          <table class="tbl" style="width:100%;">
+            <thead><tr>
+              <th style="width:150px;text-align:center;${thSticky}">적용일시</th>
+              <th style="${thSticky}">파일</th>
+              <th style="width:90px;text-align:center;${thSticky}">상태</th>
+              <th style="width:70px;text-align:center;${thSticky}">삭제</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${pager}
+      </div>`;
+  }
+
+  function _yeOpenHistory() {
+    _yeStore.histPage = 1;
+    _yeRenderHistory();
+    openModal('modal-prs-yearend-history');
+    const hist = document.querySelector('#modal-prs-yearend-history .modal');
+    if (hist) {
+      const h = Math.min(720, Math.round((window.innerHeight || 900) * 0.85));
+      hist.style.height = h + 'px';
+    }
+  }
+  function _yeRenderHistory() {
+    const host = document.querySelector('[data-ye-hist-body]'); if (!host) return;
+    host.innerHTML = _yeHistory();
+  }
+
+  function _yeDelVersion(id) {
+    const v = _yeStore.versions.find(x => x.id === id);
+    if (!v) return;
+    const isCurrent = _yeStore.versions[0] && _yeStore.versions[0].id === id;
+    if (!confirm(`'${v.fileName}' 이력을 삭제하시겠습니까?${isCurrent ? '\n현재 적용 중인 파일입니다.' : ''}`)) return;
+    _yeStore.versions = _yeStore.versions.filter(x => x.id !== id);
+    _yeRenderHistory();
+    _yeRender();
+    window.toast && window.toast('연말정산 이력이 삭제되었습니다.', 'success');
+  }
+
+  /* ⚠️ 실제 양식 수급 전까지의 임시 파서 (데모 전용).
+   *   실제 연말정산 엑셀이 확정되면 이 함수만 교체 — 대상자(row)별로 양식에서 읽은
+   *   { adjIncomeTax, adjLocalTax, adjIncomeTaxMid, adjLocalTaxMid } 값을 반환하면 된다.
+   *   (산식으로 파생하지 않고, 양식에 적힌 값을 그대로 매핑) */
+  function _yeParseFile(/* file, row, idx */ file, row, idx) {
+    /* TODO(양식 수급): file 을 파싱해 사번(row.empId) 기준으로 값을 찾아 반환.
+       현재는 값이 채워지는 것을 보여주기 위한 데모 고정값. */
+    const mid = (idx % 5 === 0);
+    return {
+      adjIncomeTax:    142000,
+      adjLocalTax:     14200,
+      adjIncomeTaxMid: mid ? 38000 : 0,
+      adjLocalTaxMid:  mid ? 3800  : 0,
+    };
+  }
+
+  /* 엑셀 업로드 = 즉시 신규 버전 등록 + 정산소득세/정산지방소득세(중도 포함) 반영. 이전 버전은 이력 보관.
+   *   값은 산식이 아니라 업로드된 양식에서 그대로 가져온다(_yeParseFile). */
+  function _yeAddFile(file) {
+    const [y] = _ymParts((STATE.form && STATE.form.accruedMonth) || TODAY.slice(0, 7));
+    const fileName = file ? file.name : `연말정산_${y - 1}년귀속.xlsx`;
+    if (!confirm(`'${fileName}'을(를) 업로드하여 지금 바로 급여 정산의 정산소득세·정산지방소득세(중도 포함)에 반영하시겠습니까? 이전 파일은 이력으로 보관됩니다.`)) return;
+    _yeStore.seq += 1;
+    _yeStore.versions.unshift({ id: 'YE-' + _yeStore.seq, fileName, fileSize: file ? file.size : 41280, appliedAt: _insStampNow() });
+
+    const f = STATE.form;
+    if (f) {
+      if (!f.ledger || !f.ledger.rows || !f.ledger.rows.length) {
+        const r = STATE.editingId ? STATE.rounds.find(x => x.id === STATE.editingId) : null;
+        if (r) { r.ledger = computeLedger(r); f.ledger = deepClone(r.ledger); }
+      }
+      if (f.ledger && f.ledger.rows) {
+        f.ledger.rows.forEach((row, i) => {
+          const dd = row.deductions = row.deductions || {};
+          /* 양식에서 읽은 값 그대로 반영 (파생 산식 없음) */
+          const v = _yeParseFile(file, row, i) || {};
+          dd.adjIncomeTax    = Number(v.adjIncomeTax)    || 0;
+          dd.adjLocalTax     = Number(v.adjLocalTax)     || 0;
+          dd.adjIncomeTaxMid = Number(v.adjIncomeTaxMid) || 0;
+          dd.adjLocalTaxMid  = Number(v.adjLocalTaxMid)  || 0;
+          _insRecalcRow(row);
+        });
+        if (STATE.editingId) { const r = STATE.rounds.find(x => x.id === STATE.editingId); if (r) r.ledger = deepClone(f.ledger); }
+        refreshDetailSection(document.getElementById('page-hr-pay-settlement'), 'editor');
+      }
+    }
+    _yeRender();
+    window.toast && window.toast(f ? '연말정산 자료가 정산소득세·정산지방소득세(중도 포함)에 반영되었습니다.' : '연말정산 자료 등록 완료 — 정산 시 자동 반영됩니다.', 'success');
+  }
+
+  function _yeVDownload(id) {
+    const v = _yeStore.versions.find(x => x.id === id);
+    if (v && typeof App.downloadFile === 'function') App.downloadFile(v.fileName, { context: '연말정산' });
+  }
+
+  function bindYearEndModal() {
+    const m = document.getElementById('modal-prs-ded-yearend');
+    if (!m || m.dataset.yeBound === '1') return;
+    m.dataset.yeBound = '1';
+    m.addEventListener('click', e => {
+      if (e.target === m || e.target.closest('[data-ye-close]')) { closeModal('modal-prs-ded-yearend'); return; }
+      if (e.target.closest('[data-ye-open-history]')) { _yeOpenHistory(); return; }
+      if (e.target.closest('[data-ye-dz]'))         { const inp = m.querySelector('[data-ye-dz-input]'); if (inp) inp.click(); return; }
+      const vdl = e.target.closest('[data-ye-vdownload]');
+      if (vdl) { e.preventDefault(); _yeVDownload(vdl.dataset.yeVdownload); return; }
+    });
+    m.addEventListener('change', e => {
+      if (e.target.matches('[data-ye-dz-input]'))  { const file = e.target.files && e.target.files[0]; if (file) _yeAddFile(file); e.target.value = ''; return; }
+    });
+    m.addEventListener('dragover',  e => { const dz = e.target.closest('[data-ye-dz]'); if (dz) { e.preventDefault(); dz.classList.add('is-over'); } });
+    m.addEventListener('dragleave', e => { const dz = e.target.closest('[data-ye-dz]'); if (dz) dz.classList.remove('is-over'); });
+    m.addEventListener('drop',      e => {
+      const dz = e.target.closest('[data-ye-dz]'); if (!dz) return;
+      e.preventDefault(); dz.classList.remove('is-over');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) _yeAddFile(file);
+    });
+  }
+
+  function bindYearEndHistoryModal() {
+    const m = document.getElementById('modal-prs-yearend-history');
+    if (!m || m.dataset.yeHistBound === '1') return;
+    m.dataset.yeHistBound = '1';
+    m.addEventListener('click', e => {
+      if (e.target === m || e.target.closest('[data-ye-hist-close]')) { closeModal('modal-prs-yearend-history'); return; }
+      const pg = e.target.closest('[data-ye-hist-page]');
+      if (pg) { _yeStore.histPage = Number(pg.dataset.yeHistPage) || 1; _yeRenderHistory(); return; }
+      const del = e.target.closest('[data-ye-del-version]');
+      if (del) { _yeDelVersion(del.dataset.yeDelVersion); return; }
+      const vdl = e.target.closest('[data-ye-vdownload]');
+      if (vdl) { e.preventDefault(); _yeVDownload(vdl.dataset.yeVdownload); return; }
     });
   }
 
@@ -4641,7 +4789,12 @@
   /* ============ 정산 설정 (상세) 모달 ============
    *   페이지바 [상세] 버튼으로 오픈. 정산 설정을 「보기 형식」(key-value)으로 노출 —
    *   기본 정보 · 대상자 조건 · 지급/공제 항목. (수정이 아닌 조회 용도라 폼 인풋 대신 KV 뷰) */
-  function configGroupLabel(tf) { return (tf && tf.empGroup === 'daily') ? '일용직 그룹' : '상용직 그룹'; }
+  function configGroupLabel(tf) {
+    const g = tf && tf.empGroup;
+    if (g === 'daily')      return '일용직 그룹';
+    if (g === 'freelancer') return '프리랜서 그룹';
+    return '상용직 그룹';
+  }
   function configLabelsFrom(options, values) {
     const set = values || [];
     const labels = options.filter(o => set.includes(o.value)).map(o => o.label);
@@ -4667,9 +4820,10 @@
   function renderConfigTargetView(f) {
     const tf = f.targetFilter || {};
     const isDaily = tf.empGroup === 'daily';
+    const isFree  = tf.empGroup === 'freelancer';
     const items = [
       { k: '정산 그룹', v: esc(configGroupLabel(tf)) },
-      { k: '근로유형', v: isDaily ? '일용직' : esc(configLabelsFrom(WORK_TYPE_OPTIONS, tf.empType)) },
+      { k: '근로유형', v: isDaily ? '일용직' : isFree ? '프리랜서' : esc(configLabelsFrom(WORK_TYPE_OPTIONS, tf.empType)) },
       { k: '사원 유형', v: esc(configLabelsFrom(JOB_CAT_OPTIONS, tf.jobCat)) },
       { k: '직책', v: esc(tf.position || '전체') },
       { k: '부서', v: esc(tf.dept || '전체') },
@@ -4679,8 +4833,7 @@
   }
   /* 지급·공제 항목 — 보기 전용. 항목명을 칩(pill)으로 나열. */
   function renderConfigItemsView(f) {
-    const all = allPayItems();
-    const pays = (f.payItemCodes || []).map(c => (all.find(x => x.code === c) || { name: c }).name);
+    const pays = (f.payItemCodes || []).map(c => payItemLabelFor(c, f));
     const deds = (f.deductItemCodes || DEDUCT_DEFAULT_CODES).map(k => (deductColByKey(k) || {}).label).filter(Boolean);
     const chips = (arr) => arr.length
       ? `<div class="prs-chiplist">${arr.map(n => `<span class="pill">${esc(n)}</span>`).join('')}</div>`
@@ -4737,8 +4890,10 @@
         bindModals();
         bindDeductUploadModals();
         bindInsuranceModal();
-        bindInsPeriodModal();
         bindTaxModal();
+        bindTaxHistoryModal();
+        bindYearEndModal();
+        bindYearEndHistoryModal();
         built = true;
       }
       renderListView(pageEl);

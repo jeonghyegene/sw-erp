@@ -12347,6 +12347,8 @@
     function openEmpPicker(ctx) {
       pickerCtx = ctx;
       pickerSelected.clear();
+      /* 재진입 시 기존 선택 유지 — 호출자가 preselectedIds 를 주면 미리 체크 */
+      if (Array.isArray(ctx.preselectedIds)) ctx.preselectedIds.forEach(id => pickerSelected.add(id));
       pickerOrg = 'all';
       empSearch.value = '';
       const multi = ctx.action === 'recipients-add' || (ctx.action === 'callback' && ctx.multi);
@@ -12372,7 +12374,8 @@
     }
     function confirmEmpPicker() {
       if (!pickerCtx || pickerSelected.size === 0) { closeEmpPicker(); return; }
-      const selected = [...pickerSelected].map(id => EMPLOYEES.find(e => e.id === id)).filter(Boolean);
+      const src = pickerPool();
+      const selected = [...pickerSelected].map(id => src.find(e => e.id === id)).filter(Boolean);
       if (pickerCtx.action === 'callback') {
         const cb = pickerCtx.onConfirm;
         // 콜백 모드 — onClose 가 다음 closeEmpPicker 에서 호출되지 않도록 onClose 초기화
@@ -12419,8 +12422,23 @@
     // 외부 모듈(권한위임 OC 등)에서 직원 선택 다이얼로그 사용
     App.openEmpPicker = openEmpPicker;
 
+    /* 직원 후보 풀 — 호출자가 employees 를 주입하면 그 명단(예: 인사 실제 직원), 없으면 그룹웨어 mock EMPLOYEES. */
+    function pickerPool() {
+      return (pickerCtx && Array.isArray(pickerCtx.employees) && pickerCtx.employees.length)
+        ? pickerCtx.employees : EMPLOYEES;
+    }
     function renderEmpTree() {
       let html = `<button class="emp-picker__tree-item${pickerOrg === 'all' ? ' is-active' : ''}" data-emp-org="all">전체보기</button>`;
+      /* 주입된 명단이 있으면 그 명단의 부서로 트리 구성 (그룹웨어 ORG_TREE 는 인사 부서 체계와 다름) */
+      if (pickerCtx && Array.isArray(pickerCtx.employees) && pickerCtx.employees.length) {
+        const depts = [];
+        pickerPool().forEach(e => { if (e.dept && depts.indexOf(e.dept) < 0) depts.push(e.dept); });
+        depts.forEach(d => {
+          html += `<button class="emp-picker__tree-item${pickerOrg === d ? ' is-active' : ''}" data-emp-org="${escapeHTML(d)}">${escapeHTML(d)}</button>`;
+        });
+        empTree.innerHTML = html;
+        return;
+      }
       ORG_TREE.forEach(node => {
         if (node.children) {
           const open = treeOpen.has(node.id);
@@ -12443,7 +12461,7 @@
     function renderEmpList() {
       const q = empSearch.value.trim();
       const multi = pickerCtx?.action === 'recipients-add' || (pickerCtx?.action === 'callback' && pickerCtx?.multi);
-      let pool = EMPLOYEES.slice();
+      let pool = pickerPool().slice();
       if (pickerOrg !== 'all') {
         pool = pool.filter(e => e.dept === pickerOrg);
       }
@@ -12616,7 +12634,7 @@
       } else {
         pickerSelected.clear();
         pickerSelected.add(id);
-        const emp = EMPLOYEES.find(e => e.id === id);
+        const emp = pickerPool().find(e => e.id === id);
         empInfo.textContent = `선택: ${emp?.name || ''} · 다시 클릭하면 즉시 추가`;
       }
       renderEmpList();

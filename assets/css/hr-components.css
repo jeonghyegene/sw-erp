@@ -944,6 +944,9 @@ textarea.input {
 .ssw-tbl__namecell-h, .ssw-tbl__namecell { min-width: 200px; text-align: left; }
 /* 성명은 셀 세로 가운데 정렬 (행 높이가 커져도 중앙 유지) */
 .ssw-tbl td.ssw-tbl__namecell { vertical-align: middle; }
+/* 고용형태 셀 — 성명 우측 고정폭 pill 컬럼(정규직/계약직/일용직/도급직). 상세·현황·편성 공용 */
+.ssw-tbl__typecell-h, .ssw-tbl__typecell { width: 84px; min-width: 84px; text-align: center; white-space: nowrap; }
+.ssw-tbl td.ssw-tbl__typecell { vertical-align: middle; }
 /* 프로필 사진 아바타 — 임직원 관리와 동일(원본 사진 cover). 이니셜 배경/폰트는 제거 */
 .ssw-tbl__ava--photo { object-fit: cover; background: transparent; padding: 0; }
 .ssw-tbl__ava--photo.is-broken { background: var(--color-active); }
@@ -2825,9 +2828,11 @@ textarea.input {
   white-space: nowrap;
   transition: all var(--t-fast);
 }
-/* 완료된 이전 페이즈만 클릭 가능 — 현재 활성/미래 페이즈는 hover 없음 */
-.prs-phase.is-done:not(.is-active) { cursor: pointer; }
-.prs-phase.is-done:not(.is-active):hover {
+/* 도달한 페이즈(완료 + 현재 단계)는 클릭 가능 — 미래(미도달) 페이즈는 hover 없음 */
+.prs-phase.is-done:not(.is-active),
+.prs-phase.is-current:not(.is-active) { cursor: pointer; }
+.prs-phase.is-done:not(.is-active):hover,
+.prs-phase.is-current:not(.is-active):hover {
   background: var(--color-hover);
   border-color: var(--color-border-strong);
 }
@@ -2848,6 +2853,17 @@ textarea.input {
   color: var(--color-success);
 }
 .prs-phase.is-done .prs-phase__num {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+/* 현재 진행 단계(프론티어) — 확정 전이지만 도달했으므로 초록 + 클릭 가능 (번호 유지) */
+.prs-phase.is-current {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+.prs-phase.is-current .prs-phase__num {
   background: var(--color-success);
   border-color: var(--color-success);
   color: #fff;
@@ -3358,12 +3374,17 @@ textarea.input {
 .prs-editor__table--multi thead tr.prs-th-row2 th.prs-col--day  { background: #f4f8f4; color: var(--color-text-sub); padding: 0 4px; text-align: center; }
 .prs-editor__table--multi thead tr.prs-th-row2 th.prs-col--calc { background: #f3f4f6; color: var(--color-text-sub); }
 .prs-editor__table--multi thead tr.prs-th-row2 th.prs-col--pay  { background: #eef3fa; color: var(--color-brand-primary); }
+/* 초과수당 그룹(연장/야간/야간연장/휴일) — 지급항목과 동일한 블루 톤 */
+.prs-editor__table--multi thead tr.prs-th-row1 th.prs-th-group--ot { background: #e3edf9; color: var(--color-brand-primary); }
+.prs-editor__table--multi thead tr.prs-th-row2 th.prs-col--ot { background: #eef3fa; color: var(--color-brand-primary); }
 /* body 셀 — 그룹별 폰트 톤 */
 .prs-editor__table--wide tbody .prs-col--info { color: var(--color-text-sub); }
 .prs-editor__table--wide tbody .prs-col--day  { color: var(--color-text); padding: 0 4px; }
 .prs-editor__table--wide tbody .prs-col--day.is-zero { color: var(--color-text-muted); }
 .prs-editor__table--wide tbody .prs-col--calc { color: var(--color-text-sub); }
 .prs-editor__table--wide tbody .prs-col--pay  { color: var(--color-text); }
+.prs-editor__table--wide tbody .prs-col--ot   { color: var(--color-text); }
+.prs-editor__table--wide tbody .prs-col--ot.is-zero { color: var(--color-text-muted); }
 
 /* row3 — 정산검토 단계의 분할 컬럼 (연장/야간/휴일근무수당) sub-header (계산식 / 금액) */
 .prs-editor__table--multi thead tr.prs-th-row3 th {

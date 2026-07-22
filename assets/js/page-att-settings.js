@@ -304,6 +304,7 @@
         <td style="text-align:right;font-weight:var(--fw-medium);">${esc(s.workHours || '-')}</td>
         <td style="text-align:right;">${num(s.otMin !== undefined ? fmtMinLocal(s.otMin) : '')}</td>
         <td style="text-align:right;">${num(s.nightMin !== undefined ? fmtMinLocal(s.nightMin) : '')}</td>
+        <td style="text-align:right;">${num(s.nightOtMin !== undefined ? fmtMinLocal(s.nightOtMin) : '')}</td>
         <td style="text-align:center;white-space:nowrap;">${restCell}</td>
         <td>${deptCell}</td>
         <td style="text-align:center;">${statusCell}</td>
@@ -343,14 +344,15 @@
                 <th style="width:50px;text-align:center;">퇴근</th>
                 <th style="width:58px;text-align:right;">총 근무</th>
                 <th style="width:46px;text-align:right;">연장</th>
-                <th style="width:46px;text-align:right;">심야</th>
+                <th style="width:46px;text-align:right;">야간</th>
+                <th style="width:62px;text-align:right;">야간연장</th>
                 <th style="width:210px;text-align:center;">휴게</th>
                 <th style="width:auto;">사용 부서</th>
                 <th style="width:84px;text-align:center;">상태</th>
               </tr>
             </thead>
             <tbody>
-              ${list.length ? list.map(shiftRow).join('') : `<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--color-text-muted);">등록된 근무조가 없습니다.</td></tr>`}
+              ${list.length ? list.map(shiftRow).join('') : `<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--color-text-muted);">등록된 근무조가 없습니다.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -636,7 +638,7 @@
       <label class="cb"><input type="checkbox" data-wpm-shift ${policy === 'shift' ? 'checked' : ''} ${inherit ? 'disabled' : ''}><span>교대근무에 해당</span></label>
       <div class="t-muted" style="font-size:var(--fs-xs);margin-top:4px;">체크 시 순번에 따라 근무조가 주마다 교대 편성됩니다. 야간조는 체크 여부와 무관하게 사용할 수 있습니다.${inherit ? ' (상위 조직 설정 상속)' : ''}</div>`;
 
-    /* ③ 사용 가능한 근무조 — 근무조 설정 그리드와 동일 컬럼(구분·출근·퇴근·총 근무시간·연장·심야·휴게).
+    /* ③ 사용 가능한 근무조 — 근무조 설정 그리드와 동일 컬럼(구분·출근·퇴근·총 근무시간·연장·야간·야간연장·휴게).
        · 별도 설정 — 편집 테이블([사용] 체크)
        · 상속 — 상위에서 사용하는 근무조만 읽기 전용 표시
        · 기본 근무조는 여기서 지정하지 않고 「부서 관리」에서 설정 → 상단 「기본 근무조」 행에 읽기 전용 표시 */
@@ -648,7 +650,8 @@
       <th style="width:60px;text-align:center;">퇴근</th>
       <th style="width:78px;text-align:right;">총 근무시간</th>
       <th style="width:52px;text-align:right;">연장</th>
-      <th style="width:52px;text-align:right;">심야</th>
+      <th style="width:52px;text-align:right;">야간</th>
+      <th style="width:64px;text-align:right;">야간연장</th>
       <th style="min-width:120px;text-align:center;">휴게</th>`;
     const metaCells = (s) => {
       const dash = '<span class="t-muted">-</span>';
@@ -664,11 +667,12 @@
         <td style="text-align:right;font-weight:var(--fw-medium);">${esc(s.workHours || '-')}</td>
         <td style="text-align:right;">${num(s.otMin)}</td>
         <td style="text-align:right;">${num(s.nightMin)}</td>
+        <td style="text-align:right;">${num(s.nightOtMin)}</td>
         <td style="text-align:center;white-space:nowrap;">${rest}</td>`;
     };
     const inheritRow = (c) => {
       const s = App.AttShifts.get ? App.AttShifts.get(c) : null;
-      if (!s) return `<tr><td class="shift-tbl__code">${esc(c)}</td><td colspan="8" class="t-muted">-</td></tr>`;
+      if (!s) return `<tr><td class="shift-tbl__code">${esc(c)}</td><td colspan="9" class="t-muted">-</td></tr>`;
       const isDef = c === effDefault;
       return `<tr>
         <td class="shift-tbl__code">${esc(c)}</td>

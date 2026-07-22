@@ -575,27 +575,65 @@
     `;
   }
 
-  /* 근태 기반 현재 근무상태 — 사원의 "오늘" 출퇴근 상태 (4상태).
-   *   재직/퇴직(e.active) 과 무관하며, 오늘 근태(출퇴근 체크)만 판정한다.
-   *   하루 흐름: [미출근 or 휴가] → 체크인 → [근무중] → 체크아웃 → [퇴근] → 자정 리셋.
-   *     · 미출근 = 출근 이력 없음(하루 기본값). 중립 회색이라 아침 화면이 조용함.
-   *     · 퇴근 → 미출근으로 되돌아가지 않음(출근 이력이 있으므로). 자정에만 리셋.
-   *   ⚠️ 데모: 사원별 결정적 mock. 실데이터 연동 시 아래 seed 계산 한 줄을
-   *     App.Attendance.todayState(e.id) 반환값('working'|'out'|'leave'|'absent')으로
-   *     교체하면 ATT_STATE 매핑은 그대로 동작한다.
+  /* 근태 기반 현재 근무상태 — 사원의 "지금" 출퇴근 상태 (4상태).
+   *   재직/퇴직(e.active) 과 무관하며, 배정 근무조 + 출퇴근 이벤트만으로 판정한다.
+   *
+   *   ⚠️ 달력 자정(00:00) 리셋을 쓰지 않는다 — 야간조(예: I조 19:00 → 익일 06:30)는
+   *      자정을 넘겨 근무하므로, 자정에 상태를 리셋하면 근무 중인 사원이 '미출근'으로
+   *      뒤집히는 사고가 난다. 대신 순수 이벤트 기반으로 판정한다:
+   *        · 체크인 O · 체크아웃 X = 근무중 / 체크아웃 O = 퇴근 / 이벤트 없음 = 미출근 / 승인 휴가 = 휴가.
+   *        · '미출근'은 배정 근무조의 '출근창'이 다시 열릴 때만 재-arm 된다(= 다음 근무일 시작).
+   *          그 기준은 달력 자정이 아니라 사원마다 다른 근무조 출근 시각이다.
+   *      → 하나의 야간 근무세션(출근 ~ 익일 퇴근)이 자정을 넘어도 근무중이 그대로 유지된다.
+   *
+   *   실데이터 연동: resolveAttState() 는 그대로 두고, 아래 mock empSession() 만
+   *     서버의 '현재 근무일 출퇴근 레코드'(checkIn/checkOut/leave)로 교체하면 된다.
    *   kind → 사진 우측 하단 presence 배지 색(.hr-card__presence--kind) 결정. */
   const ATT_STATE = {
     working: { label: '근무중', kind: 'working' },  // 체크인 O · 체크아웃 X (녹·pulse)
     out:     { label: '퇴근',   kind: 'out' },      // 체크아웃 O (회)
     leave:   { label: '휴가',   kind: 'leave' },    // 연차·병가·반차 (보라)
-    absent:  { label: '미출근', kind: 'absent' },   // 미체크(하루 기본값·중립 slate)
+    absent:  { label: '미출근', kind: 'absent' },   // 출근 이벤트 없음(다음 출근창까지 유지·중립 slate)
   };
-  function attendanceState(e) {
-    // 실데이터: const st = App.Attendance.todayState(e.id);
+
+  /* ① 상태 판정기 — 시계·달력과 무관하게 '이번 근무일 출퇴근 레코드'로만 결정.
+   *    미출근이 다음 근무일에 다시 등장하는 책임은 '레코드가 어느 근무일에 속하는가'(② empSession)
+   *    에 있고, 이 판정기 자체는 자정을 전혀 모른다 → 야간조 안전. */
+  function resolveAttState(rec) {
+    if (!rec) return 'absent';
+    if (rec.leave) return 'leave';
+    if (rec.checkIn && !rec.checkOut) return 'working';
+    if (rec.checkOut) return 'out';
+    return 'absent';
+  }
+
+  /* 사원 배정 근무조 — 직원 배정코드 → 부서 매핑 → 전사 기본 순. {start,end,isNight} 반환. */
+  function empShift(e) {
+    const S = window.App && App.AttShifts;
+    if (!S || !S.get) return { start: '09:00', end: '18:00', isNight: false };
+    let sh = e.shift ? S.get(e.shift) : null;
+    if (!sh && S.forDept) { const arr = S.forDept(e.deptName || e.dept) || []; sh = arr[0] || null; }
+    if (!sh && S.globalDefault) sh = S.get(S.globalDefault());
+    return sh || { start: '09:00', end: '18:00', isNight: false };
+  }
+
+  /* ② 이번 근무일의 출퇴근 레코드 (데모 mock) — 사원별 결정론적 시드.
+   *    배정 근무조의 출·퇴근 시각을 그대로 채워, 야간조 세션이 자정을 넘겨도
+   *    resolveAttState 가 근무중으로 판정하는지 데모에서 확인 가능하게 한다.
+   *    실데이터: 서버의 '현재 근무일 레코드'(checkIn/checkOut/leave)로 교체. */
+  function empSession(e) {
+    const sh = empShift(e);
     const seed = String(e.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
     const m = seed % 10;
-    const st = m <= 5 ? 'working' : m <= 7 ? 'out' : m === 8 ? 'leave' : 'absent';
-    return ATT_STATE[st] || ATT_STATE.absent;
+    if (m === 8) return { leave: true };                       // 휴가
+    if (m === 9) return { checkIn: '', checkOut: '' };          // 미출근 (아직 출근창 전/미체크)
+    if (m <= 5) return { checkIn: sh.start, checkOut: '' };     // 근무중 (야간조면 자정 넘겨 진행중)
+    return { checkIn: sh.start, checkOut: sh.end };             // 퇴근 (야간조면 익일 퇴근)
+  }
+
+  function attendanceState(e) {
+    // 실데이터: return ATT_STATE[App.Attendance.todayState(e.id)] || ATT_STATE.absent;
+    return ATT_STATE[resolveAttState(empSession(e))] || ATT_STATE.absent;
   }
 
   function renderHrCard(e) {

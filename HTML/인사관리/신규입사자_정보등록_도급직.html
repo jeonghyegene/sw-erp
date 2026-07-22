@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>신규 입사자 정보 등록 · 성원애드피아</title>
+<title>신규 입사자 정보 등록 (도급직) · 성원애드피아</title>
 <style>
   :root{
     --brand:#00347D; --brand-hover:#002966; --accent:#F38200;
@@ -29,7 +29,9 @@
     padding:calc(14px + env(safe-area-inset-top)) 20px 14px;}
   .topbar__brand{font-size:13px;font-weight:600;letter-spacing:.3px;opacity:.85;}
   .topbar__brand b{color:var(--accent);}
-  .topbar__title{font-size:18px;font-weight:700;margin-top:2px;}
+  .topbar__title{font-size:18px;font-weight:700;margin-top:2px;display:flex;align-items:center;gap:8px;}
+  .topbar__badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);
+    background:rgba(255,255,255,.16);color:#fff;letter-spacing:.3px;}
 
   /* ── Stepper ── */
   .stepper{display:flex;align-items:flex-start;gap:0;padding:16px 12px 4px;background:var(--surface);
@@ -141,14 +143,6 @@
   .callout svg{flex-shrink:0;color:var(--brand);margin-top:1px;}
   .callout b{color:var(--brand);}
 
-  /* ── Contract terms list ── */
-  .terms{border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;}
-  .terms__row{display:flex;gap:12px;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--divider);}
-  .terms__row:last-child{border-bottom:none;}
-  .terms__row dt{flex:0 0 88px;color:var(--text-muted);font-weight:600;}
-  .terms__row dd{flex:1;min-width:0;color:var(--text);font-weight:500;}
-  .terms__row dd b{color:var(--brand);font-weight:700;}
-
   /* ── Agreement checkbox ── */
   .agree{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px solid var(--border-strong);
     border-radius:var(--r-sm);cursor:pointer;background:var(--surface-alt);transition:.15s;margin-top:14px;}
@@ -167,23 +161,7 @@
   .sign__tools{display:flex;gap:8px;margin-top:10px;}
   .sign__tools .btn{flex:1;}
 
-  /* ── Contract parties (갑/을) ── */
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
-  .party{border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 10px;text-align:center;background:var(--surface);}
-  .party__role{font-size:12px;font-weight:700;color:var(--text-muted);}
-  .party__name{font-size:15px;font-weight:700;margin:2px 0 10px;}
-  .party__mark{height:86px;display:flex;align-items:center;justify-content:center;}
-  .party__stat{font-size:12px;font-weight:700;margin-top:8px;}
-  .party__stat.is-done{color:var(--success);}
-  .party__stat.is-wait{color:var(--text-muted);}
-  .party__sign-img{max-height:82px;max-width:100%;}
-
-  /* ── Company seal ── */
-  .seal{width:74px;height:74px;border-radius:50%;border:2.5px solid var(--danger);color:var(--danger);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-    font-weight:800;font-size:12px;line-height:1.2;transform:rotate(-8deg);opacity:.88;letter-spacing:.3px;}
-
-  /* ── Contract concluded banner ── */
+  /* ── Signed banner ── */
   .contract-done{display:none;align-items:center;gap:10px;padding:14px;margin-top:14px;
     background:#E7F6EC;border:1px solid #BBE5C7;border-radius:var(--r-sm);color:var(--success);font-weight:700;font-size:14px;}
   .contract-done.is-show{display:flex;}
@@ -219,16 +197,6 @@
   .toast--success{background:var(--success);}
   .toast--danger{background:var(--danger);}
 
-  /* ── Wage composition table ── */
-  .wtbl{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px;
-    border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;}
-  .wtbl th,.wtbl td{padding:9px 12px;border-bottom:1px solid var(--divider);text-align:left;color:var(--text);}
-  .wtbl thead th{background:var(--surface-alt);font-weight:700;font-size:12px;color:var(--text-sub);}
-  .wtbl tbody th{font-weight:500;color:var(--text-sub);width:34%;}
-  .wtbl td.amt{text-align:right;font-variant-numeric:tabular-nums;}
-  .wtbl tr:last-child th,.wtbl tr:last-child td{border-bottom:none;}
-  .wtbl tr.is-total th,.wtbl tr.is-total td{background:#EEF4FB;font-weight:700;color:var(--brand);}
-
   /* ── Modal ── */
   .modal-mask{position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:1000;
     display:none;align-items:flex-end;justify-content:center;}
@@ -244,7 +212,7 @@
     color:var(--text-muted);cursor:pointer;padding:4px 6px;}
   .modal__body{overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
 
-  /* ── Contract document (근로/임금 계약서 전문) ── */
+  /* ── Document (서약서 전문) ── */
   .doc__sec{color:var(--text);}
   .doc__sec + .doc__sec{margin-top:24px;border-top:8px solid var(--divider);padding-top:22px;}
   .doc__title{text-align:center;font-size:20px;font-weight:700;letter-spacing:.25em;
@@ -259,10 +227,6 @@
   .doc__tbl th,.doc__tbl td{border:1px solid var(--border);padding:6px 8px;text-align:left;
     vertical-align:middle;line-height:1.5;color:var(--text);}
   .doc__tbl th{background:var(--surface-alt);font-weight:600;white-space:nowrap;width:30%;}
-  .doc__tbl--center th,.doc__tbl--center td{text-align:center;width:auto;}
-  .doc__tbl--wage thead th{text-align:center;background:#EEF1F6;width:auto;}
-  .doc__tbl--wage tbody td:nth-child(2){text-align:right;white-space:nowrap;}
-  .doc__tbl--wage tr.is-total th,.doc__tbl--wage tr.is-total td{background:var(--surface-alt);font-weight:700;}
   .doc__signdate{text-align:right;margin:16px 0 0;font-size:13px;letter-spacing:.05em;}
 
   @media (max-width:400px){
@@ -277,17 +241,15 @@
   <!-- Top bar -->
   <header class="topbar">
     <div class="topbar__brand">성원<b>애드피아</b></div>
-    <div class="topbar__title">신규 입사자 정보 등록</div>
+    <div class="topbar__title">신규 입사자 정보 등록 <span class="topbar__badge">도급직</span></div>
   </header>
 
   <!-- Stepper -->
   <nav class="stepper" id="stepper">
     <div class="step is-active" data-step="1"><div class="step__dot">1</div><div class="step__label">계정</div></div>
-    <div class="step" data-step="2"><div class="step__dot">2</div><div class="step__label">근로계약</div></div>
-    <div class="step" data-step="3"><div class="step__dot">3</div><div class="step__label">서약서</div></div>
-    <div class="step" data-step="4"><div class="step__dot">4</div><div class="step__label">입사정보</div></div>
-    <div class="step" data-step="5"><div class="step__dot">5</div><div class="step__label">추가정보</div></div>
-    <div class="step" data-step="6"><div class="step__dot">6</div><div class="step__label">완료</div></div>
+    <div class="step" data-step="2"><div class="step__dot">2</div><div class="step__label">서약서</div></div>
+    <div class="step" data-step="3"><div class="step__dot">3</div><div class="step__label">추가정보</div></div>
+    <div class="step" data-step="4"><div class="step__dot">4</div><div class="step__label">완료</div></div>
   </nav>
 
   <!-- ═══════════ STEP 1 · ERP 계정 정보 ═══════════ -->
@@ -358,111 +320,8 @@
     </div>
   </section>
 
-  <!-- ═══════════ STEP 2 · 근로계약 · 임금계약 ═══════════ -->
+  <!-- ═══════════ STEP 2 · 서약서 · 동의서 서명 ═══════════ -->
   <section class="page" data-page="2">
-    <div class="page__head">
-      <h2>근로계약 · 임금계약</h2>
-      <p>근로조건을 확인하고 전자서명으로 계약을 체결합니다.</p>
-    </div>
-
-    <!-- 근로계약 (근로조건) -->
-    <div class="card">
-      <div class="card__title">근로계약 · 근로조건</div>
-      <div class="card__body">
-        <dl class="terms">
-          <div class="terms__row"><dt>계약형태</dt><dd>정규직 <span style="color:var(--text-muted);">(기간의 정함 없는 근로계약)</span></dd></div>
-          <div class="terms__row"><dt>입사일</dt><dd>2026-07-14</dd></div>
-          <div class="terms__row"><dt>수습기간</dt><dd>3개월 (2026-07-14 ~ 2026-10-13)</dd></div>
-          <div class="terms__row"><dt>근무장소</dt><dd>성수동 (서울특별시 성동구 성수일로 80)</dd></div>
-          <div class="terms__row"><dt>담당업무</dt><dd>경영지원 / 사무직</dd></div>
-          <div class="terms__row"><dt>근무시간</dt><dd>09:00 ~ 18:00 <span style="color:var(--text-muted);">(휴게 12:00~13:00)</span></dd></div>
-          <div class="terms__row"><dt>근무일</dt><dd>주 5일 (월~금) · 소정근로 주 40시간</dd></div>
-        </dl>
-      </div>
-    </div>
-
-    <!-- 임금계약 (임금 구성) -->
-    <div class="card">
-      <div class="card__title">임금계약 · 임금 구성</div>
-      <div class="card__body">
-        <dl class="terms">
-          <div class="terms__row"><dt>임금형태</dt><dd>월급제 (연봉제)</dd></div>
-          <div class="terms__row"><dt>총 연봉</dt><dd>연 <b>36,000,000원</b></dd></div>
-          <div class="terms__row"><dt>급여지급일</dt><dd>매월 10일 <span style="color:var(--text-muted);">(휴일인 경우 익 영업일)</span></dd></div>
-        </dl>
-        <table class="wtbl">
-          <thead><tr><th>항목</th><th style="text-align:right;">금액 (원)</th><th>산정식</th></tr></thead>
-          <tbody>
-            <tr><th>기본급</th><td class="amt">3,000,000</td><td style="color:var(--text-muted);"></td></tr>
-            <tr><th>연장근로수당</th><td class="amt">-</td><td style="color:var(--text-muted);">포괄임금</td></tr>
-            <tr><th>기타수당</th><td class="amt">-</td><td></td></tr>
-            <tr class="is-total"><th>월 임금 합계</th><td class="amt">3,000,000</td><td></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 계약서 전문 보기 -->
-    <button class="btn btn--ghost btn--full" type="button" id="btn-view-doc" style="margin-bottom:14px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      근로 · 임금 계약서 전문 보기
-    </button>
-
-    <!-- 계약 동의 및 전자서명 -->
-    <div class="card">
-      <div class="card__title">계약 동의 및 전자서명</div>
-      <div class="card__body">
-        <!-- 계약 동의 -->
-        <label class="agree" id="agree-box" style="margin-top:0;margin-bottom:16px;">
-          <input type="checkbox" id="agree-chk">
-          <span><b>위 근로계약 및 임금계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
-        </label>
-
-        <div class="sign__pad-wrap">
-          <canvas class="sign__pad" id="sig-pad"></canvas>
-          <div class="sign__ph" id="sig-ph">아래 영역에 손가락 또는 마우스로<br>직접 서명해 주세요.</div>
-        </div>
-        <div class="sign__tools">
-          <button class="btn btn--ghost btn--sm" type="button" id="btn-sig-clear">지우기</button>
-          <button class="btn btn--primary btn--sm" type="button" id="btn-sig-done">서명 완료 · 계약 체결</button>
-        </div>
-
-        <!-- 계약 당사자 -->
-        <div class="parties" style="margin-top:16px;">
-          <div class="party">
-            <div class="party__role">갑 (회사)</div>
-            <div class="party__name">성원애드피아</div>
-            <div class="party__mark">
-              <div class="seal"><span>성원</span><span>애드피아</span><span>代表印</span></div>
-            </div>
-            <div class="party__stat is-done">✓ 인감 날인 완료</div>
-          </div>
-          <div class="party">
-            <div class="party__role">을 (근로자)</div>
-            <div class="party__name" id="party-el-name">홍길동</div>
-            <div class="party__mark" id="party-el-mark"></div>
-            <div class="party__stat is-wait" id="party-el-stat">서명 대기</div>
-          </div>
-        </div>
-
-        <!-- 체결 완료 배너 -->
-        <div class="contract-done" id="contract-done">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <div>근로계약이 체결되었습니다.
-            <button class="link-reset" type="button" id="btn-sig-reset" style="margin-top:2px;">다시 서명하기</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="callout">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      <div>회사 인감은 <b>이미 날인 완료</b>되어 있습니다. 근로자 서명이 등록되면 <b>즉시 양측 서명이 완료되어 계약이 체결</b>됩니다.</div>
-    </div>
-  </section>
-
-  <!-- ═══════════ STEP 3 · 서약서 · 동의서 서명 ═══════════ -->
-  <section class="page" data-page="3">
     <div class="page__head">
       <h2>서약서 · 동의서 서명</h2>
       <p>입사 시 제출하는 서약서 · 동의서를 확인하고 전자서명합니다.</p>
@@ -477,16 +336,16 @@
     <div id="pledge-list"></div>
   </section>
 
-  <!-- ═══════════ STEP 4 · 입사 정보 ═══════════ -->
-  <section class="page" data-page="4">
+  <!-- ═══════════ STEP 3 · 추가 정보 (주소 포함) ═══════════ -->
+  <section class="page" data-page="3">
     <div class="page__head">
-      <h2>입사 정보 <span class="tag tag--req" style="vertical-align:middle;">필수</span></h2>
-      <p>주소와 급여계좌를 입력합니다.</p>
+      <h2>추가 정보</h2>
+      <p>주소를 입력하고, 학력·경력·개인정보를 등록합니다.</p>
     </div>
 
-    <!-- 주소 -->
+    <!-- 주소 (필수) -->
     <div class="card">
-      <div class="card__title">주소</div>
+      <div class="card__title">주소 <span class="tag tag--req">필수</span></div>
       <div class="card__body">
         <div class="field" id="f-addr">
           <label class="field__label">거주지 주소<em>*</em></label>
@@ -499,54 +358,6 @@
           <div class="field__err">주소를 입력해 주세요.</div>
         </div>
       </div>
-    </div>
-
-    <!-- 급여계좌 -->
-    <div class="card">
-      <div class="card__title">급여계좌</div>
-      <div class="card__body">
-        <div class="field" id="f-bank">
-          <label class="field__label">은행<em>*</em></label>
-          <select class="select" id="in-bank">
-            <option value="">은행 선택</option>
-            <option>국민은행</option><option>신한은행</option><option>우리은행</option>
-            <option>하나은행</option><option>농협은행</option><option>기업은행</option>
-            <option>카카오뱅크</option><option>토스뱅크</option><option>새마을금고</option>
-            <option>SC제일은행</option><option>부산은행</option><option>대구은행</option>
-          </select>
-          <div class="field__err">은행을 선택해 주세요.</div>
-        </div>
-        <div class="field" id="f-acc">
-          <label class="field__label">계좌번호<em>*</em></label>
-          <input class="input" type="tel" id="in-acc" placeholder="'-' 없이 숫자만 입력" inputmode="numeric">
-          <div class="field__err">계좌번호를 입력해 주세요.</div>
-        </div>
-        <div class="field" id="f-holder">
-          <label class="field__label">예금주<em>*</em></label>
-          <input class="input" type="text" id="in-holder" placeholder="예금주명">
-          <div class="field__err">예금주를 입력해 주세요.</div>
-        </div>
-        <div class="field">
-          <label class="field__label">통장 사본</label>
-          <div class="prep">
-            <span class="prep__badge">준비 중</span>
-            <div>통장 사본 등 민감 서류는 <b>별도 시스템에서 안전하게 제출</b>합니다.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="callout">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      <div>급여는 <b>매월 10일</b>에 등록하신 계좌로 지급됩니다.<br>급여 지급일이 휴일 또는 주말인 경우 익 영업일에 지급됩니다.</div>
-    </div>
-  </section>
-
-  <!-- ═══════════ STEP 5 · 추가 정보 ═══════════ -->
-  <section class="page" data-page="5">
-    <div class="page__head">
-      <h2>추가 정보</h2>
-      <p>학력·경력, 자격·역량, 개인정보를 입력합니다. (선택)</p>
     </div>
 
     <!-- 학력·경력 (선택) -->
@@ -666,14 +477,14 @@
     </div>
   </section>
 
-  <!-- ═══════════ STEP 6 · 완료 ═══════════ -->
-  <section class="page" data-page="6">
+  <!-- ═══════════ STEP 4 · 완료 ═══════════ -->
+  <section class="page" data-page="4">
     <div class="done">
       <div class="done__icon">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h2>정보 입력이 완료되었습니다</h2>
-      <p>근로계약 체결과 서약서 서명이 완료되었습니다.<br>서명한 서류는 <b>내 서류 보관함</b>에 보관되며,<br>등록하신 정보는 인사팀 확인 후 인사정보카드에 반영됩니다.</p>
+      <p>서약서 서명이 완료되었습니다.<br>서명한 서류는 <b>내 서류 보관함</b>에 보관되며,<br>등록하신 정보는 인사팀 확인 후 인사정보카드에 반영됩니다.</p>
       <div class="done__summary" id="summary"></div>
     </div>
   </section>
@@ -687,110 +498,6 @@
     <button class="btn btn--primary" type="button" id="btn-next">다음</button>
   </div>
 </footer>
-
-<!-- 근로·임금 계약서 전문 모달 -->
-<div class="modal-mask" id="doc-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="doc-modal-title">
-    <div class="modal__head">
-      <h3 id="doc-modal-title">근로 · 임금 계약서</h3>
-      <button class="modal__close" type="button" id="doc-modal-close" aria-label="닫기">✕</button>
-    </div>
-    <div class="modal__body">
-
-      <!-- ── 근로계약서 ── -->
-      <div class="doc__sec">
-        <h2 class="doc__title">정규직 근로계약서</h2>
-        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.</p>
-        <p class="doc__divider">■　　아　　래　　■</p>
-
-        <h3 class="doc__art">제1조 (근로계약기간)</h3>
-        <p class="doc__cl">① '을'의 근로계약기간은 2026-07-14 부터 <strong>기한의 정함이 없는 근로계약</strong>을 체결한 것으로 한다.</p>
-        <p class="doc__cl">② '을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
-        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
-
-        <h3 class="doc__art">제2조 (근무장소 및 직종)</h3>
-        <p class="doc__cl">① '을'의 근무장소 및 직종은 <strong>성수동 / 경영지원</strong> (으)로 한다.</p>
-        <p class="doc__cl">② '갑'은 업무상 필요에 따라 '을'의 근무장소 및 직종을 변경할 수 있으며, '을'은 정당한 이유없이 이를 거부할 수 없다.</p>
-
-        <h3 class="doc__art">제3조 (근로시간)</h3>
-        <p class="doc__cl">① 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.</p>
-        <p class="doc__cl">② '을'의 기본 근로시간 및 휴게시간은 다음과 같다.</p>
-        <table class="doc__tbl doc__tbl--center">
-          <thead><tr><th>교대조</th><th>시업시각</th><th>종업시각</th><th>휴게시간</th></tr></thead>
-          <tbody><tr><td>주간조</td><td>09:00</td><td>18:00</td><td>12:00 ~ 13:00</td></tr></tbody>
-        </table>
-        <p class="doc__cl">③ '갑'은 업무상 필요에 따라 근무시간을 조정할 수 있으며, '을'은 주 12시간 한도 내에서 시간외 근로를 할 수 있다.</p>
-
-        <h3 class="doc__art">제4조 (퇴직금)</h3>
-        <p class="doc__cl">① '을'의 계속근로연수가 1년 이상인 경우 퇴직시 계속근로연수 1년에 대하여 30일분의 평균임금을 퇴직금으로 지급한다.</p>
-        <p class="doc__cl">② '갑'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 '을'의 퇴직 후 14일 이내에 지급하도록 한다.</p>
-
-        <h3 class="doc__art">제5조 (휴일)</h3>
-        <p class="doc__cl">① 근로자의 날 및 주휴일을 유급휴일로 하며, 주휴일은 1주간 소정의 근로일을 개근한 경우 부여한다.</p>
-        <p class="doc__cl">② 매주 토요일은 무급휴일로 한다.</p>
-
-        <h3 class="doc__art">제6조 (연차휴가)</h3>
-        <p class="doc__cl">근로기준법이 정하는 바에 따라 연차유급휴가를 부여한다.</p>
-
-        <h3 class="doc__art">제7조 (근로계약의 해지)</h3>
-        <p class="doc__cl">① '갑'은 '을'이 업무수행능력이 현저히 부족하거나, 고의·중대한 과실로 회사에 손해를 입힌 때 등에는 근로계약기간 중이라도 해지할 수 있다.</p>
-        <p class="doc__cl">② '을'이 사직하고자 하는 경우 최소 30일 전에 사직의사를 '갑'에게 제출하여 업무 인수인계에 협조하여야 한다.</p>
-
-        <h3 class="doc__art">제8조 (준수사항)</h3>
-        <p class="doc__cl">'을'은 직무 중 지득한 '갑'의 영업 기밀 및 사업 관련 주요 정보를 제3자에게 누설하여서는 아니된다.</p>
-
-        <h3 class="doc__art">제9조 ~ 제11조 (계약의 변경 · 손해배상 · 기타)</h3>
-        <p class="doc__cl">본 계약에서 정하지 아니한 사항은 노동관계법령 및 취업규칙의 내용에 따른다. 본 계약서는 '갑'과 '을'이 날인한 후 각 1부씩 보관한다.</p>
-
-        <h3 class="doc__art">근로자 인적사항</h3>
-        <table class="doc__tbl">
-          <tr><th>성명</th><td>홍길동</td></tr>
-          <tr><th>소속</th><td>경영지원</td></tr>
-          <tr><th>직위 / 직책</th><td>사원 / 파트장</td></tr>
-        </table>
-        <p class="doc__signdate">작성일: 2026-07-14</p>
-      </div>
-
-      <!-- ── 임금계약서 ── -->
-      <div class="doc__sec">
-        <h2 class="doc__title">임 금 계 약 서</h2>
-        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 임금계약을 체결한다.</p>
-        <p class="doc__divider">■　　아　　래　　■</p>
-
-        <h3 class="doc__art">제1조 (근로자 정보)</h3>
-        <table class="doc__tbl">
-          <tr><th>성명</th><td>홍길동</td></tr>
-          <tr><th>소속 / 직책</th><td>경영지원 / 파트장</td></tr>
-          <tr><th>고용 구분</th><td>정규직</td></tr>
-        </table>
-
-        <h3 class="doc__art">제2조 (임금계약기간)</h3>
-        <p class="doc__cl">'을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
-        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
-
-        <h3 class="doc__art">제3조 (급여)</h3>
-        <p class="doc__cl">① '을'의 총연봉액은 <strong>36,000,000</strong> 원 이며, 이를 매월 지급한다.</p>
-        <p class="doc__cl">② '을'의 총월봉액은 <strong>3,000,000</strong> 원 이며, 월급여의 구성은 다음과 같다.</p>
-        <table class="doc__tbl doc__tbl--wage">
-          <thead><tr><th>항목</th><th>금액 (원)</th><th>산정식</th></tr></thead>
-          <tbody>
-            <tr><th>기본급</th><td>3,000,000</td><td></td></tr>
-            <tr><th>연장근로수당</th><td>-</td><td>포괄임금</td></tr>
-            <tr><th>기타수당</th><td>-</td><td></td></tr>
-            <tr class="is-total"><th>월임금합계</th><td>3,000,000</td><td></td></tr>
-          </tbody>
-        </table>
-        <p class="doc__cl">③ 급여는 매월 1일부터 말일까지를 산정기간으로 하여, 익월 10일(휴일인 경우 익일)에 '을' 본인명의의 계좌로 지급한다.</p>
-        <p class="doc__cl">④ 월 급여 지급시 근로소득세 및 건강보험료, 국민연금, 고용보험 등의 제세공과금을 원천징수한 후 지급한다.</p>
-
-        <h3 class="doc__art">제4조 (기타)</h3>
-        <p class="doc__cl">본 계약서에 명시되지 않은 사항은 근로계약서 및 회사의 임금 규정, 관계 법령에 따른다.</p>
-        <p class="doc__signdate">작성일: 2026-07-14</p>
-      </div>
-
-    </div>
-  </div>
-</div>
 
 <!-- 서약서·동의서 전문 모달 (동적 본문) -->
 <div class="modal-mask" id="pledge-modal">
@@ -816,12 +523,13 @@
 
 <script>
 (function(){
-  var TOTAL = 6, SUBMIT_STEP = 5, cur = 1;
-  var idOK = false, phoneOK = false, emailOK = false, contractDone = false;
+  var TOTAL = 4, SUBMIT_STEP = 3, cur = 1;
+  var idOK = false, phoneOK = false, emailOK = false;
 
   /* ── 입사자 정보 (직책에 따라 서약 서류 구성이 달라짐) ──
-     position(직책)이 '팀장' 또는 '파트장'이면 안전 준수 서약서가 추가로 노출됩니다. */
-  var EMP = { name: '홍길동', position: '파트장', dept: '경영지원', rank: '사원' };
+     position(직책)이 '팀장' 또는 '파트장'이면 안전 준수 서약서가 추가로 노출됩니다.
+     도급직 기본값은 리더가 아니므로 공통 서약 서류만 노출됩니다. */
+  var EMP = { name: '홍길동', position: '도급직', dept: '생산', rank: '도급직' };
   var $ = function(s,c){return (c||document).querySelector(s);};
   var $$ = function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
 
@@ -1001,91 +709,7 @@
     }
   });
 
-  /* ── STEP 2: 계약서 전문 모달 ── */
-  var docModal = $('#doc-modal');
-  function openDoc(){ docModal.classList.add('is-open'); document.body.style.overflow='hidden'; }
-  function closeDoc(){ docModal.classList.remove('is-open'); document.body.style.overflow=''; }
-  $('#btn-view-doc').addEventListener('click', openDoc);
-  $('#doc-modal-close').addEventListener('click', closeDoc);
-  docModal.addEventListener('click', function(e){ if(e.target===docModal) closeDoc(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && docModal.classList.contains('is-open')) closeDoc(); });
-
-  /* ── STEP 2: 계약 동의 + 전자서명 ── */
-  var agreeChk = $('#agree-chk'), agreeBox = $('#agree-box');
-  agreeChk.addEventListener('change', function(){
-    agreeBox.classList.toggle('is-checked', this.checked);
-    if(this.checked) agreeBox.classList.remove('is-invalid');
-  });
-
-  var sigCanvas = $('#sig-pad'), sigCtx = sigCanvas.getContext('2d');
-  var sigDrawn = false, drawing = false, lastPt = null;
-
-  function resizeSignature(){
-    if(!sigCanvas.clientWidth) return;               // hidden page → skip
-    var ratio = window.devicePixelRatio || 1;
-    var w = sigCanvas.clientWidth, h = sigCanvas.clientHeight;
-    sigCanvas.width = w * ratio; sigCanvas.height = h * ratio;
-    sigCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round';
-    sigCtx.strokeStyle = '#111827'; sigCtx.lineWidth = 2.2;
-  }
-  function clearSignature(){
-    sigCtx.save();
-    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
-    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
-    sigCtx.restore();
-    sigDrawn = false; $('#sig-ph').style.display = '';
-  }
-  function ptOf(e){ var r = sigCanvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
-  sigCanvas.addEventListener('pointerdown', function(e){
-    if(contractDone) return;
-    drawing = true; lastPt = ptOf(e); $('#sig-ph').style.display='none';
-    try{ sigCanvas.setPointerCapture(e.pointerId); }catch(err){}
-    e.preventDefault();
-  });
-  sigCanvas.addEventListener('pointermove', function(e){
-    if(!drawing) return;
-    var p = ptOf(e);
-    sigCtx.beginPath(); sigCtx.moveTo(lastPt.x, lastPt.y); sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
-    lastPt = p; sigDrawn = true; e.preventDefault();
-  });
-  window.addEventListener('pointerup', function(){ drawing = false; });
-
-  $('#btn-sig-clear').addEventListener('click', function(){
-    if(contractDone) return;
-    clearSignature();
-  });
-
-  function concludeContract(){
-    if(!agreeChk.checked){
-      agreeBox.classList.add('is-invalid');
-      toast('먼저 근로조건에 동의해 주세요.', 'danger');
-      agreeBox.scrollIntoView({behavior:'smooth', block:'center'});
-      return;
-    }
-    if(!sigDrawn){ toast('서명을 입력해 주세요.', 'danger'); return; }
-    var data = sigCanvas.toDataURL('image/png');
-    $('#party-el-mark').innerHTML = '<img class="party__sign-img" src="'+data+'" alt="근로자 서명">';
-    var stat = $('#party-el-stat'); stat.textContent = '✓ 서명 완료';
-    stat.classList.remove('is-wait'); stat.classList.add('is-done');
-    $('#contract-done').classList.add('is-show');
-    $('#btn-sig-done').disabled = true; $('#btn-sig-clear').disabled = true;
-    contractDone = true;
-    toast('근로계약이 체결되었습니다.', 'success');
-  }
-  $('#btn-sig-done').addEventListener('click', concludeContract);
-
-  $('#btn-sig-reset').addEventListener('click', function(){
-    contractDone = false;
-    clearSignature();
-    $('#party-el-mark').innerHTML = '';
-    var stat = $('#party-el-stat'); stat.textContent = '서명 대기';
-    stat.classList.remove('is-done'); stat.classList.add('is-wait');
-    $('#contract-done').classList.remove('is-show');
-    $('#btn-sig-done').disabled = false; $('#btn-sig-clear').disabled = false;
-  });
-
-  /* ═══════════ STEP 3: 서약서 · 동의서 서명 ═══════════ */
+  /* ═══════════ STEP 2: 서약서 · 동의서 서명 ═══════════ */
 
   /* ── 서약 서류 정의 (직책에 따라 대상 결정) ── */
   var PLEDGE_DOCS = [
@@ -1103,8 +727,8 @@
         '<h2 class="doc__title" style="margin-top:22px;">개인정보 수집·이용 동의서</h2>'+
         '<p class="doc__intro">상기 본인은 아래의 내용을 확인하고, ㈜성원애드피아(이하 “회사”)가 다음과 같이 본인의 개인(신용)정보를 처리(수집·이용·제공 등)하는 것에 동의합니다.</p>'+
         '<h3 class="doc__art">Ⅰ. 개인정보의 수집 및 이용</h3>'+
-        '<p class="doc__cl"><strong>수집 항목</strong> : 성명·주소·연락처·이메일·생년월일, 병역·학력·자격·경력사항, 급여지급 계좌번호 등</p>'+
-        '<p class="doc__cl"><strong>수집·이용 목적</strong> : 근로자 명부 및 인사기록카드 작성, 교육·복리후생·급여관리·제증명 발급, 인사평가 등 제반 직원관리 업무</p>'+
+        '<p class="doc__cl"><strong>수집 항목</strong> : 성명·주소·연락처·이메일·생년월일, 병역·학력·자격·경력사항 등</p>'+
+        '<p class="doc__cl"><strong>수집·이용 목적</strong> : 근로자 명부 및 인사기록카드 작성, 교육·복리후생·제증명 발급, 인사평가 등 제반 직원관리 업무</p>'+
         '<p class="doc__cl"><strong>보유·이용 기간</strong> : 관계 법령에 별도 정함이 없는 한 수집·이용 목적을 달성할 때까지 보유·이용합니다.</p>'+
         '<h3 class="doc__art">Ⅱ. 고유식별정보 및 민감정보</h3>'+
         '<p class="doc__cl">주민등록번호, 건강검진결과 내역서 등에 대한 수집·이용에 동의합니다.</p>'+
@@ -1115,19 +739,19 @@
       key: 'security', title: '근무 보안 서약서', target: 'common',
       body:
         '<h2 class="doc__title">기밀 준수 및 경업금지 서약서</h2>'+
-        '<p class="doc__intro">본인은 ㈜성원애드피아(이하 “회사”)와 근로계약을 체결한 후 회사의 임직원으로 근무하고 있는바, 회사의 영업비밀을 준수하고 경업금지를 하는 데 있어 본인의 자유로운 의사로써 다음과 같이 서약합니다. 아울러 본 서약서가 근무기간뿐 아니라 퇴직 후에도 일정기간 적용될 수 있음을 인식하고 서약합니다.</p>'+
+        '<p class="doc__intro">본인은 ㈜성원애드피아(이하 “회사”)와 도급계약을 체결한 후 회사의 업무에 종사하고 있는바, 회사의 영업비밀을 준수하고 경업금지를 하는 데 있어 본인의 자유로운 의사로써 다음과 같이 서약합니다. 아울러 본 서약서가 계약기간뿐 아니라 계약 종료 후에도 일정기간 적용될 수 있음을 인식하고 서약합니다.</p>'+
         '<h3 class="doc__art">1. 영업비밀의 준수</h3>'+
-        '<p class="doc__cl">① 본인이 회사에 재직 중 업무수행상 또는 업무와 관계없이 취득한, 비밀로 관리된 회사의 정보 및 영업활동에 유용한 기술상·경영상의 정보를 회사의 사전 서면 동의 없이는 은닉·사용하거나 제3자에게 누설·공개하지 않겠습니다.</p>'+
-        '<p class="doc__cl">② 재직 중 영업비밀과 관련하여 발명·개발·고안한 산출물에 관한 일체의 권리는 회사에 있음을 인정하며, 퇴직 이후에도 사전 서면 동의 없이는 이를 이용·누설·공개하지 않겠습니다.</p>'+
+        '<p class="doc__cl">① 본인이 회사 업무 수행상 또는 업무와 관계없이 취득한, 비밀로 관리된 회사의 정보 및 영업활동에 유용한 기술상·경영상의 정보를 회사의 사전 서면 동의 없이는 은닉·사용하거나 제3자에게 누설·공개하지 않겠습니다.</p>'+
+        '<p class="doc__cl">② 업무 수행 중 영업비밀과 관련하여 발명·개발·고안한 산출물에 관한 일체의 권리는 회사에 있음을 인정하며, 계약 종료 이후에도 사전 서면 동의 없이는 이를 이용·누설·공개하지 않겠습니다.</p>'+
         '<p class="doc__cl">③ 회사로부터 제공받은 정보자산(서류·전자파일·저장매체·전산장비 등)을 무단 보관·복사·훼손하지 않고 안전하게 관리하며, 업무 종료 시 지체없이 반환하겠습니다.</p>'+
         '<p class="doc__cl">④ 본인에게 할당된 사용자 ID·패스워드·출입증을 타인과 공동사용하거나 제3자에게 누설하지 않겠습니다.</p>'+
-        '<p class="doc__cl">⑤ 재직 중은 물론 퇴사 후에도 회사의 영업비밀보호규정을 비롯한 보안정책 관련 지침과 직무상의 명령을 준수하겠습니다.</p>'+
+        '<p class="doc__cl">⑤ 계약기간 중은 물론 계약 종료 후에도 회사의 영업비밀보호규정을 비롯한 보안정책 관련 지침과 업무상의 명령을 준수하겠습니다.</p>'+
         '<h3 class="doc__art">2. 타사 영업비밀 침해 금지</h3>'+
-        '<p class="doc__cl">재직 중 다른 회사의 영업비밀을 부정한 방법으로 취득하지 않으며, 이전 직장의 영업비밀을 회사에 공개하거나 회사 업무에 사용하지 않겠습니다.</p>'+
+        '<p class="doc__cl">업무 수행 중 다른 회사의 영업비밀을 부정한 방법으로 취득하지 않으며, 이전 업무처의 영업비밀을 회사에 공개하거나 회사 업무에 사용하지 않겠습니다.</p>'+
         '<h3 class="doc__art">3. 경업금지</h3>'+
-        '<p class="doc__cl">회사의 영업비밀 보호를 위하여, 적어도 퇴직일로부터 1년 동안 회사의 사전 서면 동의 없이는 회사와 동일·유사한 제품을 생산하는 업체를 창업하거나 그러한 업체에 취업하지 않겠습니다.</p>'+
+        '<p class="doc__cl">회사의 영업비밀 보호를 위하여, 적어도 계약 종료일로부터 1년 동안 회사의 사전 서면 동의 없이는 회사와 동일·유사한 제품을 생산하는 업체를 창업하거나 그러한 업체에 취업하지 않겠습니다.</p>'+
         '<h3 class="doc__art">4. 서약서의 효력</h3>'+
-        '<p class="doc__cl">본 서약서는 본인이 서명함과 동시에 효력을 발생하며 퇴직 후에도 효력을 유지합니다. 상기 사항을 모두 확인·숙지하고 이를 성실히 준수할 것을 서약합니다.</p>'+
+        '<p class="doc__cl">본 서약서는 본인이 서명함과 동시에 효력을 발생하며 계약 종료 후에도 효력을 유지합니다. 상기 사항을 모두 확인·숙지하고 이를 성실히 준수할 것을 서약합니다.</p>'+
         '<p class="doc__signdate">주식회사 성원애드피아 귀중</p>'
     },
     {
@@ -1316,7 +940,7 @@
 
   renderPledges();
 
-  /* ── STEP 4: 주소 검색 (mock) ── */
+  /* ── STEP 3: 주소 검색 (mock) ── */
   $('#btn-zip').addEventListener('click', function(){
     $('#in-zip').value = '04524';
     $('#in-addr1').value = '서울특별시 중구 세종대로 110';
@@ -1326,9 +950,6 @@
   });
 
   /* ── validation per step ── */
-  function validPhone(v){ return /^0\d{1,2}-?\d{3,4}-?\d{4}$/.test(v.replace(/\s/g,'')); }
-  function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
-
   function validateStep(n){
     clearAll();
     var ok = true;
@@ -1340,13 +961,6 @@
       if(!idOK){ setErr('f-id'); if($('#in-id').value.trim()) $('#f-id .field__err').textContent='중복 확인을 해주세요.'; ok=false; }
     }
     if(n===2){
-      if(!contractDone){
-        if(!agreeChk.checked){ agreeBox.classList.add('is-invalid'); toast('근로조건에 동의해 주세요.', 'danger'); }
-        else toast('서명 완료 후 계약을 체결해 주세요.', 'danger');
-        return false;
-      }
-    }
-    if(n===3){
       if(!pledgesAllSigned()){
         toast('모든 서약서 · 동의서에 서명해 주세요.', 'danger');
         // 미서명 첫 카드로 스크롤
@@ -1355,13 +969,9 @@
         return false;
       }
     }
-    if(n===4){
+    if(n===3){
       if(!$('#in-zip').value || !$('#in-addr2').value.trim()){ setErr('f-addr'); ok=false; }
-      if(!$('#in-bank').value){ setErr('f-bank'); ok=false; }
-      if(!$('#in-acc').value.trim()){ setErr('f-acc'); ok=false; }
-      if(!$('#in-holder').value.trim()){ setErr('f-holder'); ok=false; }
     }
-    // n===5: 모두 선택 항목 → 검증 없음
     if(!ok) toast('입력 내용을 확인해 주세요.', 'danger');
     return ok;
   }
@@ -1370,13 +980,13 @@
   function buildSummary(){
     function cnt(t){ return $$('.entry', $('[data-list="'+t+'"]')).length; }
     var pTotal = applicableDocs().length;
+    var addr = ($('#in-addr1').value || '') + ' ' + ($('#in-addr2').value.trim() || '');
     var rows = [
       ['성명', $('#in-name').value.trim() || '-'],
       ['사내 메일', ($('#in-id').value.trim().toLowerCase()||'-') + '@swadpia.co.kr'],
       ['휴대전화', $('#in-phone').value.trim() || '-'],
-      ['근로·임금 계약', contractDone ? '체결 완료' : '미체결'],
       ['서약 서류', signedPledgeCount()+'/'+pTotal+'건 서명 · 보관함 보관'],
-      ['급여 계좌', ($('#in-bank').value||'-')+' '+($('#in-acc').value.trim()||'')],
+      ['주소', addr.trim() || '-'],
       ['학력·경력', cnt('edu')+'건 · '+cnt('career')+'건'],
       ['자격·어학', cnt('license')+'건 · '+cnt('lang')+'건'],
       ['가족 사항', cnt('family')+'건']
@@ -1399,8 +1009,7 @@
     var next = $('#btn-next');
     if(n===TOTAL){ $('#footer').style.display='none'; }
     else { $('#footer').style.display=''; next.textContent = (n===SUBMIT_STEP) ? '제출' : '다음'; }
-    if(n===2){ requestAnimationFrame(resizeSignature); }   // 서명 패드는 표시된 뒤 크기 확정
-    if(n===3){ requestAnimationFrame(resizePledgePads); }  // 서약서 패드도 표시 후 크기 확정
+    if(n===2){ requestAnimationFrame(resizePledgePads); }  // 서약서 패드는 표시 후 크기 확정
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
@@ -1411,12 +1020,10 @@
   });
   $('#btn-prev').addEventListener('click', function(){ if(cur>1) goto(cur-1); });
 
-  window.addEventListener('resize', function(){ if(cur===2) resizeSignature(); if(cur===3) resizePledgePads(); });
+  window.addEventListener('resize', function(){ if(cur===2) resizePledgePads(); });
 
-  // clear individual errors on input (전화·이메일은 별도 중복확인 핸들러에서 처리)
-  [['in-rrn1','f-rrn'],['in-rrn2','f-rrn'],
-   ['in-addr2','f-addr'],['in-bank','f-bank'],['in-acc','f-acc'],['in-holder','f-holder']
-  ].forEach(function(pair){
+  // clear individual errors on input
+  [['in-rrn1','f-rrn'],['in-rrn2','f-rrn'],['in-addr2','f-addr']].forEach(function(pair){
     var el=$('#'+pair[0]); if(!el) return;
     var ev = (el.tagName==='SELECT') ? 'change' : 'input';
     el.addEventListener(ev, function(){ clearErr(pair[1]); });

@@ -83,7 +83,7 @@
         { id:'SW260101', name:'김지훈', dept:'경영지원본부', job:'인사', rank:'사원', position:'팀원', empType:'regular', contractSubType:'', contractOut:false, jobCat:'office', colorIdx:2, email:'kim.jh@swadpia.co.kr' },
       ];
     }
-    const list = members.slice(0, 12).map((m, i) => ({
+    const list = members.slice(0, 14).map((m, i) => ({
       id: m.id,
       name: m.name || (m.fname + m.gname),
       dept: m.dept,
@@ -109,7 +109,7 @@
   })();
 
   /* ============ 직원 정보 라벨 매핑 ============ */
-  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', daily: '일용직' };
+  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직' };
   const CONTRACT_SUB_LABEL = { chotak: '촉탁', intern: '인턴' };
   const JOB_CAT_LABEL  = { office: '사무직', production: '생산직', research: '연구직' };
   function empTypeDisplay(e) {
@@ -486,6 +486,16 @@ ${wageClauses(v)}
       // 하계약 (emp:4) — 입사 2025-01-06. 최초 근로계약(계약직·기간제) + 최초 임금계약(근로에 연결)
       { id:'CTR-2025-1007', kind:'근로계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02' },
       { id:'CTR-2025-1008', kind:'임금계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02', baseRaise:'4,500,000', linkedLaborId:'CTR-2025-1007' },
+
+      // 유프리 (emp:11) — 입사 2025-09-03. 프리랜서 근로계약(무기) + 임금계약(무기, 근로에 연결)
+      { id:'CTR-2025-1101', kind:'근로계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30' },
+      { id:'CTR-2025-1102', kind:'임금계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30', baseRaise:'3,800,000', linkedLaborId:'CTR-2025-1101' },
+      // 오프리 (emp:12) — 입사 2026-02-02
+      { id:'CTR-2026-1103', kind:'근로계약서', emp:12, status:'active', start:'2026-02-02', end:'', indefinite:true, created:'2026-01-29' },
+      { id:'CTR-2026-1104', kind:'임금계약서', emp:12, status:'active', start:'2026-02-02', end:'', indefinite:true, created:'2026-01-29', baseRaise:'5,000,000', linkedLaborId:'CTR-2026-1103' },
+      // 서프리 (emp:13) — 입사 2025-11-03
+      { id:'CTR-2025-1105', kind:'근로계약서', emp:13, status:'active', start:'2025-11-03', end:'', indefinite:true, created:'2025-10-31' },
+      { id:'CTR-2025-1106', kind:'임금계약서', emp:13, status:'active', start:'2025-11-03', end:'', indefinite:true, created:'2025-10-31', baseRaise:'3,300,000', linkedLaborId:'CTR-2025-1105' },
     ];
 
     const hrUsers = ['정혜진', '윤민지', '정혜진', '정혜진', '윤민지'];
@@ -3310,7 +3320,7 @@ ${wageClauses(v)}
         회사명: COMPANY, 직원명: empName, 사번: e.id,
         부서: e.dept || '', 직무: e.job || '', 직위: e.rank || '',
         직책: e.position || '',
-        고용구분: { regular:'정규직', contract:'계약직', daily:'일용직', outsourced:'도급직' }[e.empType] || '',
+        고용구분: { regular:'정규직', contract:'계약직', freelancer:'프리랜서', daily:'일용직', outsourced:'도급직' }[e.empType] || '',
         소속형태: e.contractOut ? '도급' : '-',
         직군:    ({ office:'사무직', production:'생산직', research:'연구직' })[e.jobCat] || '',
         시작일: spec.startDate || '', 종료일: indefinite ? '' : (spec.endDate || ''),

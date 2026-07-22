@@ -110,8 +110,10 @@
    *  ATT — 일반 근태
    *    A 출장 / B 교육 / C 조퇴 / D 외출 / E 근무시간변경 / Z 기타
    *  HOL — 휴가
-   *    A 경조 / B 연차 / C 반차 / D 출산/휴가 / E 청원 / F 공가 / G 보건 / Z 기타
+   *    A 경조 / B 연차 / C 반차 / H 반반차 / D 출산/휴가 / E 청원 / F 공가 / G 보건 / Z 기타
    *    ※ G(보건) — '건강검진' 사유는 제외.
+   *    ※ C 반차(0.5일·4시간 차감) / H 반반차(0.25일·2시간 차감) — 각각 오전/오후.
+   *      차감 시간은 신청자 근무조(shift)의 시작/종료 기준으로 산정한다. (POL: PARTIAL_LEAVE 참조)
    * ========================================================= */
   const ATT_GROUPS = [
     {
@@ -184,6 +186,13 @@
       ],
     },
     {
+      /* 반반차 — 2시간 차감(0.25일). 반차(C)와 동일하게 오전/오후로 구분하되 차감 폭만 절반. */
+      code: 'H', label: '반반차', items: [
+        { code: 'HOLH01', label: '오전' },
+        { code: 'HOLH02', label: '오후' },
+      ],
+    },
+    {
       code: 'D', label: '출산/휴가', items: [
         { code: 'HOLD01', label: '본인' },
         { code: 'HOLD02', label: '배우자' },
@@ -249,13 +258,49 @@
     const c = findCode(code);
     return c ? c.groupLabel : '';
   }
-  function isHalfDay(code) { return code === 'HOLC01' || code === 'HOLC02'; }
+  /* =========================================================
+   *  POL — 반차 / 반반차 차감 시간 정책
+   *
+   *  종류      코드      기준          차감 폭   연차 차감
+   *  ───────────────────────────────────────────────────────
+   *  오전 반차   HOLC01   근무 시작부터   4시간    0.5일
+   *  오후 반차   HOLC02   근무 종료 이전  4시간    0.5일
+   *  오전 반반차 HOLH01   근무 시작부터   2시간    0.25일
+   *  오후 반반차 HOLH02   근무 종료 이전  2시간    0.25일
+   *
+   *  · 오전(am) = 근무 시작 시점부터 hours 만큼
+   *  · 오후(pm) = 근무 종료 시점 이전 hours 만큼
+   *  · 시작/종료 시각은 신청자 근무조(shift.start/end) 기준으로 동적 산정
+   *    (고정 09:00/18:00 이 아님 — 근무조마다 다름)
+   * ========================================================= */
+  const PARTIAL_LEAVE = {
+    HOLC01: { side: 'am', hours: 4, days: 0.5,  kindLabel: '반차'   },
+    HOLC02: { side: 'pm', hours: 4, days: 0.5,  kindLabel: '반차'   },
+    HOLH01: { side: 'am', hours: 2, days: 0.25, kindLabel: '반반차' },
+    HOLH02: { side: 'pm', hours: 2, days: 0.25, kindLabel: '반반차' },
+  };
+  function isHalfDay(code)     { return code === 'HOLC01' || code === 'HOLC02'; }
+  function isQuarterDay(code)  { return code === 'HOLH01' || code === 'HOLH02'; }
+  function isPartialLeave(code){ return !!PARTIAL_LEAVE[code]; }   /* 반차 + 반반차 (당일 초과근무 차단 대상) */
+  /* 반차/반반차 차감 시간대 — 근무조(shift) 시작/종료 기준. 야간조는 익일 종료 보정. */
+  function partialLeaveWindow(code, shift) {
+    const p = PARTIAL_LEAVE[code];
+    if (!p) return null;
+    const sh = shift || myShift();
+    let s = _hm2min(sh && sh.start); if (s === null) s = 540;    /* 폴백 09:00 */
+    let e = _hm2min(sh && sh.end);   if (e === null) e = 1080;   /* 폴백 18:00 */
+    if (e <= s) e += 1440;                                       /* 야간조 — 종료가 익일 */
+    const from = p.side === 'am' ? s : e - p.hours * 60;
+    const to   = p.side === 'am' ? s + p.hours * 60 : e;
+    return { from: _min2hm(from), to: _min2hm(to), hours: p.hours, days: p.days, side: p.side, kindLabel: p.kindLabel };
+  }
+  function _min2hm(m) { m = ((m % 1440) + 1440) % 1440; return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); }
   function isLeaveCode(code) { return /^HOL/.test(code || ''); }
 
-  /* 신청 일수 — 반차는 0.5일, 그 외는 기간(시작~종료, 양끝 포함) */
+  /* 신청 일수 — 반차 0.5일 / 반반차 0.25일, 그 외는 기간(시작~종료, 양끝 포함) */
   function applyReqDays(d) {
     if (!d || !d.dateFrom || !d.dateTo) return 0;
-    if (isHalfDay(d.code)) return 0.5;
+    if (isPartialLeave(d.code)) return PARTIAL_LEAVE[d.code].days;
     const ms = new Date(d.dateTo) - new Date(d.dateFrom);
     if (isNaN(ms)) return 0;
     return Math.max(1, Math.round(ms / 86400000) + 1);
@@ -1616,10 +1661,10 @@
     const t = title ? ` title="${esc(title)}"` : '';
     return `<div class="att-cal__block ${colorCls}"${t}><span class="att-cal__block-txt">${text}</span></div>`;
   }
-  /* 휴가/근태 사유 라벨 — "휴가: {사유}" 형식. 반차는 '휴가: 오전 반차'. */
+  /* 휴가/근태 사유 라벨 — "휴가: {사유}" 형식. 반차는 '휴가: 오전 반차', 반반차는 '휴가: 오전 반반차'. */
   function calLeaveLabel(r) {
     if (!r) return '';
-    if (isHalfDay(r.code)) return `휴가: ${esc(r.label || '')} 반차`;
+    if (isPartialLeave(r.code)) return `휴가: ${esc(r.label || '')} ${PARTIAL_LEAVE[r.code].kindLabel}`;
     return `휴가: ${esc(r.label || codeShortLabel(r.code) || '')}`;
   }
   /* 근무조 불일치 — 등록 근무조 시작시간과 실제 출근이 30분 이상 차이 */
@@ -2209,11 +2254,15 @@
     let pickerHTML;
 
     if (d.mode === 'leave') {
-      /* 연차/반차 — 옵션이 3개 뿐이라 단순 라디오 한 줄 */
+      /* 연차/반차/반반차 — 라디오 한 줄. 차감 시간대는 근무조 시작/종료 기준으로 동적 표기 */
+      const sh = myShift();
+      const win = (c) => { const w = partialLeaveWindow(c, sh); return w ? `${w.from} ~ ${w.to} · ${w.hours}시간(${w.days}일)` : ''; };
       const opts = [
-        { code: 'HOLB01', label: '연차',     desc: '하루 종일' },
-        { code: 'HOLC01', label: '오전 반차', desc: '09:00 ~ 14:00' },
-        { code: 'HOLC02', label: '오후 반차', desc: '14:00 ~ 18:00' },
+        { code: 'HOLB01', label: '연차',       desc: '하루 종일' },
+        { code: 'HOLC01', label: '오전 반차',   desc: win('HOLC01') },
+        { code: 'HOLC02', label: '오후 반차',   desc: win('HOLC02') },
+        { code: 'HOLH01', label: '오전 반반차', desc: win('HOLH01') },
+        { code: 'HOLH02', label: '오후 반반차', desc: win('HOLH02') },
       ];
       pickerHTML = `
         <div class="att-apply__leave-opts">
@@ -2245,6 +2294,14 @@
           </select>
         </div>
       `;
+      /* 반차/반반차 — 차감 시간대(근무조 시작/종료 기준) 안내. 드롭다운엔 시간이 없으므로 별도 노출 */
+      if (isPartialLeave(d.code)) {
+        const w = partialLeaveWindow(d.code);
+        const sh = myShift();
+        pickerHTML += `<div class="form-help" style="margin-top:6px;">
+          ${sh ? `근무조 <strong style="color:var(--color-text);">${esc(sh.label || sh.code)}</strong> (${esc(sh.start)}~${esc(sh.end)}) 기준 · ` : ''}차감 <strong style="color:var(--color-text);">${esc(w.from)} ~ ${esc(w.to)}</strong> (${w.hours}시간 · 연차 ${w.days}일 차감)
+        </div>`;
+      }
     }
 
     const req = '<em style="color:var(--color-danger);font-style:normal;">*</em>';
@@ -2296,7 +2353,7 @@
           <div class="fm-tbl__value">${renderApplyFiles()}</div>
         </div>
       </div>
-      ${isHalfDay(d.code) ? `<div class="att-half-warn">⚠ 반차 신청 — 당일 초과근무 신청은 자동 차단됩니다.</div>` : ''}
+      ${isPartialLeave(d.code) ? `<div class="att-half-warn">⚠ ${PARTIAL_LEAVE[d.code].kindLabel} 신청 — 당일 초과근무 신청은 자동 차단됩니다.</div>` : ''}
     `;
     bindApplyModal(modal);
   }
@@ -2650,10 +2707,11 @@
     /* 사유 dropdown 값이 곧 신청 사유 */
     d.reason = d.reasonCode;
 
-    /* 같은 날 반차 신청이 있는지 검사 */
-    const blocking = myApps().find(a => a.kind === 'leave' && a.dateFrom <= d.date && d.date <= a.dateTo && isHalfDay(a.code) && a.status !== 'rejected');
+    /* 같은 날 반차/반반차 신청이 있는지 검사 */
+    const blocking = myApps().find(a => a.kind === 'leave' && a.dateFrom <= d.date && d.date <= a.dateTo && isPartialLeave(a.code) && a.status !== 'rejected');
     if (blocking) {
-      window.toast && window.toast(`해당 일자(${d.date})에 반차 신청이 있어 초과근무를 신청할 수 없습니다.`, 'warning');
+      const kl = (PARTIAL_LEAVE[blocking.code] || {}).kindLabel || '반차';
+      window.toast && window.toast(`해당 일자(${d.date})에 ${kl} 신청이 있어 초과근무를 신청할 수 없습니다.`, 'warning');
       return;
     }
 
@@ -3470,7 +3528,7 @@
     ATT_GROUPS, HOL_GROUPS,
     APP_STATUSES,
     VIEW_MODES,
-    codeLabel, codeShortLabel, codeGroupLabel, isHalfDay,
+    codeLabel, codeShortLabel, codeGroupLabel, isHalfDay, isQuarterDay, isPartialLeave, partialLeaveWindow,
     /* 신청 내역 '결재문서' 컬럼 — 문서명 표기용(근태신청서/연차·휴가 신청서/연장·휴일근무 신청서) */
     docNameOf,
     /* 캘린더 셀 블록 공용 헬퍼 — 나의/부서별 근태현황, 부서별 연차현황 통일 */

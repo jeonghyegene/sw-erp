@@ -312,6 +312,10 @@
 .modal__close { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
 .modal__close:hover { background: var(--color-hover); }
 .modal__body { padding: 18px 20px; overflow-y: auto; color: var(--color-text-sub); }
+/* 본문이 모달의 남은 높이를 가득 채우고, 내부 콘텐츠(예: 테이블 카드)만 스크롤 —
+   고정 높이 모달에서 캡션·페이지네이션은 고정하고 데이터 행 영역만 스크롤할 때 사용. */
+.modal__body--fill { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.modal__body--fill > * { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .modal__footer { padding: 14px 20px; border-top: 1px solid var(--color-divider); display: flex; justify-content: flex-end; gap: 6px; }
 /* 사이즈 modifier */
 .modal--md  { max-width: 640px; }

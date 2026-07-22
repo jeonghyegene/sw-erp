@@ -1,0 +1,14 @@
+/* Pretendard 전역 적용 — VitePress 기본 폰트 변수 덮어쓰기 */
+:root {
+  --vp-font-family-base:
+    'Pretendard Variable', 'Pretendard',
+    -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+/* 코드/모노스페이스는 가독성을 위해 기존 모노 스택을 유지하되 한글 폴백만 Pretendard 로 보강 */
+:root {
+  --vp-font-family-mono:
+    ui-monospace, SFMono-Regular, 'Menlo', 'Monaco', 'Consolas',
+    'Liberation Mono', 'Courier New', 'Pretendard Variable', monospace;
+}

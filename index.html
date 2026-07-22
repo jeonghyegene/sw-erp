@@ -1034,16 +1034,13 @@
       </div>
       <div class="modal__body" style="display:flex;flex-direction:column;gap:0;padding:8px 20px 0;">
         <!-- 보험별 탭 -->
-        <div class="tabs" data-ins-tabs style="flex-shrink:0;">
+        <div class="tabs" data-ins-tabs style="flex-shrink:0;margin-bottom:14px;">
           <div class="tabs__nav">
             <button type="button" class="tabs__tab is-active" data-ins-tab="health">건강보험</button>
             <button type="button" class="tabs__tab" data-ins-tab="pension">국민연금</button>
             <button type="button" class="tabs__tab" data-ins-tab="employment">고용보험</button>
           </div>
         </div>
-
-        <!-- 적용 기간 컨텍스트 바(맥락) + [기간 관리] -->
-        <div data-ins-ctx style="flex-shrink:0;"></div>
 
         <!-- 좌(고지월·업로드) ↔ 우(업로드 정보·직원별 고지액 내역) -->
         <div class="split" style="--split-left:340px;height:520px;max-height:56vh;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
@@ -1057,41 +1054,68 @@
     </div>
   </div>
 
-  <!-- ============ [급여 정산 · 공제] 적용 기간 관리 모달 (4대보험 위에 오버레이) ============ -->
-  <div class="modal-backdrop" id="modal-prs-ins-period" data-modal-id="prs-ins-period">
-    <div class="modal" style="width:520px;">
-      <div class="modal__header">
-        <div class="modal__title" data-ins-pm-title>적용 기간 관리</div>
-        <button class="modal__close" data-ins-pm-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body" style="padding-top:8px;">
-        <div data-ins-pm-body></div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-ins-pm-close>닫기</button>
-        <button class="btn btn--primary" type="button" data-ins-pm-apply>적용</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ [급여 정산 · 공제] 간이세액표 업로드 모달 (4대보험과 동일한 분할 화면) ============ -->
   <div class="modal-backdrop" id="modal-prs-ded-tax" data-modal-id="prs-ded-tax">
-    <div class="modal modal--xl">
+    <div class="modal" style="width:680px;">
       <div class="modal__header">
         <div class="modal__title">간이세액표 업로드</div>
         <button class="modal__close" data-tax-close type="button" aria-label="닫기">✕</button>
       </div>
-      <div class="modal__body" style="display:flex;flex-direction:column;gap:0;padding:8px 20px 0;">
-        <!-- 적용 기간(버전) 컨텍스트 바 -->
-        <div data-tax-ctx style="flex-shrink:0;"></div>
-        <!-- 좌(적용 기간·업로드) ↔ 우(업로드 정보·간이세액표 미리보기·적용) -->
-        <div class="split" style="--split-left:340px;height:520px;max-height:56vh;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;">
-          <div class="split__left" data-tax-left></div>
-          <div class="split__right" data-tax-right></div>
-        </div>
+      <div class="modal__body">
+        <div data-tax-body></div>
+      </div>
+      <div class="modal__footer" style="justify-content:space-between;">
+        <button class="btn" type="button" data-tax-open-history>적용 이력</button>
+        <button class="btn" type="button" data-tax-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 간이세액표 적용 이력 모달 (업로드 모달 위에 오버레이) ============ -->
+  <div class="modal-backdrop" id="modal-prs-tax-history" data-modal-id="prs-tax-history">
+    <div class="modal" style="width:680px;">
+      <div class="modal__header">
+        <div class="modal__title">간이세액표 적용 이력</div>
+        <button class="modal__close" data-tax-hist-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body modal__body--fill">
+        <div data-tax-hist-body></div>
       </div>
       <div class="modal__footer">
-        <button class="btn" type="button" data-tax-close>닫기</button>
+        <button class="btn" type="button" data-tax-hist-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 연말정산 자료 업로드 모달 (간이세액표 업로드와 동일 화면) ============ -->
+  <div class="modal-backdrop" id="modal-prs-ded-yearend" data-modal-id="prs-ded-yearend">
+    <div class="modal" style="width:680px;">
+      <div class="modal__header">
+        <div class="modal__title">연말정산 자료 업로드</div>
+        <button class="modal__close" data-ye-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div data-ye-body></div>
+      </div>
+      <div class="modal__footer" style="justify-content:space-between;">
+        <button class="btn" type="button" data-ye-open-history>적용 이력</button>
+        <button class="btn" type="button" data-ye-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산 · 공제] 연말정산 적용 이력 모달 (업로드 모달 위에 오버레이) ============ -->
+  <div class="modal-backdrop" id="modal-prs-yearend-history" data-modal-id="prs-yearend-history">
+    <div class="modal" style="width:680px;">
+      <div class="modal__header">
+        <div class="modal__title">연말정산 적용 이력</div>
+        <button class="modal__close" data-ye-hist-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body modal__body--fill">
+        <div data-ye-hist-body></div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-ye-hist-close>닫기</button>
       </div>
     </div>
   </div>

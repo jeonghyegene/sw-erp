@@ -60,7 +60,23 @@
     const wins = [[0, 360], [1320, 1800], [2760, 3240]];  /* 00~06, 22~익06, 익22~익익06 */
     return wins.reduce((acc, w) => acc + overlapMin(sm, em, w[0], w[1]), 0);
   }
-  /* 분 → 'H:MM' 표기 (근무시간·연장·심야 공통) */
+  /* 야간연장시간(분) — 연장근로(소정 8h 초과분) 중 22:00~06:00 야간대에 해당하는 시간.
+     소정근로 종료 시각(scheduledEndMin) 이후 퇴근까지의 연장 구간에서 휴게를 제외하고 야간대와 겹치는 분을 합산.
+     (scheduledEndMin·breakRangesAbs 는 아래에 선언되나 함수 호이스팅으로 참조 가능) */
+  function nightOtMinutes(f) {
+    if (!hm(f.start) || !hm(f.end)) return 0;
+    const startM = toMin(f.start);
+    let endM = toMin(f.end); if (endM <= startM) endM += 24 * 60;   /* 야간조 — 익일 퇴근 */
+    const schedEnd = scheduledEndMin(f);
+    if (endM <= schedEnd) return 0;                                 /* 연장 없음 */
+    const breaks = breakRangesAbs(f);
+    const inBreak = (t) => breaks.some(b => t >= b[0] && t < b[1]);
+    const isNight = (t) => { const m = ((t % 1440) + 1440) % 1440; return m >= 1320 || m < 360; };  /* 22:00~06:00 */
+    let n = 0;
+    for (let t = schedEnd; t < endM; t++) { if (!inBreak(t) && isNight(t)) n++; }
+    return n;
+  }
+  /* 분 → 'H:MM' 표기 (근무시간·연장·야간 공통) */
   function fmtMin(mins) {
     mins = Math.max(0, Math.round(mins));
     return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
@@ -73,9 +89,10 @@
   /* 근무조 근태 산정 기준 재계산 — 출근/퇴근/간식(휴게)로부터 총 근무·연장·심야시간·주야 구분 산출.
      · workHours : 총 근무시간 (출~퇴 - 간식). 'H:MM'
      · breakMin  : 간식(휴게) 총 분 (1+2 합산)
-     · otMin     : 연장시간 분 — 1일 소정근로 8시간 초과분
-     · nightMin  : 심야시간 분 — 22:00~06:00 겹침 (간식 제외 총 구간 기준)
-     · isNight   : 심야시간 포함 시 야간 근무조로 분류 */
+     · otMin       : 연장시간 분 — 1일 소정근로 8시간 초과분
+     · nightMin    : 야간시간 분 — 22:00~06:00 겹침 (간식 제외 총 구간 기준)
+     · nightOtMin  : 야간연장시간 분 — 연장근로 중 22:00~06:00 에 해당하는 시간
+     · isNight     : 야간시간 포함 시 야간 근무조로 분류 */
   const DAILY_STD_MIN = 8 * 60;
   function recompute(f) {
     const totalMin = diffMin(f.start, f.end);
@@ -86,7 +103,8 @@
     const workMin = Math.max(0, totalMin - bmin);
     f.workHours = fmtMin(workMin);
     f.otMin = Math.max(0, workMin - DAILY_STD_MIN);   /* 연장 = 8시간 초과분 */
-    f.nightMin = nightMinutes(f.start, f.end);        /* 심야 = 22~06 겹침 */
+    f.nightMin = nightMinutes(f.start, f.end);        /* 야간 = 22~06 겹침 */
+    f.nightOtMin = nightOtMinutes(f);                 /* 야간연장 = 연장근로 중 22~06 */
     f.isNight = f.nightMin > 0;                        /* 야간 자동 판정 */
   }
   /* 근무시간유형(D=주간 / N=야간) — 심야 겹침 여부로 결정 */
@@ -859,7 +877,8 @@
         </span>
         ${item('총 근무', f.workHours, true)}
         ${item('연장', fmtMin(f.otMin))}
-        ${item('심야', fmtMin(f.nightMin))}
+        ${item('야간', fmtMin(f.nightMin))}
+        ${item('야간연장', fmtMin(f.nightOtMin))}
         ${item('휴게', `${f.breakMin}분`)}`;
     }
     /* 반차·반반차 구간 — 출·퇴근·휴게 변경에 맞춰 실시간 재산정 */

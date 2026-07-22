@@ -360,6 +360,24 @@
       </div>`;
   }
 
+  /* ============ 고용형태 — HR 마스터의 empType (정규직/계약직/일용직/도급직) ============ */
+  const EMP_TYPE_LABEL = { regular: '정규직', contract: '계약직', freelancer: '프리랜서', daily: '일용직', outsourced: '도급직' };
+  function empTypeMap() {
+    const m = {};
+    const h = window.App && App.HRInfoMgmt;
+    if (h && h.list) { try { h.list().forEach(r => { if (r && r.id && r.empType) m[r.id] = r.empType; }); } catch (e) { /* noop */ } }
+    return m;
+  }
+  /* 고용형태 pill — 정규직=success / 계약직=info / 일용직=warning / 도급직=muted. 미지정은 '-'. */
+  function empTypePill(t) {
+    const label = EMP_TYPE_LABEL[t];
+    if (!label) return '<span class="t-muted">-</span>';
+    const cls = t === 'regular' ? 'pill--success' : t === 'contract' ? 'pill--info' : t === 'daily' ? 'pill--warning' : 'pill--muted';
+    return `<span class="pill ${cls}">${esc(label)}</span>`;
+  }
+  /* 고용형태 셀(td) — 성명 셀 우측 고정폭 컬럼 */
+  function empTypeCell(emp, tmap) { return `<td class="ssw-tbl__typecell">${empTypePill((tmap || empTypeMap())[emp.id])}</td>`; }
+
   /* ============ 성명 셀 (임직원 관리와 동일 — 아바타 + 이름 + 팀·직위·직책 sub) ============ */
   function empNameCell(emp, extraHTML) {
     /* 이름 아래 회색 메타 — 팀·직위·직책 순, 구두점(·)만으로 구분(앞뒤 여백 없이) */
@@ -397,7 +415,8 @@
       return `<th class="ssw-tbl__day ${cls}"><span class="ssw-tbl__dnum">${pad2(dt.getMonth() + 1)}/${pad2(dt.getDate())}</span><span class="ssw-tbl__dw">(${DOW_KO[wd]})</span></th>`;
     }).join('');
 
-    const colspan = dates.length + 1;
+    const colspan = dates.length + 2;
+    const tmap = empTypeMap();
     const empRow = (emp) => {
       const cells = dates.map((ds) => {
         const eff = effAt(emp, ds);
@@ -405,7 +424,7 @@
         const cls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
         return `<td class="ssw-tbl__day ${cls}">${shiftChip(eff.code, true, null, eff.ov)}</td>`;
       }).join('');
-      return `<tr>${empNameCell(emp)}${cells}</tr>`;
+      return `<tr>${empNameCell(emp)}${empTypeCell(emp, tmap)}${cells}</tr>`;
     };
     /* 부서 묶음 헤더 — 전사(C0) 뷰에서 부서별로 인원을 그룹핑해 부서명 밴드로 구분. */
     const groupHeader = (deptName, count) =>
@@ -440,6 +459,7 @@
             <thead>
               <tr>
                 <th class="ssw-tbl__namecell-h">성명</th>
+                <th class="ssw-tbl__typecell-h">고용형태</th>
                 ${dayHead}
               </tr>
             </thead>
@@ -480,6 +500,7 @@
       return `<th class="ssw-tbl__wk"><span class="ssw-tbl__wk-no">${i + 1}주차</span><span class="ssw-tbl__wk-range">${mmdd(a)}~${mmdd(b)}</span></th>`;
     }).join('');
 
+    const tmap = empTypeMap();
     const rows = emps.map(emp => {
       const wkCells = weeks.map(w => {
         const entries = w.dates
@@ -500,9 +521,9 @@
         const primaryOv = (entries.find(e => e.code === primary && e.ov) || {}).ov || null;
         return `<td class="ssw-tbl__wk"><div class="ssw-wk">${shiftChip(primary, true, null, primaryOv)}${excHTML}</div></td>`;
       }).join('');
-      return `<tr>${empNameCell(emp)}${wkCells}</tr>`;
+      return `<tr>${empNameCell(emp)}${empTypeCell(emp, tmap)}${wkCells}</tr>`;
     }).join('');
-    const colspan = weeks.length + 1;
+    const colspan = weeks.length + 2;
 
     return `
       <div class="toolbar">
@@ -514,6 +535,7 @@
             <thead>
               <tr>
                 <th class="ssw-tbl__namecell-h">성명</th>
+                <th class="ssw-tbl__typecell-h">고용형태</th>
                 ${wkHead}
               </tr>
             </thead>

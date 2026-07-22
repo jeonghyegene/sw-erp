@@ -1425,7 +1425,7 @@
     const total = matched.length;
     const allChecked = total > 0 && selCount === total;
     const noneChecked = selCount === 0;
-    const empTypeLabel = (v) => ({ regular:'정규직', contract:'계약직', daily:'일용직' }[v] || v || '-');
+    const empTypeLabel = (v) => ({ regular:'정규직', contract:'계약직', freelancer:'프리랜서', daily:'일용직' }[v] || v || '-');
     const jobCatLabel  = (v) => ({ office:'사무직', production:'생산직', research:'연구직' }[v] || v || '-');
 
     const rowsHTML = !total
