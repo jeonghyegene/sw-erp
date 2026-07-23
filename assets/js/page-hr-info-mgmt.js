@@ -322,7 +322,11 @@
       }),
       /* ============ 온보딩 진행 6명 — 계정 등록 → 승인 워크플로 데모 ============
        *   계정 미등록/등록완료 · 승인 대기/완료/반려 상태를 그리드에서 확인하기 위한 시드.
-       *   근로/임금 계약 이전 단계라 계약 필드는 비우고 docs 도 미발송(0). */
+       *   ※ 계약서 발송은 계정 등록·HR 승인보다 먼저 일어난다(발송→승인 순서).
+       *      승인 전(none) 정규직 2명(김규직·김수습)은 근로+임금 계약서를 '임직원 등록 발송'
+       *      한 세트로 함께 발송한 '서명대기' 상태로 시드한다
+       *      (page-hr-contract.js makeMock 의 signing 이력 2건과 정합, source='임직원 등록 발송' → 개별 취소 불가).
+       *      도급직(하도급1~3)은 계약 해당없음, 송계약(승인대기)은 계약 필드 미설정. docs 미발송(0). */
       base({
         id: 'SW26071401', name: '김규직', fname: '김', gname: '규직', gender: 'M',
         dept: '개발팀', job: '개발', rank: '사원', position: '팀원', jobCat: 'research', site: '성수동',
@@ -332,7 +336,16 @@
         photoUrl: '', userId: '', infoStatus: 'progress',
         emailSentDate: '2026-07-14',
         contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
-        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        /* 발송→승인 순서: 온보딩 시 근로+임금 계약서를 '임직원 등록 발송' 한 세트로 함께 발송 →
+           둘 다 서명대기(미서명). 계정 등록·HR 승인은 그 이후 단계. 세트 발송분이라 개별 취소 불가. */
+        contractStartDate: '2026-07-20', contractEndDate: '', contractSentDate: '2026-07-14',
+        /* 임금계약(연봉제·고정OT) 등록완료 + 서명대기 — seedWageContract 는 contractWage=false 라 건너뛰므로 수동 시드 */
+        incomeType: 'earned', wageType: 'annual', wageContractKind: 'fixedOT',
+        contractAmount: 38000000, baseSalary: 3170000,
+        fixedOTHoursDetail: { extension: 12, night: 8 }, fixedOTHours: 20, fixedOTAmount: 380000,
+        payDay: 10, payMethod: '계좌이체',
+        wageContractStartDate: '2026-07-20', wageContractEndDate: '', wageIndefinite: true,
+        wageContractSentDate: '2026-07-14', deductionPolicy: '4대보험·소득세 일괄 공제',
         acctReg: 'waiting', approval: 'none',
         resendHistory: [
           rh('2026-07-14T09:12:00', '입력하신 이메일 주소 오류로 미수신 — 휴대폰으로 재안내', '정혜진'),
@@ -347,7 +360,15 @@
         photoUrl: '', userId: '', infoStatus: 'progress',
         emailSentDate: '2026-07-13',
         contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
-        contractStartDate: '', contractEndDate: '', contractSentDate: '',
+        /* 발송→승인 순서: 근로+임금 계약서 '임직원 등록 발송' 세트로 함께 발송 → 둘 다 서명대기. 개별 취소 불가. */
+        contractStartDate: '2026-07-21', contractEndDate: '', contractSentDate: '2026-07-13',
+        /* 임금계약(연봉제·고정OT) 등록완료 + 서명대기 — 수동 시드 */
+        incomeType: 'earned', wageType: 'annual', wageContractKind: 'fixedOT',
+        contractAmount: 38000000, baseSalary: 3170000,
+        fixedOTHoursDetail: { extension: 12, night: 8 }, fixedOTHours: 20, fixedOTAmount: 380000,
+        payDay: 10, payMethod: '계좌이체',
+        wageContractStartDate: '2026-07-21', wageContractEndDate: '', wageIndefinite: true,
+        wageContractSentDate: '2026-07-13', deductionPolicy: '4대보험·소득세 일괄 공제',
         probation: true,
         acctReg: 'waiting', approval: 'none',
         resendHistory: [

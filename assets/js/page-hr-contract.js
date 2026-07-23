@@ -487,6 +487,14 @@ ${wageClauses(v)}
       { id:'CTR-2025-1007', kind:'근로계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02' },
       { id:'CTR-2025-1008', kind:'임금계약서', emp:4, status:'active', start:'2025-01-06', end:'2027-01-05', created:'2025-01-02', baseRaise:'4,500,000', linkedLaborId:'CTR-2025-1007' },
 
+      // 김규직 (emp:5) — 입사 2026-07-20. 승인 전(정규직·무기). 온보딩 시 근로+임금 계약서를
+      //   '임직원 등록 발송' 한 세트로 함께 발송 → 둘 다 서명대기. 세트 발송분이라 개별 취소 불가(canCancel=false).
+      { id:'CTR-2026-1201', kind:'근로계약서', emp:5, status:'signing', start:'2026-07-20', end:'', indefinite:true, created:'2026-07-14', source:'임직원 등록 발송' },
+      { id:'CTR-2026-1202', kind:'임금계약서', emp:5, status:'signing', start:'2026-07-20', end:'', indefinite:true, created:'2026-07-14', baseRaise:'3,170,000', linkedLaborId:'CTR-2026-1201', source:'임직원 등록 발송' },
+      // 김수습 (emp:6) — 입사 2026-07-21. 승인 전(정규직·수습·무기). 근로+임금 세트 발송 → 둘 다 서명대기.
+      { id:'CTR-2026-1203', kind:'근로계약서', emp:6, status:'signing', start:'2026-07-21', end:'', indefinite:true, created:'2026-07-13', source:'임직원 등록 발송' },
+      { id:'CTR-2026-1204', kind:'임금계약서', emp:6, status:'signing', start:'2026-07-21', end:'', indefinite:true, created:'2026-07-13', baseRaise:'3,170,000', linkedLaborId:'CTR-2026-1203', source:'임직원 등록 발송' },
+
       // 유프리 (emp:11) — 입사 2025-09-03. 프리랜서 근로계약(무기) + 임금계약(무기, 근로에 연결)
       { id:'CTR-2025-1101', kind:'근로계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30' },
       { id:'CTR-2025-1102', kind:'임금계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30', baseRaise:'3,800,000', linkedLaborId:'CTR-2025-1101' },
@@ -547,6 +555,8 @@ ${wageClauses(v)}
         startDate: c.start, endDate: c.end || '',
         indefinite: !!c.indefinite,
         status: c.status,
+        /* 발송 출처 — '임직원 등록 발송'(근로+임금 한 세트)은 인사카드에서 개별 취소 불가(canCancel 판정) */
+        source: c.source || '',
         body, history: h,
         createdAt: c.created || ((h[0] && h[0].at) ? h[0].at.slice(0, 10) : c.start),
         registeredBy: hrUsers[idx % hrUsers.length],   // 작성 담당자 (초안 임시저장 한 사람)
