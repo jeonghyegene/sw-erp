@@ -3342,6 +3342,9 @@
     role: 'hr_admin',      // hr_admin | employee
     rrnRevealed: false,    // 주민번호 마스킹 해제 여부 (hr_admin 만)
     histPages: {},         // 이력·현황 탭 — 표(현황/이력)별 현재 페이지 {key: page}
+    leaveUsageYear: null,  // 이력·현황 > 연차 사용 내역 — 조회 연도 (null 이면 최신 연도)
+    payslipYear: null,     // 이력·현황 > 급여 명세 이력 — 조회 연도 (null 이면 최신 연도)
+    payslipMonth: null,    // 이력·현황 > 급여 명세 이력 — 조회 월 (null 이면 해당 연도 최신 월)
     cardRoot: null,        // 렌더 루트 — null 이면 모달, 값이 있으면 해당 컨테이너(내 정보 페이지)
     reviewDockMin: false,  // 등록 검토 Floating Dock 접힘 여부 (검토 진입 시에만 노출)
   };
@@ -3883,6 +3886,31 @@
       return [y, `${y}-01-01`, `${total}일`, `${used}일`, `${remaining}일`, i === 0 ? '진행중' : (remaining === 0 ? '소진' : '이월')];
     });
   }
+  /* 연차 사용 내역 mock — 「직원별 연차 현황」 대시보드 '사용 이력'과 동일 구조.
+   *   연도별 결정적 생성. 연차=1일 / 반차=0.5일. 최신 날짜가 위로(내림차순). */
+  function mockLeaveUsage(emp, year) {
+    const y = Number(year) || 2026;
+    const tail = Number(String(emp.id).slice(-2)) || 1;
+    const types = ['연차', '반차(오전)', '연차', '반차(오후)', '연차', '연차', '반차(오전)'];
+    const reasons = ['휴식', '가족 행사', '병원 진료', '개인 사정', '여행', '경조 참석', '자녀 학교 행사'];
+    const p2 = (n) => String(n).padStart(2, '0');
+    const cnt = 4 + (seedNum(emp.id, y) % 4);   // 4~7건
+    const out = [];
+    for (let i = 0; i < cnt; i++) {
+      const mo = ((tail + i * 2 + y) % 12) + 1;
+      const d  = ((tail * (i + 2) + i + y) % 27) + 1;
+      const type = types[(tail + i) % types.length];
+      out.push({
+        date: `${y}-${p2(mo)}-${p2(d)}`,
+        type,
+        days: type.indexOf('반차') === 0 ? 0.5 : 1,
+        reason: reasons[(tail + i) % reasons.length],
+        status: '승인',
+      });
+    }
+    out.sort((a, b) => b.date.localeCompare(a.date));   // 내림차순(최신 위)
+    return out;
+  }
   function mockEvaluation(emp) {
     /* 평가 — 점수 + S/A/B/C 등급. 임원은 10년치 시연. */
     if (isExecDemo(emp)) {
@@ -4023,6 +4051,132 @@
         amt = prevAmt;
       }
     }
+    return rows;
+  }
+
+  /* === 급여 명세 이력 mock === */
+  /* 월 지급총액(과세+비과세) 추정 — 임금형태별 환산. mockWageContractHistory 와 동일한 소스 사용. */
+  function monthlyGrossPay(emp) {
+    const a = Number(String(emp.contractAmount || '').replace(/[^0-9]/g, ''));
+    const base = Number(String(emp.baseSalary || '').replace(/[^0-9]/g, ''));
+    if (emp.wageType === 'annual') {
+      const annual = (a && a > 12000000 ? a : (base ? base * 12 : 0)) || (42000000 + (seedNum(emp.id, 22) % 20) * 1200000);
+      return Math.round(annual / 12);
+    }
+    if (emp.wageType === 'hourly') {
+      const hourly = a || (11000 + (seedNum(emp.id, 22) % 5) * 500);
+      return Math.round(hourly * 209);   // 주40h → 월 소정 209h
+    }
+    return a || base || (3000000 + (seedNum(emp.id, 22) % 20) * 100000);
+  }
+  /* 과세액 기준 4대보험 + 소득세 결정적 산출 (mock 근사치). 반환: [[라벨, 금액], ...] */
+  function payslipDeductions(taxable) {
+    const pension    = Math.round(taxable * 0.045);
+    const health     = Math.round(taxable * 0.03545);
+    const ltcare     = Math.round(health * 0.1295);
+    const employ     = Math.round(taxable * 0.009);
+    const incomeTax  = Math.round(taxable * 0.035);
+    const localTax   = Math.round(incomeTax * 0.1);
+    return [
+      ['소득세', incomeTax],
+      ['지방소득세', localTax],
+      ['국민연금', pension],
+      ['건강보험', health],
+      ['장기요양보험', ltcare],
+      ['고용보험', employ],
+    ];
+  }
+  /* 시간외 근로수당 4그룹 — 「급여 명세서 조회」(page-hr-payslip.js)와 동일한 가산 체계.
+     각 근로시간(otHoursBreakdown)에 통상시급 × 가산율(0.5/1.0/1.5)을 곱해 그룹별 시간·금액을 산정. */
+  const INFO_OT_GROUPS = [
+    { title: '연장근무수당',     rows: [{ hrKey: 'otRegularHr',   rate: 0.5 }] },
+    { title: '야간근무수당',     rows: [{ hrKey: 'nightWorkHr',   rate: 0.5 }] },
+    { title: '야간연장근무수당', rows: [{ hrKey: 'otNightHr',     rate: 1.0 }] },
+    { title: '휴일근무수당',     rows: [
+        { hrKey: 'holidayWorkHr',    rate: 0.5 },
+        { hrKey: 'otHolidayHr',      rate: 1.0 },
+        { hrKey: 'holidayNightHr',   rate: 1.0 },
+        { hrKey: 'otHolidayNightHr', rate: 1.5 },
+    ] },
+  ];
+  function infoOtGroupTotals(normalHr, hb) {
+    hb = hb || {};
+    return INFO_OT_GROUPS.map(g => {
+      let hr = 0, pay = 0;
+      g.rows.forEach(r => {
+        const h = Number(hb[r.hrKey] || 0);
+        hr += h;
+        pay += Math.round(normalHr * h * r.rate);
+      });
+      return { title: g.title, hr, pay };
+    });
+  }
+  /* 급여 명세 이력 — 최근 N개월 정기급여 + 명절/연말 상여(기타). 최신 지급월이 위로(내림차순).
+   *   각 건은 명세서(급상여명세서) 렌더에 필요한 지급/공제 내역 detail 을 포함한다. */
+  function mockPayslipHistory(emp) {
+    if (emp && emp.contractOut) return [];   // 도급직은 회사 급여명세 대상 외
+    const isExec = isExecDemo(emp);
+    const count = isExec ? 24 : 13;          // 연도 dropdown 이 의미있도록 최소 2개 연도 포함
+    const gross = monthlyGrossPay(emp);
+    const meal = 200000;                                  // 식대(비과세)
+    const baseWage = Math.max(0, gross - meal);
+    const p2 = (n) => String(n).padStart(2, '0');
+    const bonusMonths = { '12': '연말 상여', '02': '설 상여', '09': '추석 상여' };
+    const rows = [];
+    let y = 2026, mo = 6;                                 // 최신 귀속월 = 2026-06
+    for (let i = 0; i < count; i++) {
+      const ym = `${y}-${p2(mo)}`;
+      const ymNum = y * 100 + mo;
+      const payDate = `${ym}-25`;                         // 당월 25일 지급
+      /* 정기 급여 — 통상시급 기반 시간외 근로수당(연장/야간/야간연장/휴일) + 지각·조퇴 차감.
+         「급여 명세서 조회」와 동일하게 근로시간 × 통상시급 × 가산율로 산정 → 산정내역과 금액 일치. */
+      const normalHr = Math.round(baseWage / 209);        // 통상시급 = 통상임금 / 월 소정 209h
+      const hr = (salt, mod) => seedNum(emp.id, ymNum + salt) % mod;
+      const otHours = {
+        otRegularHr:      hr(1, 13),   // 순수 연장  0~12h
+        nightWorkHr:      hr(2, 7),    // 순수 야간  0~6h
+        otNightHr:        hr(3, 4),    // 야간+연장  0~3h
+        holidayWorkHr:    hr(4, 9),    // 순수 휴일  0~8h
+        otHolidayHr: 0, holidayNightHr: 0, otHolidayNightHr: 0,
+      };
+      const otGroups = infoOtGroupTotals(normalHr, otHours);
+      /* 지급 항목 — 기본급 + (금액>0 인) 4개 시간외 수당 + 식대 */
+      const payItems = [['기본급', baseWage]];
+      otGroups.forEach(g => { if (g.pay > 0) payItems.push([g.title, g.pay]); });
+      payItems.push(['식대', meal]);
+      const otTotal = otGroups.reduce((s, g) => s + g.pay, 0);
+      const grossPay = baseWage + otTotal + meal;
+      const taxable = grossPay - meal;                    // 식대 비과세
+      const ded = payslipDeductions(taxable);
+      /* 지각·조퇴 차감 — 누계 분을 10분 단위 절상 × 통상분급(통상시급/60) */
+      const lateEarlyMin = seedNum(emp.id, ymNum + 5) % 26;
+      const lateRoundMin = Math.ceil(lateEarlyMin / 10) * 10;
+      const lateDeduct = lateEarlyMin > 0 ? Math.round(normalHr / 60 * lateRoundMin) : 0;
+      const dedRows = ded.slice();
+      if (lateDeduct > 0) dedRows.push(['지각/조퇴 차감', lateDeduct]);
+      const payTotal = grossPay;
+      const dedTotal = dedRows.reduce((s, d) => s + d[1], 0);
+      rows.push({
+        key: `${ym}|reg`, ym, payDate, kind: '정기 급여', kindTone: 'info', note: '',
+        payItems, deductions: dedRows, payTotal, dedTotal, netPay: payTotal - dedTotal,
+        remark: { normalHr, otGroups, lateEarlyMin, lateRoundMin, lateDeduct },
+      });
+      /* 상여 회차 — 급여 정산/명세서 시스템의 구분(정산유형)은 '기타'. 상여 명칭은 부가설명(note)으로 분리. */
+      const bLabel = bonusMonths[p2(mo)];
+      if (bLabel) {
+        const bonus = Math.round(baseWage * (0.5 + (seedNum(emp.id, ymNum + 7) % 6) / 10));
+        const bded = payslipDeductions(bonus);
+        const bdedTotal = bded.reduce((s, d) => s + d[1], 0);
+        rows.push({
+          key: `${ym}|bonus`, ym, payDate, kind: '기타', kindTone: 'muted', note: bLabel,
+          payItems: [['상여금', bonus]], deductions: bded,
+          payTotal: bonus, dedTotal: bdedTotal, netPay: bonus - bdedTotal,
+        });
+      }
+      mo--; if (mo === 0) { mo = 12; y--; }
+    }
+    /* 최신순 — 지급일 desc, 동일 지급월이면 상여를 정기 아래로 */
+    rows.sort((a, b) => String(b.payDate).localeCompare(String(a.payDate)) || String(a.key).localeCompare(String(b.key)));
     return rows;
   }
 
@@ -5679,9 +5833,19 @@
    *   페이지당 5건, 5건 초과 시에만 페이지 버튼 노출 (5건 이하는 단일 표).
    *   표마다 고유 key 로 CARD_STATE.histPages[key] 에 현재 페이지 유지.
    *   페이지 버튼: data-empi-hist-key(표 식별) + data-empi-hist-page(이동 페이지). */
+  /* 이력·현황 탭 날짜 표기 통일 — 셀 문자열 안의 ISO 날짜를 YY/MM(/DD) 로 변환.
+   *   · YYYY-MM-DD → YY/MM/DD   · YYYY-MM → YY/MM
+   *   범위('~ 재직중', '~ 2023-09-03') 등 나머지 텍스트는 그대로 보존.
+   *   년도 단독('2026')·금액('500,000원')·일수('25일') 등 대시 없는 값은 미변경. */
+  function fmtHistDates(v) {
+    if (v == null) return v;
+    return String(v)
+      .replace(/(\d{4})-(\d{2})-(\d{2})/g, (m, y, mo, d) => `${y.slice(2)}/${mo}/${d}`)
+      .replace(/(\d{4})-(\d{2})(?!\d)/g, (m, y, mo) => `${y.slice(2)}/${mo}`);
+  }
   const HIST_PAGE_SIZE = 5;
   function paginatedHistTableHTML(key, headers, rows, opts) {
-    const all = rows || [];
+    const all = (rows || []).map(r => Array.isArray(r) ? r.map(fmtHistDates) : r);
     const totalPages = Math.max(1, Math.ceil(all.length / HIST_PAGE_SIZE));
     let page = (CARD_STATE.histPages && CARD_STATE.histPages[key]) || 1;
     if (page > totalPages) page = totalPages;
@@ -5718,7 +5882,67 @@
     }) + sectionShellHTML({
       key:'leave', level: 1, title: '연차 현황', visibility: 'public',
       body: paginatedHistTableHTML('leave', ['년도','발생일','발생연차','사용연차','잔여연차','비고'], mockLeaveStatus(emp)),
+    }) + sectionShellHTML({
+      key:'leave-usage', level: 1, title: '연차 사용 내역', visibility: 'public',
+      description: '연도별 연차·반차 사용 상세', descBlock: false,
+      body: leaveUsageBodyHTML(emp),
     });
+  }
+  /* 연차 사용 내역 — 「직원별 연차 현황」 대시보드의 '사용 이력' 표를 그대로 이식.
+   *   컬럼: 일자 / 구분 / 일수 / 사유 / 상태. 상단 조회 연도 select 로 연도별 조회.
+   *   연도 목록은 '연차 현황' 표(mockLeaveStatus)의 년도와 동일하게 맞춘다. */
+  function leaveUsageBodyHTML(emp) {
+    const years = (mockLeaveStatus(emp) || []).map(r => String(r[0]));
+    if (!years.length) return leaveUsageTableHTML([]);
+    let year = CARD_STATE.leaveUsageYear;
+    if (years.indexOf(year) < 0) year = years[0];
+    CARD_STATE.leaveUsageYear = year;
+    const rows = mockLeaveUsage(emp, year);
+    const usedDays = rows.reduce((s, r) => s + r.days, 0);
+    const optsHTML = years.map(y => `<option value="${esc(y)}"${y === year ? ' selected' : ''}>${esc(y)}년</option>`).join('');
+    const toolbar = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;color:var(--color-text-muted);">조회 연도</span>
+          <select class="select" data-empi-leave-usage-year style="min-width:120px;">${optsHTML}</select>
+        </div>
+        <span style="font-size:12px;color:var(--color-text-muted);">총 <strong style="color:var(--color-text);">${rows.length}</strong>건 · 사용 <strong style="color:var(--color-brand-primary);">${usedDays}</strong>일</span>
+      </div>`;
+    return toolbar + leaveUsageTableHTML(rows);
+  }
+  /* 연차 사용 내역 표 — 대시보드 '사용 이력'과 동일한 컬럼 구성. 상태는 pill 로 표기.
+   *   일자: YY/MM/DD(요일) — App.AttStatus.fmtDateDow 재사용(미로드 시 fmtHistDates 폴백). */
+  function leaveUsageTableHTML(rows) {
+    if (!rows || !rows.length) {
+      return `<div style="text-align:center;color:var(--color-text-muted);font-size:13px;padding:24px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;">사용 내역이 없습니다.</div>`;
+    }
+    const A = (window.App && App.AttStatus) || null;
+    const fmtDate = (iso) => (A && A.fmtDateDow) ? A.fmtDateDow(iso) : fmtHistDates(iso);
+    const thBase = 'font-size:12px;font-weight:var(--fw-semibold);color:var(--color-text-muted);padding:10px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface-alt);';
+    const tdBase = 'font-size:13px;color:var(--color-text);padding:11px 12px;border-bottom:1px solid var(--color-divider);';
+    const cols = [
+      { t: '일자', a: 'center', w: '150px' },
+      { t: '구분', a: 'center', w: '120px' },
+      { t: '일수', a: 'right',  w: '70px' },
+      { t: '사유', a: 'left',   w: '' },
+      { t: '상태', a: 'center', w: '90px' },
+    ];
+    const head = cols.map(c => `<th style="${thBase}text-align:${c.a};${c.w ? `width:${c.w};` : ''}">${esc(c.t)}</th>`).join('');
+    const body = rows.map((r, i) => {
+      const last = i === rows.length - 1;
+      const td = last ? tdBase.replace('border-bottom:1px solid var(--color-divider);', 'border-bottom:none;') : tdBase;
+      return `<tr>
+        <td style="${td}text-align:center;white-space:nowrap;">${esc(fmtDate(r.date))}</td>
+        <td style="${td}text-align:center;">${esc(r.type)}</td>
+        <td style="${td}text-align:right;">${esc(r.days)}일</td>
+        <td style="${td}text-align:left;">${esc(r.reason)}</td>
+        <td style="${td}text-align:center;"><span class="pill pill--success">${esc(r.status)}</span></td>
+      </tr>`;
+    }).join('');
+    return `<div class="empi-tblwrap"><table class="empi-tbl empi-tbl--data" style="width:100%;border-collapse:collapse;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:6px;overflow:hidden;">
+      <thead><tr>${head}</tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>`;
   }
   function renderHistorySub_payroll(emp) {
     return sectionShellHTML({
@@ -5728,7 +5952,148 @@
             ['적용일','임금형태','계약금액'],
             mockWageContractHistory(emp))
         : privateBlockedHTML('급여 계약 변동 이력'),
+    }) + sectionShellHTML({
+      key:'payslip', level: 1, title: '급여 명세 이력', visibility: 'private',
+      description: '월별 급여 명세서', descBlock: false,
+      body: canViewPrivate() ? payslipHistoryBodyHTML(emp) : privateBlockedHTML('급여 명세 이력'),
     });
+  }
+  /* 급여 명세 이력 — 조회 연도 / 월 각각 dropdown → 하단에 해당 연월의 급상여명세서를 바로 표시.
+   *   (연차 사용 내역의 연도 select 패턴과 동일한 UX) 같은 달에 정기급여 + 상여가 함께 있으면 나란히 표시.
+   *   명세서 본체는 「급여 명세서 조회」와 동일한 .payslip 컴포넌트(hr-components.css)를 재사용. */
+  function payslipHistoryBodyHTML(emp) {
+    const rows = mockPayslipHistory(emp);
+    if (!rows.length) {
+      return `<div style="text-align:center;color:var(--color-text-muted);font-size:13px;padding:24px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;">급여 명세 내역이 없습니다.</div>`;
+    }
+    /* 조회 연도 — 명세가 존재하는 연도만, 최신순 */
+    const years = Array.from(new Set(rows.map(r => r.ym.slice(0, 4)))).sort().reverse();
+    let year = CARD_STATE.payslipYear;
+    if (years.indexOf(year) < 0) year = years[0];
+    CARD_STATE.payslipYear = year;
+    /* 조회 월 — 선택 연도에 명세가 존재하는 월만, 최신순 */
+    const months = Array.from(new Set(rows.filter(r => r.ym.slice(0, 4) === year).map(r => r.ym.slice(5, 7)))).sort().reverse();
+    let month = CARD_STATE.payslipMonth;
+    if (months.indexOf(month) < 0) month = months[0];
+    CARD_STATE.payslipMonth = month;
+
+    const ym = `${year}-${month}`;
+    const slips = rows.filter(r => r.ym === ym);
+    const yearOpts = years.map(y => `<option value="${esc(y)}"${y === year ? ' selected' : ''}>${esc(y)}년</option>`).join('');
+    const monthOpts = months.map(m => `<option value="${esc(m)}"${m === month ? ' selected' : ''}>${Number(m)}월</option>`).join('');
+    const toolbar = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--color-text-muted);">조회 연월</span>
+        <select class="select" data-empi-payslip-year style="min-width:96px;">${yearOpts}</select>
+        <select class="select" data-empi-payslip-month style="min-width:84px;">${monthOpts}</select>
+      </div>`;
+
+    const slipsHTML = slips.map(s => `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--color-text-muted);">
+          <span class="pill pill--${esc(s.kindTone)}">${esc(s.kind)}</span>
+          ${s.note ? `<span style="color:var(--color-text);font-weight:var(--fw-medium);">${esc(s.note)}</span>` : ''}
+          <span>지급일 <strong style="color:var(--color-text);">${esc(fmtHistDates(s.payDate))}</strong></span>
+          <span style="color:var(--color-divider);">|</span>
+          <span>실지급액 <strong style="color:var(--color-brand-primary);">${esc(formatMoney(s.netPay))}</strong>원</span>
+        </div>
+        <div style="border:1px solid var(--color-border);border-radius:8px;overflow:hidden;">${renderInfoPayslip(emp, s)}</div>
+      </div>`).join('');
+
+    return toolbar + slipsHTML;
+  }
+  /* 명세서 본체(.payslip) — 「급여 명세서 조회」의 급상여명세서 레이아웃과 동일 구조. */
+  function renderInfoPayslip(emp, slip) {
+    const name = displayName(emp);
+    const payRows = slip.payItems.slice();
+    const dedRows = slip.deductions.slice();
+    const maxRows = Math.max(payRows.length, dedRows.length);
+    const rowHTML = (arr) => {
+      const out = [];
+      for (let i = 0; i < maxRows; i++) {
+        const r = arr[i];
+        if (!r) { out.push(`<tr class="payslip__row payslip__row--empty"><th></th><td></td></tr>`); continue; }
+        out.push(`<tr class="payslip__row"><th>${esc(r[0])}</th><td>${r[1] ? esc(formatMoney(r[1])) : ''}</td></tr>`);
+      }
+      return out.join('');
+    };
+    return `
+      <article class="payslip">
+        <h1 class="payslip__title">급상여명세서</h1>
+        <div class="payslip__head">
+          <table class="payslip__head-tbl"><tbody>
+            <tr><th>소속</th><td>${esc(emp.dept || '-')}</td></tr>
+            <tr><th>사원명</th><td>${esc(name)}</td></tr>
+          </tbody></table>
+          <table class="payslip__head-tbl"><tbody>
+            <tr><th>지급일</th><td>${esc(fmtHistDates(slip.payDate))}</td></tr>
+            <tr><th>귀속연월</th><td>${esc(fmtHistDates(slip.ym))}</td></tr>
+          </tbody></table>
+        </div>
+        <div class="payslip__grid">
+          <table class="payslip__tbl payslip__tbl--pay">
+            <thead><tr><th colspan="2">지급내역</th></tr></thead>
+            <tbody>${rowHTML(payRows)}</tbody>
+            <tfoot><tr><th>지급합계</th><td>${esc(formatMoney(slip.payTotal))}</td></tr></tfoot>
+          </table>
+          <table class="payslip__tbl payslip__tbl--ded">
+            <thead><tr><th colspan="2">공제내역</th></tr></thead>
+            <tbody>${rowHTML(dedRows)}</tbody>
+            <tfoot><tr><th>공제합계</th><td>${esc(formatMoney(slip.dedTotal))}</td></tr></tfoot>
+          </table>
+        </div>
+        <table class="payslip__netpay"><tbody>
+          <tr><th>실지급액</th><td>${esc(formatMoney(slip.netPay))}</td></tr>
+        </tbody></table>
+        ${renderInfoPayslipRemark(slip)}
+      </article>`;
+  }
+  /* 급여 산정 내역(비고) — 통상시급 + 시간외 근로수당(연장/야간/야간연장/휴일) + 지각·조퇴 차감.
+     「급여 명세서 조회」의 renderRemarks 와 동일 레이아웃(.payslip__remark* 클래스 재사용).
+     상여(기타) 회차는 산정 대상이 아니므로 remark 데이터가 없으면 미출력. */
+  function renderInfoPayslipRemark(slip) {
+    const rk = slip.remark;
+    if (!rk) return '';
+    const basisHtml = `
+      <table class="payslip__remark-tbl payslip__basis-tbl"><tbody>
+        <tr><th>통상시급</th><td class="is-num">${esc(formatMoney(rk.normalHr))} 원</td></tr>
+      </tbody></table>`;
+    const grandHr  = rk.otGroups.reduce((s, g) => s + g.hr, 0);
+    const grandPay = rk.otGroups.reduce((s, g) => s + g.pay, 0);
+    const otRows = rk.otGroups.map(g => `
+      <tr>
+        <th>${esc(g.title)}</th>
+        <td style="text-align:center;">${g.hr ? g.hr + 'h' : '-'}</td>
+        <td class="is-num">${g.pay ? esc(formatMoney(g.pay)) : ''}</td>
+      </tr>`).join('');
+    const otHtml = `
+      <div class="payslip__remark-subtitle">시간외 근로수당</div>
+      <table class="payslip__remark-tbl">
+        <thead><tr><th>수당 항목</th><th style="width:80px;">시간</th><th style="width:130px;">금액</th></tr></thead>
+        <tbody>${otRows}</tbody>
+        <tfoot><tr><th>합계</th><td style="text-align:center;">${grandHr ? grandHr + 'h' : '-'}</td><td class="is-num">${esc(formatMoney(grandPay))}</td></tr></tfoot>
+      </table>`;
+    let lateHtml = '';
+    if (rk.lateDeduct > 0) {
+      lateHtml = `
+        <div class="payslip__remark-subtitle">지각·조퇴 차감</div>
+        <table class="payslip__remark-tbl">
+          <thead><tr><th>항목</th><th>산정</th><th style="width:130px;">금액</th></tr></thead>
+          <tbody>
+            <tr><th>누계 지각·조퇴</th><td class="is-formula">${rk.lateEarlyMin}분</td><td class="is-num">-</td></tr>
+            <tr><th>적용 시간</th><td class="is-formula">${rk.lateEarlyMin}분 → ${rk.lateRoundMin}분 <span class="payslip__remark-hint">10분 단위 올림</span></td><td class="is-num">-</td></tr>
+            <tr><th>차감액</th><td class="is-formula">통상시급 ÷ 60 × ${rk.lateRoundMin}분</td><td class="is-num">${esc(formatMoney(rk.lateDeduct))}</td></tr>
+          </tbody>
+          <tfoot><tr><th colspan="2">총 차감</th><td class="is-num">${esc(formatMoney(rk.lateDeduct))}</td></tr></tfoot>
+        </table>`;
+    }
+    return `
+      <section class="payslip__remark">
+        <div class="payslip__remark-title">급여 산정 내역</div>
+        ${basisHtml}
+        ${otHtml}
+        ${lateHtml}
+      </section>`;
   }
   function renderHistorySub_evaluation(emp) {
     return sectionShellHTML({
@@ -6537,6 +6902,9 @@
     CARD_STATE.tab = 'personal';
     CARD_STATE.rrnRevealed = false;
     CARD_STATE.histPages = {};   // 모달 재오픈 시 이력·현황 표 페이지 초기화
+    CARD_STATE.leaveUsageYear = null;   // 연차 사용 내역 조회 연도 초기화(최신 연도)
+    CARD_STATE.payslipYear = null;      // 급여 명세 이력 조회 연월 초기화(최신)
+    CARD_STATE.payslipMonth = null;
     CARD_STATE.reviewDockMin = false;   // 검토 Dock 은 펼친 상태로 시작
     /* role 은 직전 세션 토글값 유지 (모달 재오픈 시 사용자가 마지막 선택한 권한으로 시작) */
     renderCardHeader();
@@ -6591,6 +6959,9 @@
     CARD_STATE.role = 'hr_admin';   // 본인 카드 — 전체 섹션 열람 (인사정보카드 내용 그대로 이식)
     CARD_STATE.rrnRevealed = false;
     CARD_STATE.histPages = {};
+    CARD_STATE.leaveUsageYear = null;   // 연차 사용 내역 조회 연도 초기화(최신 연도)
+    CARD_STATE.payslipYear = null;      // 급여 명세 이력 조회 연월 초기화(최신)
+    CARD_STATE.payslipMonth = null;
     CARD_STATE.cardRoot = container;
     CARD_STATE.selfService = true;  // 내 정보 — 입사 서류 탭을 본인 다운로드·서명 프로세스로 렌더
     container.innerHTML = cardPageScaffoldHTML();
@@ -6666,12 +7037,30 @@
     if (modal.dataset.bound === '1') return;
     modal.dataset.bound = '1';
     modal.addEventListener('click', cardRootClickHandler);
+    modal.addEventListener('change', cardRootChangeHandler);
   }
   /* 카드 루트(모달 또는 내 정보 페이지) 컨테이너에 동일 위임 핸들러 부착 */
   function bindCardRoot(el) {
     if (!el || el.__cardRootBound) return;
     el.__cardRootBound = true;
     el.addEventListener('click', cardRootClickHandler);
+    el.addEventListener('change', cardRootChangeHandler);
+  }
+  /* 카드 change 위임 — 이력·현황 탭의 조회 select(연차 사용 내역 연도 / 급여 명세 이력 연·월). */
+  function cardRootChangeHandler(e) {
+    const rerender = () => {
+      const emp = CARD_STATE.emp;
+      if (!emp) return;
+      const body = cardRootEl().querySelector('[data-empi-card-history-body]');
+      if (body) body.innerHTML = renderHistorySubBody(emp);
+    };
+    const yrSel = e.target.closest('[data-empi-leave-usage-year]');
+    if (yrSel) { CARD_STATE.leaveUsageYear = yrSel.value; rerender(); return; }
+    /* 급여 명세 이력 — 연도 변경 시 월은 초기화(해당 연도 최신 월로 재선정) */
+    const psYear = e.target.closest('[data-empi-payslip-year]');
+    if (psYear) { CARD_STATE.payslipYear = psYear.value; CARD_STATE.payslipMonth = null; rerender(); return; }
+    const psMonth = e.target.closest('[data-empi-payslip-month]');
+    if (psMonth) { CARD_STATE.payslipMonth = psMonth.value; rerender(); return; }
   }
   /* 카드 클릭 위임 — 모달/페이지 공용. 내부 DOM 조회는 cardRootEl() 기준. */
   function cardRootClickHandler(e) {

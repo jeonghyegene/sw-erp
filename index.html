@@ -976,6 +976,91 @@
     </div>
   </div>
 
+  <!-- ============ [급여 정산] 급여명세서 배부 확인 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-distribute-confirm" data-modal-id="prs-distribute-confirm">
+    <div class="modal" style="width:460px;">
+      <div class="modal__header">
+        <div class="modal__title">급여명세서 배부</div>
+        <button class="modal__close" data-prs-dist-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+          <strong id="prs-dist-name" style="color:var(--color-brand-primary);">-</strong>
+          <span style="color:var(--color-text-sub);"> 확정된 급여명세서를 <strong id="prs-dist-count" style="color:var(--color-text);">-</strong> 대상자에게 배부합니다.</span>
+        </div>
+        <div style="padding:12px 14px;background:var(--color-surface-alt);border-left:3px solid var(--color-warning);border-radius:0 var(--radius-md) var(--radius-md) 0;">
+          <div style="font-size:var(--fs-sm);font-weight:var(--fw-semibold);color:var(--color-warning);margin-bottom:6px;">배부 전 확인</div>
+          <ul style="margin:0;padding-left:16px;color:var(--color-text-sub);font-size:var(--fs-sm);line-height:1.8;">
+            <li>배부한 급여명세서는 <strong style="color:var(--color-text);">회수되지 않습니다.</strong></li>
+            <li>배부 후 오류가 발견되면 <strong style="color:var(--color-text);">정정분을 다음 달 급여에 소급 반영</strong>해야 합니다.</li>
+          </ul>
+        </div>
+        <div class="form-help" style="margin-top:14px;">계속 진행하시겠습니까?</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-dist-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-dist-confirm>배부</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 정정(편집 모드 복귀) 확인 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-amend-confirm" data-modal-id="prs-amend-confirm">
+    <div class="modal" style="width:460px;">
+      <div class="modal__header">
+        <div class="modal__title">정산 정정</div>
+        <button class="modal__close" data-prs-am-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body">
+        <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+          <strong id="prs-am-name" style="color:var(--color-brand-primary);">-</strong>
+          <span style="color:var(--color-text-sub);"> 정산완료 상태를 해제하고 정정합니다.</span>
+        </div>
+        <div style="color:var(--color-text-sub);font-size:var(--fs-sm);line-height:1.7;">
+          정정 모드로 전환하면 <strong style="color:var(--color-text);">정산검토 단계</strong>로 돌아가 급여대장을 다시 편집할 수 있습니다.<br />
+          수정 후 <strong style="color:var(--color-text);">다시 정산 확정</strong> 시 변경 내역·처리자·처리일시·사유가 이력에 기록됩니다.
+        </div>
+        <div class="form-help" style="margin-top:14px;">계속 진행하시겠습니까?</div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-am-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-am-confirm>정정 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 정정 재확정(사유 입력) 모달 ============ -->
+  <div class="modal-backdrop" id="modal-prs-amend-finalize" data-modal-id="prs-amend-finalize">
+    <div class="modal" style="width:560px;">
+      <div class="modal__header">
+        <div class="modal__title">정정 확정</div>
+        <button class="modal__close" data-prs-amf-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-amf-body" style="max-height:66vh;overflow:auto;">
+        <span id="prs-amf-name" hidden>-</span>
+      </div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-amf-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-amf-confirm>정정 확정</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 연차수당 대사 확인 모달 (수기 값 ↔ 폐쇄 잔액) ============ -->
+  <div class="modal-backdrop" id="modal-prs-leave-recon" data-modal-id="prs-leave-recon">
+    <div class="modal" style="width:560px;">
+      <div class="modal__header">
+        <div class="modal__title">연차수당 대사 확인</div>
+        <button class="modal__close" data-prs-lr-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-lr-body" style="max-height:66vh;overflow:auto;"></div>
+      <div class="modal__footer">
+        <button class="btn" type="button" data-prs-lr-close>취소</button>
+        <button class="btn btn--primary" type="button" data-prs-lr-confirm>확인 후 확정</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ [급여 정산] 정산 설정(상세) 모달 ============ -->
   <div class="modal-backdrop" id="modal-prs-config" data-modal-id="prs-config">
     <div class="modal modal--lg">
@@ -986,6 +1071,20 @@
       <div class="modal__body" id="prs-config-body"></div>
       <div class="modal__footer">
         <button class="btn btn--primary" type="button" data-prs-config-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ [급여 정산] 처리 이력 모달 (정정 · 연차수당 대사) ============ -->
+  <div class="modal-backdrop" id="modal-prs-amend-history" data-modal-id="prs-amend-history">
+    <div class="modal" style="width:560px;">
+      <div class="modal__header">
+        <div class="modal__title">처리 이력</div>
+        <button class="modal__close" data-prs-amh-close type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal__body" id="prs-amh-body" style="max-height:66vh;overflow:auto;"></div>
+      <div class="modal__footer">
+        <button class="btn btn--primary" type="button" data-prs-amh-close>닫기</button>
       </div>
     </div>
   </div>

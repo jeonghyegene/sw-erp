@@ -3719,6 +3719,50 @@ textarea.input {
 .prs-editor__table--wide tbody .prs-col--ded  { color: var(--color-text); }
 .prs-editor__table--wide tbody .prs-col--ded.is-zero { color: var(--color-text-muted); }
 
+/* ───── 4대보험 고지액 0원 셀 강조 (확인 필요) ─────
+ *   danger(오류 확정)가 아니라 warning(주의) 톤 — 신규입사·미매칭 등 정상 0도 섞일 수 있어
+ *   경보 피로를 피한다. 셀 배경 + 좌측 인디케이터 + '0' 값 강조. */
+.prs-editor__table--wide tbody .prs-col--ded.prs-col--notice {
+  background: var(--color-warning-soft);
+}
+.prs-notice-val {
+  color: var(--color-warning);
+  font-weight: var(--fw-semibold);
+}
+
+/* ───── 툴바 「고지액 0원 N명」 배지 (클릭 시 해당 대상자만 필터) ───── */
+.prs-zero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.prs-zero-badge:hover { background: var(--color-warning-soft-hover); }
+.prs-zero-badge strong { color: var(--color-warning); font-weight: var(--fw-bold); }
+.prs-zero-badge__dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--color-warning);
+  flex: none;
+}
+/* 활성(필터 적용 중) — 채워진 상태로 강조 */
+.prs-zero-badge.is-active {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--color-warning-soft);
+}
+.prs-zero-badge.is-active:hover { background: var(--color-warning); }
+.prs-zero-badge.is-active strong { color: #fff; }
+.prs-zero-badge.is-active .prs-zero-badge__dot { background: #fff; }
+
 /* ───── tfoot 합계 행 (정산검토) — sticky-bottom ───── */
 .prs-editor__table--multi tfoot tr.prs-row-sum td {
   position: sticky;

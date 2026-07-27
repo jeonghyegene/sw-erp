@@ -2,10 +2,13 @@
  * Page: 인사 > 복리후생 > 식권 정산
  *
  *  업무 흐름
- *   1) 팀원 근무조는 초기 설정 후 고정 (근태 > 근무조 설정). 매월 별도 제출 없음.
- *   2) 인사팀은 고정 근무조를 확인하고, 이를 기준으로 「다음 달분」 식권 지급량을 월별 집계.
- *   3) 전월 말일에 식권 대행업체(식권대장)에 정산 → 식권을 선지급.
- *   4) 전월에 선지급했던 인원 중 「초과근무(10H↑)조」 예정일에 연차를 쓴 경우
+ *   1) 근무조 마스터(start/end/근무시간)는 초기 설정 후 고정. 월별 근무스케줄은 매월 편성한다
+ *      (근태 > 근무스케줄 관리). 정산월(M) 20일에 익월(M+1)분이 전 부서 자동 편성완료된다(정책 v1.5 §7.5).
+ *   2) 회차는 정산월 20일 이후·익월 근무스케줄 「전 부서 편성완료」 시에만 생성 가능(정책 a).
+ *      편성완료 전에는 집계 기준 데이터가 없어 생성·집계 확정 불가(선행 월 미리 생성 불가).
+ *   3) 인사팀은 편성완료된 익월 근무스케줄을 확인하고, 이를 기준으로 「다음 달분」 식권을 월별 집계.
+ *   4) 전월 말일에 식권 대행업체(식권대장)에 정산 → 식권을 선지급.
+ *   5) 전월에 선지급했던 인원 중 「초과근무(10H↑)조」 예정일에 연차를 쓴 경우
  *      그날 선지급된 식권금액을 이번 달 실지급액에서 차감(전월 차감).
  *
  *  식권 정책 (근무조 마스터 App.AttShifts.workHours 기준)
@@ -24,7 +27,7 @@
   const App = (window.App = window.App || {});
 
   /* ============ 환경 ============ */
-  const TODAY     = '2026-06-05';
+  const TODAY     = '2026-07-21';   /* 정산월(07) 20일 경과 — 익월(08)분 전 부서 편성완료 상태 */
   const HR_NAME   = '정혜진';
   const VENDOR    = '식권대장';
   const MEAL_UNIT = 10000;   /* 식권 1장 단가 */
@@ -204,9 +207,9 @@
   function prevYm(ym) { const [y, m] = ym.split('-').map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${pad2(m - 1)}`; }
 
   /* 회차 사이클 — 식권 회차는 월말 정산 업무 시점(정산월 M)에 「다음 달(M+1)분」을 미리 정산(선지급)한다.
-     근무조는 초기 설정 후 고정이므로 집계는 고정 근무조에서 바로 산출(제출 대기 없음).
-     · 정산월(settleYm) = M  : 정산 업무를 수행하는 달(=전월). r.deductYm 과 동일.
-     · 대상월(ym)       = M+1: 고정 근무조에서 산출한 다음 달분 식권을 선지급.  → r.ym
+     집계 기준은 익월(M+1) 근무스케줄이며, 정산월 20일에 전 부서 편성완료된 뒤 산출한다(정책 a).
+     · 정산월(settleYm) = M  : 정산 업무를 수행하는 달(=전월). r.deductYm 과 동일. 20일에 익월분 편성완료.
+     · 대상월(ym)       = M+1: 편성완료된 익월 근무스케줄에서 산출한 식권을 선지급.  → r.ym
      · 차감기준월        = M  : 정산월의 실제 연차 사용분.                         → r.deductYm */
   function settleYmOf(r) { return r.deductYm; }
 
@@ -223,6 +226,23 @@
     });
     return Object.values(map).sort((a, b) => a.dept.localeCompare(b.dept));
   }
+
+  /* ============ 익월 근무스케줄 편성완료 상태 (정책 a — 전 부서 편성완료 전제) ============
+     회차 대상월(ym)분 식권 집계는 「익월 근무스케줄」이 전 부서 편성완료된 뒤에만 확정할 수 있다.
+     월별 근무스케줄은 정산월(M=ym 전월) 20일에 익월(ym)분이 전 부서 자동 편성완료된다
+     (근태 > 근무스케줄 관리 정책 v1.5 §7.5 — 생성 즉시 편성완료).
+     · 편성완료 전(정산월 20일 이전) — 집계 기준 데이터 없음 → 회차 생성·집계 확정 불가.
+     · 한 부서라도 미편성이면 — 정합성상 정산 보류(전 부서 편성완료 전제). */
+  function scheduleGateDate(ym) { return `${prevYm(ym)}-20`; }   /* 익월(ym)분 편성완료·정산 개시일 = 정산월 20일 */
+  function deptScheduleReadiness(ym) {
+    const gate = scheduleGateDate(ym);
+    const ready = TODAY >= gate;   /* mock — 정산월 20일 경과 시 전 부서 자동 편성완료 */
+    return deptShiftSummary().map(d => ({ dept: d.dept, count: d.count, ready, gate }));
+  }
+  function scheduleReadyCount(ym) { const rs = deptScheduleReadiness(ym); return { ready: rs.filter(d => d.ready).length, total: rs.length }; }
+  function allDeptsReady(ym) { const rs = deptScheduleReadiness(ym); return rs.length > 0 && rs.every(d => d.ready); }
+  /* 회차 생성 가능 여부 — 정산월 20일 경과 + 전 부서 편성완료. 게이트가 미래인 선행 월은 자동 제외(미리 생성 차단). */
+  function isCreatable(ym) { return TODAY >= scheduleGateDate(ym) && allDeptsReady(ym); }
 
   /* ============ 조직도 (좌측 트리) — 임직원 관리 단일 소스 재사용 ============
      정산 상세에서 부서 필터로 사용. deptId 인자 생략 시 STATE.selectedDeptId 기본 사용. */
@@ -262,10 +282,12 @@
 
   /* ============ Mock — 월별 정산 배치 ============ */
   function makeMock() {
-    /* 단계 시연: 확정 대기(draft) / 확정 / 지급완료 */
+    /* 단계 시연 — 정책(a): 회차는 정산월 20일 이후·익월 전 부서 편성완료 시에만 존재.
+       TODAY=07/21 기준: 08월분(정산월 07, 20일 경과)이 진행 중(확정 대기),
+       07월분 이하는 전월 말일 선지급 완료. 09월분은 08/20 이후에야 생성 가능. */
     return [
-      makeRound('2026-08', 'draft'),    /* 확정 대기 — 근무조 확인 후 집계 확정 */
-      makeRound('2026-07', 'draft'),    /* 확정 대기 */
+      makeRound('2026-08', 'draft'),    /* 확정 대기 — 익월 스케줄 전 부서 편성완료, 집계 확정 대기 */
+      makeRound('2026-07', 'paid'),
       makeRound('2026-06', 'paid'),
       makeRound('2026-05', 'paid'),
       makeRound('2026-04', 'paid'),
@@ -498,10 +520,17 @@
       }
       const adv = e.target.closest('[data-meal-advance]');
       if (adv) {
+        if (adv.disabled) return;
         const r = STATE.rounds.find(x => x.id === STATE.detailId); if (!r) return;
         const to = adv.dataset.mealAdvance;
+        /* 정책 a — 익월 근무스케줄이 전 부서 편성완료된 뒤에만 집계 확정 가능(미편성 시 정산 보류) */
+        if (to === 'confirmed' && !allDeptsReady(r.ym)) {
+          const { ready, total } = scheduleReadyCount(r.ym);
+          window.toast && window.toast(`익월 근무스케줄이 전 부서 편성완료된 뒤 집계를 확정할 수 있습니다. (편성완료 ${ready}/${total} 부서)`, 'warning');
+          return;
+        }
         r.status = to;
-        r._computed = false;          /* 확정 시 고정 근무조에서 식권 금액 재집계 */
+        r._computed = false;          /* 확정 시 편성완료된 익월 근무스케줄에서 식권 금액 재집계 */
         ensureComputed(r);
         const msg = to === 'confirmed'
           ? `${ymLabel(r.ym)} 식권 집계를 확정했습니다. (총 ${won(r.sumTickets)}장 · ${won(r.sumNet)}원)`
@@ -726,12 +755,17 @@
 
     const settleYm = settleYmOf(r);
     const aggregated = r._aggregated;
+    const rc = scheduleReadyCount(r.ym);
+    const schedReady = allDeptsReady(r.ym);
 
     /* page-bar 우측 — 단계 처리 버튼 + (정산 완료 후) 엑셀 다운로드 */
     const dl = (window.Icons && window.Icons.download) || '';
     let actBtn = '';
     if (r.status === 'draft') {
-      actBtn = `<button class="btn btn--sm btn--primary" type="button" data-meal-advance="confirmed" title="고정 근무조에서 식권 금액을 집계해 확정합니다">집계 확정</button>`;
+      const dis = schedReady ? '' : ' disabled';
+      const tip = schedReady ? '익월 근무스케줄(전 부서 편성완료)에서 식권 금액을 집계해 확정합니다'
+                             : `익월 근무스케줄 편성완료 후 확정 가능 (편성완료 ${rc.ready}/${rc.total} 부서)`;
+      actBtn = `<button class="btn btn--sm btn--primary" type="button" data-meal-advance="confirmed"${dis} title="${esc(tip)}">집계 확정</button>`;
     } else if (r.status === 'confirmed') {
       actBtn = `<button class="btn btn--sm btn--primary" type="button" data-meal-advance="paid" title="정산을 확정하고 완료 처리합니다">정산 확정 →</button>`;
     } else if (r.status === 'paid') {
@@ -742,19 +776,31 @@
     /* 본문 — 단계별 분기 */
     let bodyHTML;
     if (!aggregated) {
-      /* 확정 대기(draft) — 부서별 적용 근무조 확인(조회). 근무조는 고정이라 '제출' 개념 없음. */
-      const callout = `<div style="flex-shrink:0;margin:0 0 12px;font-size:var(--fs-sm);color:var(--color-text-sub);">
-             부서별 적용 근무조를 확인하세요. 근무조는 초기 설정 후 고정이며, 상단 <strong style="color:var(--color-text);">[집계 확정]</strong> 시 이 근무조에서 식권 금액이 집계됩니다.
+      /* 확정 대기(draft) — 부서별 익월 근무스케줄 편성완료 확인. 전 부서 편성완료 시에만 집계 확정 가능(정책 a). */
+      const rdy = deptScheduleReadiness(r.ym);
+      const rmap = {}; rdy.forEach(d => { rmap[d.dept] = d.ready; });
+      const summaryPill = schedReady
+        ? `<span class="pill pill--success">전 부서 편성완료 ${rc.ready}/${rc.total}</span>`
+        : `<span class="pill pill--warning">편성 대기 ${rc.total - rc.ready}개 · 완료 ${rc.ready}/${rc.total}</span>`;
+      const callout = `<div style="flex-shrink:0;margin:0 0 12px;font-size:var(--fs-sm);color:var(--color-text-sub);line-height:1.6;">
+             ${schedReady
+               ? `익월(<strong style="color:var(--color-text);">${esc(ymLabel(r.ym))}</strong>) 근무스케줄이 전 부서 편성완료되었습니다. 상단 <strong style="color:var(--color-text);">[집계 확정]</strong> 시 이 근무스케줄에서 식권 금액이 집계됩니다.`
+               : `익월(<strong style="color:var(--color-text);">${esc(ymLabel(r.ym))}</strong>) 근무스케줄이 <strong style="color:var(--color-warning);">전 부서 편성완료</strong>되어야 집계를 확정할 수 있습니다(정합성상 정산 보류). 정산월 <strong>${esc(ymLabel(r.deductYm))}</strong> 20일에 자동 편성완료됩니다.`}
+             <span style="margin-left:6px;">${summaryPill}</span>
            </div>`;
       const ds = r._deptShifts || [];
       const subRows = ds.map((s, i) => {
         const pills = Object.keys(s.shifts).sort()
           .map(c => `${shiftPill(c, '')} <span class="t-muted" style="font-size:var(--fs-xs);">${s.shifts[c]}명</span>`).join(' &nbsp; ');
+        const stPill = rmap[s.dept]
+          ? `<span class="pill pill--success">편성완료</span>`
+          : `<span class="pill pill--warning">편성 대기</span>`;
         return `
         <tr>
           <td style="text-align:right;color:var(--color-text-muted);">${ds.length - i}</td>
           <td style="white-space:nowrap;font-weight:var(--fw-medium);">${esc(s.dept)}</td>
           <td>${pills || '<span class="t-muted">-</span>'}</td>
+          <td style="text-align:center;">${stPill}</td>
           <td style="text-align:right;">${won(s.count)}명</td>
         </tr>`;
       }).join('');
@@ -763,16 +809,17 @@
           ${callout}
           <div style="flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
             <div class="toolbar" style="flex-shrink:0;">
-              <div class="toolbar__left"><strong>부서별 적용 근무조</strong> <span class="t-muted" style="font-size:var(--fs-xs);margin-left:8px;">${esc(ymLabel(r.ym))} 적용 기준 · ${ds.length}개 부서</span></div>
+              <div class="toolbar__left"><strong>부서별 익월 근무스케줄</strong> <span class="t-muted" style="font-size:var(--fs-xs);margin-left:8px;">${esc(ymLabel(r.ym))} 적용 기준 · ${ds.length}개 부서</span></div>
               <div class="toolbar__right"><button class="btn btn--sm" type="button" data-meal-goto-shift>근무스케줄 현황 보기</button></div>
             </div>
             <div class="grid-wrap" style="flex:1;min-height:0;">
               <div class="grid-scroll">
-                <table class="tbl tbl--hover" style="min-width:480px;">
+                <table class="tbl tbl--hover" style="min-width:560px;">
                   <thead><tr>
                     <th style="width:50px;text-align:right;">No</th>
                     <th style="width:140px;">부서</th>
                     <th>적용 근무조</th>
+                    <th style="width:110px;text-align:center;">익월 스케줄</th>
                     <th style="width:90px;text-align:right;">인원</th>
                   </tr></thead>
                   <tbody>${subRows}</tbody>
@@ -963,16 +1010,29 @@
   /* =========================================================
    *  회차 생성 모달
    * ========================================================= */
+  /* 생성 가능 대상월 — 정책(a): 정산월 20일 경과 + 익월 전 부서 편성완료.
+     게이트가 미래인 선행 월은 isCreatable 에서 제외되어 「선행 월 미리 생성」이 원천 차단된다. */
   function createMonthOptions() {
     const existing = new Set(STATE.rounds.map(r => r.ym));
     const opts = [];
     let [y, m] = TODAY.split('-').map(Number);
-    for (let k = 0; k < 14 && opts.length < 6; k++) {
-      m++; if (m > 12) { m = 1; y++; }
+    for (let k = 0; k < 14; k++) {
       const ym = `${y}-${pad2(m)}`;
-      if (!existing.has(ym)) opts.push(ym);
+      if (!existing.has(ym) && isCreatable(ym)) opts.push(ym);
+      m++; if (m > 12) { m = 1; y++; }
     }
     return opts;
+  }
+  /* 아직 생성되지 않은 가장 이른 대상월 + 개시(게이트) 정보 — 생성 불가 시 안내용. */
+  function nextCreatable() {
+    const existing = new Set(STATE.rounds.map(r => r.ym));
+    let [y, m] = TODAY.split('-').map(Number);
+    for (let k = 0; k < 14; k++) {
+      const ym = `${y}-${pad2(m)}`;
+      if (!existing.has(ym)) { const gate = scheduleGateDate(ym); return { ym, gate, open: TODAY >= gate && allDeptsReady(ym) }; }
+      m++; if (m > 12) { m = 1; y++; }
+    }
+    return null;
   }
   function ensureCreateModal() {
     let m = document.getElementById('modal-meal-new');
@@ -993,7 +1053,7 @@
               <div class="fm-tbl__value"><select class="select" data-meal-new-ym style="width:100%;"></select></div>
             </div>
           </div>
-          <p style="margin:14px 2px 0;font-size:var(--fs-sm);line-height:1.6;color:var(--color-text-sub);">생성 후 부서별 적용 근무조를 확인하고, <strong>[집계 확정]</strong> 시 고정 근무조에서 식권 금액이 산출됩니다.</p>
+          <p style="margin:14px 2px 0;font-size:var(--fs-sm);line-height:1.6;color:var(--color-text-sub);" data-meal-new-note></p>
         </div>
         <div class="modal__footer">
           <button class="btn btn--sm" type="button" data-meal-modal-close>취소</button>
@@ -1011,9 +1071,22 @@
     const m = ensureCreateModal();
     const opts = createMonthOptions();
     const sel = m.querySelector('[data-meal-new-ym]');
-    sel.innerHTML = opts.length
-      ? opts.map(ym => `<option value="${ym}">${esc(ymLabel(ym))}</option>`).join('')
-      : `<option value="">생성 가능한 대상월이 없습니다</option>`;
+    const note = m.querySelector('[data-meal-new-note]');
+    const confirmBtn = m.querySelector('[data-meal-new-confirm]');
+    if (opts.length) {
+      sel.innerHTML = opts.map(ym => `<option value="${ym}">${esc(ymLabel(ym))}</option>`).join('');
+      sel.disabled = false;
+      if (confirmBtn) confirmBtn.disabled = false;
+      if (note) note.innerHTML = `생성 후 부서별 익월 근무스케줄을 확인하고, <strong>[집계 확정]</strong> 시 익월 근무스케줄(전 부서 편성완료)에서 식권 금액이 산출됩니다.`;
+    } else {
+      const nx = nextCreatable();
+      sel.innerHTML = `<option value="">생성 가능한 대상월이 없습니다</option>`;
+      sel.disabled = true;
+      if (confirmBtn) confirmBtn.disabled = true;
+      if (note) note.innerHTML = nx
+        ? `아직 생성 가능한 대상월이 없습니다. 다음 대상월 <strong>${esc(ymLabel(nx.ym))}</strong>은(는) 정산월 <strong>${esc(ymLabel(prevYm(nx.ym)))}</strong> 20일(<strong>${esc(dateLabel(nx.gate))}</strong>) 이후 익월 근무스케줄이 <strong>전 부서 편성완료</strong>되면 생성할 수 있습니다.`
+        : `생성 가능한 대상월이 없습니다.`;
+    }
     m.classList.add('is-open');
     document.body.style.overflow = 'hidden';
   }
@@ -1026,6 +1099,11 @@
     const ym = m.querySelector('[data-meal-new-ym]').value;
     if (!ym) { window.toast && window.toast('대상월을 선택하세요.', 'warning'); return; }
     if (STATE.rounds.find(r => r.ym === ym)) { window.toast && window.toast('이미 존재하는 대상월입니다.', 'warning'); return; }
+    if (!isCreatable(ym)) {
+      const { ready, total } = scheduleReadyCount(ym);
+      window.toast && window.toast(`정산월 20일 이후·익월 근무스케줄 전 부서 편성완료 시 생성할 수 있습니다. (편성완료 ${ready}/${total} 부서)`, 'warning');
+      return;
+    }
     const r = makeRound(ym, 'draft');
     STATE.rounds.push(r);
     STATE.rounds.sort((a, b) => (a.ym < b.ym ? 1 : a.ym > b.ym ? -1 : 0));   /* 대상월 내림차순 */
@@ -1060,8 +1138,9 @@
         <div class="modal__body">
           <div class="po-info po-info--rows po-info--bare">
             <span class="po-info__pill"><span class="po-info__pill-label">정산 회차</span><span class="po-info__pill-value"><strong>${esc(ymLabel(settleYm))}</strong> 말 정산 → 익월 <strong>${esc(ymLabel(r.ym))}</strong>분 선지급</span></span>
+            <span class="po-info__pill"><span class="po-info__pill-label">생성 조건</span><span class="po-info__pill-value">정산월 <strong>${esc(ymLabel(settleYm))}</strong> 20일 이후 · 익월 근무스케줄 <strong>전 부서 편성완료</strong> 시</span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">지급예정일</span><span class="po-info__pill-value"><strong>${esc(dateLabel(r.payDate))}</strong> · 대상월 1일</span></span>
-            <span class="po-info__pill"><span class="po-info__pill-label">근무조 연동</span><span class="po-info__pill-value">초기 설정 후 고정된 근무조에서 바로 집계 → <strong>[집계 확정]</strong></span></span>
+            <span class="po-info__pill"><span class="po-info__pill-label">집계 기준</span><span class="po-info__pill-value">익월 <strong>${esc(ymLabel(r.ym))}</strong> 근무스케줄(전 부서 편성완료)에서 집계 → <strong>[집계 확정]</strong></span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">차감 기준</span><span class="po-info__pill-value"><strong>${esc(ymLabel(settleYm))}</strong> 초과근무조 예정일 연차 사용분</span></span>
             <span class="po-info__pill"><span class="po-info__pill-label">식권 정책</span><span class="po-info__pill-value">8H <strong>10,000원</strong>(1장) · 10H↑ <strong>20,000원</strong>(2장)</span></span>
           </div>

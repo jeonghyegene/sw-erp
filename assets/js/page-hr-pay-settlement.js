@@ -309,6 +309,32 @@
       ? String(Number(r.unusedLeave))
       : '<span class="t-muted">-</span>';
   }
+  /* ===== 연차수당(PAY-SYS-022) 대사(對査) — 수기 값 ↔ 실제 폐쇄 잔액 =====
+   *   폐쇄 잔액 = 퇴직자 미사용연차 × 통상일급(normalDay). 그 외(재직/휴직)는 0.
+   *   수기 입력액이 이 폐쇄 잔액과 다르면 「불일치」로 판정해 경고·확정 시 사유 확인·처리 이력에 기록한다. */
+  function leaveClosedBalance(r) {
+    return (r && r.workState === 'retired' && Number(r.unusedLeave) > 0)
+      ? Math.round(Number(r.unusedLeave) * (Number(r.normalDay) || 0))
+      : 0;
+  }
+  function leaveReconTip(r) {
+    const closed = leaveClosedBalance(r);
+    const manual = Number((r.amounts || {})['PAY-SYS-022']) || 0;
+    const state  = manual === closed ? '일치' : '수기 값과 불일치';
+    return `폐쇄 잔액 ${fmtMoney(closed)}원 (미사용연차 ${Number(r.unusedLeave) || 0}일 × 통상일급 ${fmtMoney(r.normalDay || 0)}원) · ${state}`;
+  }
+  /* 급여대장 전체에서 연차수당 수기 값 ≠ 폐쇄 잔액 인 행 목록. payItemCodes 에 연차수당이 없으면 대사 대상 아님. */
+  function computeLeaveRecon(ledger, payItemCodes) {
+    const rows = (ledger && ledger.rows) || [];
+    if (!(payItemCodes || []).includes('PAY-SYS-022')) return [];
+    const out = [];
+    rows.forEach(row => {
+      const manual = Number((row.amounts || {})['PAY-SYS-022']) || 0;
+      const closed = leaveClosedBalance(row);
+      if (manual !== closed) out.push({ emp: row.name, days: Number(row.unusedLeave) || 0, manual, closed, diff: manual - closed });
+    });
+    return out;
+  }
   /* 지급항목 컬럼이 차지하는 실제 sub-col 수 (시간/미사용연차 보조 컬럼 포함) */
   function payItemSubTotal(itemCols) {
     return (itemCols || []).reduce((a, c) =>
@@ -379,6 +405,23 @@
   function periodText(from, to) {
     if (!from && !to) return '-';
     return `${dispYmd(from) || '?'} ~ ${dispYmd(to) || '?'}`;
+  }
+  /* 일시 표시 — 'YYYY-MM-DD HH:MM' → 'YY/MM/DD   HH:MM' (공백 3칸, SWADPIA §1) */
+  function fmtDT(s) {
+    const m = String(s == null ? '' : s).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/);
+    if (!m) return s == null ? '' : String(s);
+    const d = `${m[1].slice(2)}/${m[2]}/${m[3]}`;
+    return m[4] ? `${d}   ${m[4]}` : d;
+  }
+  /* 처리 시각 — 액션 발생 시점의 실제 일시 ('YYYY-MM-DD HH:MM') */
+  function nowStamp() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  /* 처리자 — 로그인 사용자(App.currentUser) 우선, 없으면 인사팀 기본값 */
+  function currentUserName() {
+    return (window.App && App.currentUser && App.currentUser.name) || '정혜진';
   }
   function ymToYYMM(ym) {
     if (!ym) return '0000';
@@ -990,6 +1033,7 @@
       deductItemCodes: (r.deductItemCodes || DEDUCT_DEFAULT_CODES).slice(),
       ledger:       r.ledger ? deepClone(r.ledger) : null,
       payslipDistributed: !!r.payslipDistributed,   /* 급여명세서 배부 완료 여부 */
+      processHistory: (r.processHistory || []).slice(),  /* 처리 이력 (정정·연차수당 대사 — 읽기 전용 표시용) */
       createdBy:    r.createdBy, createdAt: r.createdAt,
       step:         1,
       /* 작업 단계 (0-4) — r 객체에 저장된 stage 복제 */
@@ -1003,6 +1047,7 @@
       search:         '',        /* 사번/이름 검색 키워드 */
       filterOpen:     false,     /* 검색 필터 접기/펼치기 */
       workStateFilter:'all',     /* 재직 상태 필터 (all/active/leave/retired) */
+      zeroInsOnly:    false,     /* 4대보험 고지액 0원 대상자만 보기 (배지 토글) */
     };
   }
 
@@ -1025,7 +1070,9 @@
       const s = f.status;
       if (s === 'finalized') return f.payslipDistributed
         ? `<button class="btn btn--sm" type="button" disabled>급여명세서 배부 완료</button>`
-        : `<button class="btn btn--sm btn--primary" type="button" data-prs-act="distribute">급여명세서 배부</button>`;
+        /* 배부 전에는 정정(편집 모드 복귀) 허용 — 정산완료 해제 후 정산검토 단계로 되돌아가 재편집 */
+        : `<button class="btn btn--sm" type="button" data-prs-act="amend">정정</button>`
+          + `<button class="btn btn--sm btn--primary" type="button" data-prs-act="distribute">급여명세서 배부</button>`;
       if (s === 'canceled')  return `<button class="btn btn--sm" type="button" data-prs-form-delete>삭제</button>`;
       /* pending */
       const st = stageOf(f);
@@ -1065,6 +1112,9 @@
           <div class="page-bar__divider"></div>
           <div class="page-bar__title">${esc(titleText)}</div>
           <button class="btn btn--sm prs-title-more" type="button" data-prs-config-modal title="정산 설정 상세" aria-label="정산 설정 상세">정보</button>
+          ${(f.processHistory && f.processHistory.length)
+            ? `<button class="btn btn--sm prs-title-more" type="button" data-prs-amend-history title="처리 이력" aria-label="처리 이력">처리 이력 <span class="pill pill--info" style="margin-left:4px;font-size:var(--fs-xs);">${f.processHistory.length}</span></button>`
+            : ''}
         </div>
         <div class="prs-page-bar__center prs-phases prs-phases--inline" data-prs-phases-host>
           ${renderPhaseStepperItems(f)}
@@ -1364,6 +1414,17 @@
       `;
     }
 
+    /* 4대보험 고지액 0원 배지 — 고지액이 노출되는 페이즈(공제/정산검토/정산완료, 일용직 제외)에서
+     *   0원 대상자가 있으면 「고지액 0원 N명」 배지 노출. 클릭 시 해당 대상자만 필터(토글). */
+    let zeroBadge = '';
+    if (!isDailyGroup(f) && (phase === 'deduct' || phase === 'review' || phase === 'done')) {
+      const _dc = deductColsOf(f);
+      const _zc = rows.filter(r => rowHasZeroNotice(r, _dc)).length;
+      if (_zc) {
+        zeroBadge = `<button type="button" class="prs-zero-badge${f.zeroInsOnly ? ' is-active' : ''}" data-prs-zero-toggle aria-pressed="${f.zeroInsOnly ? 'true' : 'false'}" title="4대보험 고지액이 0원인 대상자만 보기 (다시 누르면 해제)"><span class="prs-zero-badge__dot" aria-hidden="true"></span>고지액 0원 <strong>${_zc}</strong>명</button>`;
+      }
+    }
+
     /* 공제 자료 업로드(4대보험 월 고지액 / 간이세액표) 버튼은 목록 툴바로 이동됨.
      *   엑셀 다운로드 아이콘 = 임직원 관리 「조직도 다운로드」와 동일(Icons.download). */
     const dlIcon = (window.Icons && window.Icons.download) || '';
@@ -1378,6 +1439,7 @@
               <span class="prs-round-meta__k">정산기간</span>
               <strong class="prs-round-meta__v">${esc(periodText(f.targetFrom, f.targetTo))}</strong>
             </span>
+            ${zeroBadge}
           </div>
           <div class="prs-editor__toolbar-right">
             ${filterToggleHTML}
@@ -1530,11 +1592,14 @@
               hoursCell = `<td class="prs-col prs-col--hours" style="text-align:right;">${leaveDaysCellHTML(r)}</td>`;
             }
             /* 기본급·고정연장근무수당 = 계약 동기화 → 편집 불가(읽기 전용) */
+            const isLeavePay = code === 'PAY-SYS-022';
+            const leaveMism  = isLeavePay && (Number(amt) || 0) !== leaveClosedBalance(r);
             let amtCell;
             if (editable && !isContractLockedPayCode(code)) {
-              const tip = ftext ? ` title="${esc(ftext)}"` : '';
+              /* 연차수당은 폐쇄 잔액 대사 툴팁을 항상 노출(일치/불일치), 그 외는 계산식 툴팁 */
+              const tip = isLeavePay ? ` title="${esc(leaveReconTip(r))}"` : (ftext ? ` title="${esc(ftext)}"` : '');
               amtCell = `<td class="prs-col prs-col--item" style="text-align:right;padding:2px 4px;"${tip}>
-                <input type="number" class="input input--sm prs-amt-input" value="${amt}" min="0" step="1000" data-prs-amt="${r._idx}|${esc(code)}" />
+                <input type="number" class="input input--sm prs-amt-input${leaveMism ? ' is-invalid' : ''}" value="${amt}" min="0" step="1000" data-prs-amt="${r._idx}|${esc(code)}"${isLeavePay ? ' data-prs-leave-recon' : ''} />
               </td>`;
             } else {
               const lockTip = (editable && isContractLockedPayCode(code)) ? ' title="근로·임금 계약에서 산출되는 값으로 편집할 수 없습니다."' : '';
@@ -1715,6 +1780,27 @@
     const s = rows.reduce((a, r) => a + (Number((r.deductions || {})[c.key]) || 0), 0);
     return fmtMoney(s);
   }
+  /* 4대보험 고지액 확인 표준 — 국민연금·건강보험·노인장기요양·고용보험 고지액이 0원이면
+   *   (신규입사 미반영·미매칭 등) 확인이 필요한 값. danger(오류 확정) 대신 warning 톤으로 셀만 강조하고
+   *   툴바에 「고지액 0원 N명」 배지(클릭 시 해당 대상자만 필터)를 노출한다. */
+  const INSURANCE_NOTICE_KEYS = ['pension', 'health', 'ltcare', 'employ'];
+  function isInsuranceKey(key) { return INSURANCE_NOTICE_KEYS.indexOf(key) >= 0; }
+  /* 4대보험 컬럼이면서 고지액이 0원(또는 미입력)인 셀인지 — 확인 필요(warning) 강조 대상. */
+  function isZeroNoticeCell(r, key) {
+    return isInsuranceKey(key) && !(Number((r.deductions || {})[key]) > 0);
+  }
+  /* 표시 중인 4대보험 컬럼 중 고지액 0원이 하나라도 있는 행인지 (배지 카운트·행 필터용). */
+  function rowHasZeroNotice(r, dedCols) {
+    return dedCols.some(c => isZeroNoticeCell(r, c.key));
+  }
+  /* 4대보험 셀 <td> — 0원이면 warning 강조 + '0' 명시, 아니면 기존 표기(dedCellHTML). */
+  function insuranceCellTd(r, c) {
+    if (isZeroNoticeCell(r, c.key)) {
+      return `<td class="prs-col prs-col--ded prs-col--notice" style="text-align:right;" title="고지액 0원 — 확인 필요"><span class="prs-notice-val">0</span></td>`;
+    }
+    return `<td class="prs-col prs-col--ded" style="text-align:right;">${dedCellHTML(r, c)}</td>`;
+  }
+
   function renderDeductTable(f, rows, editable) {
     const dedCols = deductColsOf(f);
     const bodyHTML = !rows.length
@@ -1727,10 +1813,10 @@
               return `<td class="prs-col prs-col--ded" style="text-align:right;padding:2px 4px;">`
                 + `<input type="number" class="input input--sm prs-amt-input" value="${v}" min="0" step="100" data-prs-ded-amt="${r._idx}|${esc(c.key)}" /></td>`;
             }
-            return `<td class="prs-col prs-col--ded" style="text-align:right;">${dedCellHTML(r, c)}</td>`;
+            return insuranceCellTd(r, c);
           }).join('');
           return `
-            <tr data-prs-ledger-row="${r._idx}" data-empno="${esc(r.empId)}" data-name="${esc(r.name)}" data-workstate="${esc(r.workState || 'active')}">
+            <tr data-prs-ledger-row="${r._idx}" data-empno="${esc(r.empId)}" data-name="${esc(r.name)}" data-workstate="${esc(r.workState || 'active')}" data-zeroins="${rowHasZeroNotice(r, dedCols) ? '1' : ''}">
               ${leftStickyCells(r)}
               ${workStateBodyTd(r)}
               ${workSummaryCells(r)}
@@ -1867,11 +1953,9 @@
             }
             return amtTd;
           }).join('');
-          const dedCells = dedCols.map(c =>
-            `<td class="prs-col prs-col--ded" style="text-align:right;">${dedCellHTML(r, c)}</td>`
-          ).join('');
+          const dedCells = dedCols.map(c => insuranceCellTd(r, c)).join('');
           return `
-            <tr data-prs-ledger-row="${r._idx}" data-empno="${esc(r.empId)}" data-name="${esc(r.name)}" data-workstate="${esc(r.workState || 'active')}">
+            <tr data-prs-ledger-row="${r._idx}" data-empno="${esc(r.empId)}" data-name="${esc(r.name)}" data-workstate="${esc(r.workState || 'active')}" data-zeroins="${rowHasZeroNotice(r, dedCols) ? '1' : ''}">
               ${leftStickyCells(r)}
               ${distribCell(f)}
               ${workStateBodyTd(r)}
@@ -2598,13 +2682,47 @@
         /* 「정산 확정」 = 마지막 직전 단계(상용직 정산검토 stage3 / 일용직 급여대장 stage1)에서 발동.
          *   확정 시 최종 잠금(status=finalized) + 정산완료(마지막) 단계로 체크 이동. */
         if (st === phasesOf(r).length - 2) {
-          openFinalizeConfirmModal(r, () => {
+          /* 확정 실행 — 처리 이력(정정 / 연차수당 대사) 을 최신순으로 누적한다. */
+          const doFinalize = (entries) => {
             if (STATE.form && STATE.form.ledger) r.ledger = deepClone(STATE.form.ledger);
             r.stage  = phasesOf(r).length - 1;   /* 정산완료 단계 체크 */
             r.status = 'finalized';
-            window.toast && window.toast('정산 확정 완료', 'success');
+            const list = (entries || []).filter(Boolean);
+            if (list.length) {
+              r.processHistory = r.processHistory || [];
+              list.forEach(en => r.processHistory.unshift(en));   /* 최신 처리가 위로 */
+            }
+            delete r._amending;
+            delete r._amendBase;
+            const didAmend = list.some(en => en.kind === 'amend');
+            window.toast && window.toast(didAmend ? '정정 확정 완료' : '정산 확정 완료', 'success');
             refresh();
-          });
+          };
+          const curLedger = (STATE.form && STATE.form.ledger) || r.ledger;
+          const payCodes  = (STATE.form && STATE.form.payItemCodes) || r.payItemCodes;
+          /* 연차수당 대사 — 수기 값 ≠ 폐쇄 잔액 인 행 목록 */
+          const mismatches = computeLeaveRecon(curLedger, payCodes);
+          const mkRecon = (reason) => ({ kind: 'leaveRecon', at: nowStamp(), by: currentUserName(), reason: reason || '', recon: mismatches });
+          const mkAmend = (reason) => ({ kind: 'amend', at: nowStamp(), by: currentUserName(), reason: reason || '', changes: computeAmendChanges(r._amendBase, curLedger, r) });
+
+          /* 정정 재확정 모달(있으면) → 확정. 정정 아닌 일반 확정은 확인 모달로. */
+          const finalizeAfter = (reconEntry) => {
+            if (r._amending) {
+              const changes = computeAmendChanges(r._amendBase, curLedger, r);
+              openAmendFinalizeModal(r, changes, (reason) => doFinalize([mkAmend(reason), reconEntry]));
+            } else if (reconEntry) {
+              /* 대사 모달이 이미 확정 역할 → 확인 모달 생략 */
+              doFinalize([reconEntry]);
+            } else {
+              openFinalizeConfirmModal(r, () => doFinalize([]));
+            }
+          };
+          if (mismatches.length) {
+            /* 대사 불일치 → 사유 확인 모달 먼저, 확인 시 이력 기록 후 확정 */
+            openLeaveReconModal(r, mismatches, (reason) => finalizeAfter(mkRecon(reason)));
+          } else {
+            finalizeAfter(null);
+          }
           return;
         }
         /* stage 1→2, 2→3 : 단순 단계 진행 */
@@ -2618,11 +2736,28 @@
           window.toast && window.toast('정산 중단됨', 'info');
           refresh();
         });
+      } else if (action === 'amend') {
+        /* 정정 — 배부 전 정산완료 건을 편집 모드로 되돌린다.
+           status=finalized → pending, stage 를 정산검토(마지막 직전) 로 복귀시켜 셀 편집 + 「정산 확정」 재발동 가능.
+           진입 시점의 급여대장을 _amendBase 로 스냅샷 → 재확정 시 변경 내역을 산출한다. */
+        if (r.payslipDistributed) {
+          window.toast && window.toast('이미 급여명세서가 배부되어 정정할 수 없습니다.', 'danger');
+          return;
+        }
+        openAmendConfirmModal(r, () => {
+          r._amendBase = r.ledger ? deepClone(r.ledger) : null;   /* 정정 전 급여대장 스냅샷 */
+          r._amending  = true;                                    /* 재확정 시 정정 이력 기록 플래그 */
+          r.status = 'pending';
+          r.stage  = Math.max(1, phasesOf(r).length - 2);         /* 정산검토 단계 — 셀 편집 가능 */
+          window.toast && window.toast('정정 모드로 전환되었습니다. 수정 후 다시 확정하세요.', 'info');
+          refresh();
+        });
       } else if (action === 'distribute') {
-        if (!confirm('확정된 급여명세서를 대상자에게 배부하시겠습니까?')) return;
-        r.payslipDistributed = true;
-        window.toast && window.toast(`급여명세서 배부 완료 — ${(r.ledger && r.ledger.rows ? r.ledger.rows.length : 0)}명`, 'success');
-        refresh();
+        openDistributeConfirmModal(r, () => {
+          r.payslipDistributed = true;
+          window.toast && window.toast(`급여명세서 배부 완료 — ${(r.ledger && r.ledger.rows ? r.ledger.rows.length : 0)}명`, 'success');
+          refresh();
+        });
       } else if (action === 'export') {
         window.toast && window.toast('급여대장 엑셀 다운로드 (mock)', 'info');
       } else if (action === 'export-ylw') {
@@ -2633,6 +2768,9 @@
     /* 페이지바 — 상세 모달 버튼 (detail 전용) */
     const cfgModalBtn = pageEl.querySelector('[data-prs-config-modal]');
     if (cfgModalBtn) cfgModalBtn.addEventListener('click', openConfigModal);
+
+    const amhBtn = pageEl.querySelector('[data-prs-amend-history]');
+    if (amhBtn) amhBtn.addEventListener('click', openAmendHistoryModal);
 
     /* 페이지바 — 페이즈 스텝퍼 클릭 (detail 전용).
      *   진행 정책: 「이전(완료된) 페이즈만 클릭 가능」.
@@ -2650,6 +2788,7 @@
       if (idx > stageOf(f))       return;  /* 미도달 페이즈 → 클릭 차단 */
       if (key === f.activePhase)  return;  /* 이미 활성 */
       f.activePhase = key;
+      f.zeroInsOnly = false;   /* 페이즈 전환 시 4대보험 0원 필터 해제 (고지액 미노출 페이즈로 새는 것 방지) */
       phasesHost.innerHTML = renderPhaseStepperItems(f);
       refreshDetailSection(pageEl, 'work');
       const detail = pageEl.querySelector('.prs-detail');
@@ -2932,9 +3071,20 @@
         if (nsc) { nsc.scrollLeft = sx; nsc.scrollTop = sy; }
         return;
       }
+      /* 4대보험 고지액 0원 배지 — 0원 대상자만 보기 토글 (스크롤 위치 보존) */
+      if (e.target.closest('[data-prs-zero-toggle]')) {
+        f.zeroInsOnly = !f.zeroInsOnly;
+        const sc = detail.querySelector('.prs-table-wrap--scroll');
+        const sx = sc ? sc.scrollLeft : 0, sy = sc ? sc.scrollTop : 0;
+        refreshDetailSection(pageEl, 'editor');
+        applyRowFilters(detail, f);
+        const nsc = detail.querySelector('.prs-table-wrap--scroll');
+        if (nsc) { nsc.scrollLeft = sx; nsc.scrollTop = sy; }
+        return;
+      }
       /* 검색 필터 — 초기화 */
       if (e.target.closest('[data-prs-filter-reset]')) {
-        f.search = ''; f.workStateFilter = 'all';
+        f.search = ''; f.workStateFilter = 'all'; f.zeroInsOnly = false;
         const nameEl = detail.querySelector('[data-prs-filter-name]'); if (nameEl) nameEl.value = '';
         const stEl   = detail.querySelector('[data-prs-filter-state]'); if (stEl) stEl.value = 'all';
         applyRowFilters(detail, f);
@@ -3024,6 +3174,13 @@
       row._idx = Number(rowIdx);
       if (!row.amounts) row.amounts = {};
       row.amounts[code] = Math.max(0, Number(inp.value) || 0);
+      /* 연차수당 — 수기 값 ↔ 폐쇄 잔액 대사: 불일치면 셀 경고(is-invalid) 토글 + 툴팁 갱신 */
+      if (code === 'PAY-SYS-022') {
+        const mism = row.amounts[code] !== leaveClosedBalance(row);
+        inp.classList.toggle('is-invalid', mism);
+        const td = inp.closest('td');
+        if (td) td.title = leaveReconTip(row);
+      }
       /* 통상임금 포함 항목(기본급·식대·사용자 추가 통상수당)의 금액이 바뀌면
        *   ① 기준 임금(기본일급/기본시급/통상임금/통상일급/통상시급)을 다시 산출해 즉시 반영하고,
        *   ② 통상시급에 연동된 연장·야간·휴일근무수당 금액도 재계산해 해당 셀을 갱신한다.
@@ -3141,13 +3298,15 @@
     if (!detail || !f) return;
     const kw = (f.search || '').trim().toLowerCase();
     const ws = f.workStateFilter || 'all';
+    const zeroOnly = !!f.zeroInsOnly;
     detail.querySelectorAll('tbody tr[data-prs-ledger-row]').forEach(tr => {
       const empno = (tr.dataset.empno || '').toLowerCase();
       const name  = (tr.dataset.name  || '').toLowerCase();
       const wsVal = tr.dataset.workstate || 'active';
       const nameOk = !kw || empno.includes(kw) || name.includes(kw);
       const wsOk   = ws === 'all' || wsVal === ws;
-      tr.style.display = (nameOk && wsOk) ? '' : 'none';
+      const zeroOk = !zeroOnly || tr.dataset.zeroins === '1';
+      tr.style.display = (nameOk && wsOk && zeroOk) ? '' : 'none';
     });
   }
   /* 호환 별칭 — 기존 호출부(search 인자) 보전. */
@@ -3657,10 +3816,15 @@
       const total = codes.reduce((a, c) => a + (Number(amounts[c]) || 0), 0);
 
       /* === 공제 (mock) — 12 항목 === */
-      const pension          = Math.round(total * 0.045);
-      const health           = Math.round(total * 0.0354);
+      /* 4대보험 — 공단 월 고지액 기준. 데모용으로 일부 대상자는 고지액 미반영(0원) 처리:
+       *   i%6===0 → 4대보험 전체 미반영(신규입사 등), i%6===3 → 고용보험만 미반영(부분 예시).
+       *   → 「고지액 0원」 셀 강조 + 툴바 배지가 실제로 보이도록 하는 시연 데이터. */
+      const _insAllZero = (i % 6 === 0);
+      const _employZero = _insAllZero || (i % 6 === 3);
+      const pension          = _insAllZero ? 0 : Math.round(total * 0.045);
+      const health           = _insAllZero ? 0 : Math.round(total * 0.0354);
       const ltcare           = Math.round(health * 0.1295);
-      const employ           = Math.round(total * 0.009);
+      const employ           = _employZero ? 0 : Math.round(total * 0.009);
       /* 소득세 — 중소기업 취업자 소득세 감면(조특법 §30) 반영.
        *   감면전 소득세(incomeTaxBase)에 감면율(청년 90% / 그 외 50·70%)을 적용한 금액을 실제 공제. */
       const incomeTaxBase    = Math.round(total * 0.038);
@@ -3815,9 +3979,20 @@
     { no: 8, name: '장우진', ssn: '850814-1******', wage: 6000000 },
   ];
 
+  /* 전월(기존) 고지 대상자 — 비교 데모용. 당월과의 차이:
+   *   · 장우진(no.8) 이 전월엔 없음 → 당월 '추가'
+   *   · 오세훈(no.9) 이 전월엔 있으나 당월 없음 → 당월 '누락'
+   *   · 이서연(no.2, 인상) · 박지후(no.3, 인하) → 당월 '변경' */
+  const INS_PEOPLE_PREV = INS_PEOPLE
+    .filter(p => p.no !== 8)
+    .map(p => p.no === 2 ? { ...p, wage: 4300000 }
+           : p.no === 3 ? { ...p, wage: 2900000 }
+           : p)
+    .concat([{ no: 9, name: '오세훈', ssn: '900101-1******', wage: 3000000 }]);
+
   /* 건강보험 — 1인당 건강/요양 2행. 산출(건강 7.09% · 요양=건강×12.95%) + 일부 연말정산. */
-  function genHealth() {
-    return INS_PEOPLE.map(p => {
+  function genHealth(people = INS_PEOPLE) {
+    return people.map(p => {
       const health = _round10(p.wage * 0.0709);
       const ltcare = _round10(health * 0.1295);
       const adj = (p.no % 3 === 0);                                  /* 연말정산 대상 */
@@ -3832,8 +4007,8 @@
     });
   }
   /* 국민연금 — 결정보험료(9%) + 근로자부담분 = 결정보험료 × 0.8/1.85 */
-  function genPension() {
-    return INS_PEOPLE.map(p => {
+  function genPension(people = INS_PEOPLE) {
+    return people.map(p => {
       const decided = _round10(p.wage * 0.09);
       const worker = Math.round(decided * 0.8 / 1.85);
       const adj = (p.no % 4 === 0);
@@ -3841,8 +4016,8 @@
     });
   }
   /* 고용보험 — 실업급여(0.9%+0.9%) + 고용안정·직업능력개발(사업주 0.25%) [상세 컬럼은 잠정] */
-  function genEmployment() {
-    return INS_PEOPLE.map(p => {
+  function genEmployment(people = INS_PEOPLE) {
+    return people.map(p => {
       const unemploy = _round10(p.wage * 0.018);
       const stable   = _round10(p.wage * 0.0025);
       return { no: p.no, ssn: p.ssn, name: p.name, wage: p.wage, unemploy, stable, goji: unemploy + stable };
@@ -3863,7 +4038,7 @@
   }
   const _dash = (v, money) => (v ? (money ? fmtMoney(v) : esc(v)) : '<span class="t-muted">-</span>');
 
-  function renderInsHealth(data) {
+  function renderInsHealth(data, opts) {
     const total = data.reduce((s, p) => s + p.rows.reduce((a, r) => a + r.goji, 0), 0);
     const body = data.map(p => p.rows.map((r, idx) => `
       <tr>
@@ -3880,7 +4055,7 @@
         <td style="text-align:right;">${_dash(r.interest, true)}</td>
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(r.goji)}</td>
       </tr>`).join('')).join('');
-    return _insSummary(data.length, total) + `
+    return (opts && opts.hideSummary ? '' : _insSummary(data.length, total)) + `
       <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:980px;">
           <thead><tr>
@@ -3900,7 +4075,7 @@
         </table>
       </div></div>`;
   }
-  function renderInsPension(data) {
+  function renderInsPension(data, opts) {
     const total = data.reduce((s, p) => s + p.decided, 0);
     const body = data.map(p => `
       <tr>
@@ -3912,7 +4087,7 @@
         <td style="text-align:right;">${fmtMoney(p.decided)}</td>
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(p.worker)}</td>
       </tr>`).join('');
-    return _insSummary(data.length, total) + `
+    return (opts && opts.hideSummary ? '' : _insSummary(data.length, total)) + `
       <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:760px;">
           <thead><tr>
@@ -3928,7 +4103,7 @@
         </table>
       </div></div>`;
   }
-  function renderInsEmployment(data) {
+  function renderInsEmployment(data, opts) {
     const total = data.reduce((s, p) => s + p.goji, 0);
     const body = data.map(p => `
       <tr>
@@ -3940,7 +4115,7 @@
         <td style="text-align:right;">${fmtMoney(p.stable)}</td>
         <td style="text-align:right;font-weight:var(--fw-semibold);">${fmtMoney(p.goji)}</td>
       </tr>`).join('');
-    return _insSummary(data.length, total) + `
+    return (opts && opts.hideSummary ? '' : _insSummary(data.length, total)) + `
       <div class="table-card"><div class="table-card__body">
         <table class="tbl tbl--hover" style="min-width:760px;">
           <thead><tr>
@@ -3999,11 +4174,19 @@
   }
   function _insSeed() {
     const selMonth = _insAnchorMonth();
+    const prevMonth = _ymAdd(selMonth, -1);
     ['health', 'pension', 'employment'].forEach(sub => {
-      /* 데모용 시드 업로드 — 기준월 1건(미적용). 우측 패널이 바로 채워짐 */
+      /* 데모용 시드 — 기준월(미적용) + 전월(적용완료) 2건. 전월은 '기존 대비 변동' 비교 기준. */
       _insStore[sub] = {
         selMonth,
         uploads: {
+          [prevMonth]: {
+            fileName:   `${_insLabel[sub]}_월고지액_${prevMonth}.xlsx`,
+            fileSize:   27980,
+            uploadedAt: _insSeedStamp(),
+            data:       _insGen[sub](INS_PEOPLE_PREV),
+            applied:    true,
+          },
           [selMonth]: {
             fileName:   `${_insLabel[sub]}_월고지액_${selMonth}.xlsx`,
             fileSize:   28160,
@@ -4024,6 +4207,78 @@
       + (d.adjIncomeTaxMid || 0) + (d.adjLocalTaxMid || 0)
       + (d.tuition || 0) + (d.etcDed || 0) + (d.adjHealth || 0) + (d.adjLtcare || 0);
     row.netPay = (Number(row.total) || 0) - row.dedTotal;
+  }
+
+  /* ============ 기존(전월) 대비 비교 ============
+   *   선택 고지월 직전에 업로드된 월(같은 보험)을 기준으로 인원·금액 변동을 산출.
+   *   식별 키 = 주민번호(ssn). 금액 = 보험별 1인 고지 총액. */
+  function _insPrevUpload(sub, month) {
+    const s = _insStore[sub];
+    const prevMonths = Object.keys(s.uploads).filter(m => m < month).sort();
+    const pm = prevMonths[prevMonths.length - 1];
+    return pm ? { month: pm, up: s.uploads[pm] } : null;
+  }
+  function _insPersonAmount(sub, p) {
+    if (sub === 'health')  return p.rows.reduce((a, r) => a + r.goji, 0);
+    if (sub === 'pension') return p.decided;
+    return p.goji;   /* employment */
+  }
+  function _insCompare(sub, curData, prevData) {
+    const curMap = new Map(curData.map(p => [p.ssn, p]));
+    const prevMap = new Map(prevData.map(p => [p.ssn, p]));
+    const added = [], removed = [], changed = [];
+    curData.forEach(p => {
+      const prev = prevMap.get(p.ssn);
+      const after = _insPersonAmount(sub, p);
+      if (!prev) { added.push({ name: p.name, ssn: p.ssn, amount: after }); return; }
+      const before = _insPersonAmount(sub, prev);
+      if (before !== after) changed.push({ name: p.name, ssn: p.ssn, before, after, diff: after - before });
+    });
+    prevData.forEach(p => {
+      if (!curMap.has(p.ssn)) removed.push({ name: p.name, ssn: p.ssn, amount: _insPersonAmount(sub, p) });
+    });
+    const sum = arr => arr.reduce((a, p) => a + _insPersonAmount(sub, p), 0);
+    return {
+      prevCount: prevData.length, curCount: curData.length,
+      prevTotal: sum(prevData), curTotal: sum(curData),
+      added, removed, changed,
+    };
+  }
+  /* 증감 색: 증가=danger(부담↑) · 감소=info · 동일=muted */
+  function _insDeltaStyle(n) {
+    return n > 0 ? 'color:var(--color-danger);' : n < 0 ? 'color:var(--color-info);' : 'color:var(--color-text-muted);';
+  }
+  function _insDeltaText(n) { return (n > 0 ? '+' : '') + Number(n).toLocaleString(); }
+
+  function _insRenderCompare(sub, s) {
+    const cur = s.uploads[s.selMonth];
+    const prev = _insPrevUpload(sub, s.selMonth);
+    if (!cur || !prev) return '';   /* 비교 대상(직전 업로드월) 없음 */
+    const cmp = _insCompare(sub, cur.data, prev.up.data);
+    const dCount = cmp.curCount - cmp.prevCount;
+    const noDiff = !cmp.added.length && !cmp.removed.length && !cmp.changed.length;
+
+    /* 단일 통합 목록 — 한 줄에 [태그] 이름 (+ 변경 금액). 섹션/주민번호/총계 델타는 생략해 간결화. */
+    const row = (label, cls, name, extra) => `
+      <li style="display:flex;align-items:baseline;gap:10px;font-size:var(--fs-sm);padding:3px 0;">
+        <span class="pill pill--${cls}" style="flex-shrink:0;">${label}</span>
+        <span style="color:var(--color-text);flex-shrink:0;min-width:52px;">${esc(name)}</span>
+        ${extra ? `<span style="white-space:nowrap;color:var(--color-text-sub);">${extra}</span>` : ''}
+      </li>`;
+    const list = `<ul style="margin:8px 0 0;padding:0;list-style:none;">
+      ${cmp.added.map(it => row('추가', 'info', it.name, '')).join('')}
+      ${cmp.removed.map(it => row('누락', 'danger', it.name, '')).join('')}
+      ${cmp.changed.map(it => row('변경', 'warning', it.name, `${fmtMoney(it.before)} → ${fmtMoney(it.after)} <span style="${_insDeltaStyle(it.diff)}">(${_insDeltaText(it.diff)})</span>`)).join('')}
+    </ul>`;
+
+    return `
+      <div class="table-card" style="margin:6px 0 12px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+          <strong style="font-size:var(--fs-sm);">기존(${esc(_ymToYYMM2(prev.month))}) 대비 변동</strong>
+          <span style="font-size:var(--fs-sm);color:var(--color-text-sub);">인원 <strong style="color:var(--color-text);">${cmp.prevCount} → ${cmp.curCount}명</strong> <span style="${_insDeltaStyle(dCount)}">(${_insDeltaText(dCount)})</span></span>
+        </div>
+        ${noDiff ? `<p class="form-help" style="margin:8px 0 0;">기존 고지 내역과 변동이 없습니다.</p>` : list}
+      </div>`;
   }
 
   function _insRenderAll(sub) { _insRenderLeft(sub); _insRenderRight(sub); }
@@ -4083,7 +4338,8 @@
         ${up.applied ? '<span class="pill pill--success" style="flex-shrink:0;">적용 완료</span>' : ''}
       </div>`;
 
-    const body = `<div class="split__body" style="padding:8px 12px;">${_insRender[sub](up.data)}</div>`;
+    const hasCompare = !!_insPrevUpload(sub, s.selMonth);
+    const body = `<div class="split__body" style="padding:8px 12px;">${_insRenderCompare(sub, s)}${_insRender[sub](up.data, { hideSummary: hasCompare })}</div>`;
 
     const foot = `
       <div style="padding:10px 14px;border-top:1px solid var(--color-divider);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:var(--color-surface);">
@@ -4757,6 +5013,73 @@
         if (typeof cb === 'function') cb();
       });
     }
+    /* 급여명세서 배부 확인 모달 */
+    const distM = document.getElementById('modal-prs-distribute-confirm');
+    if (distM) {
+      const cancel = () => { STATE.distributeCallback = null; closeModal('modal-prs-distribute-confirm'); };
+      distM.addEventListener('click', e => { if (e.target === distM) cancel(); });
+      distM.querySelectorAll('[data-prs-dist-close]').forEach(b => b.addEventListener('click', cancel));
+      const okBtn = distM.querySelector('[data-prs-dist-confirm]');
+      if (okBtn) okBtn.addEventListener('click', () => {
+        const cb = STATE.distributeCallback;
+        STATE.distributeCallback = null;
+        closeModal('modal-prs-distribute-confirm');
+        if (typeof cb === 'function') cb();
+      });
+    }
+    /* 정정 확인 모달 */
+    const amM = document.getElementById('modal-prs-amend-confirm');
+    if (amM) {
+      const cancel = () => { STATE.amendCallback = null; closeModal('modal-prs-amend-confirm'); };
+      amM.addEventListener('click', e => { if (e.target === amM) cancel(); });
+      amM.querySelectorAll('[data-prs-am-close]').forEach(b => b.addEventListener('click', cancel));
+      const okBtn = amM.querySelector('[data-prs-am-confirm]');
+      if (okBtn) okBtn.addEventListener('click', () => {
+        const cb = STATE.amendCallback;
+        STATE.amendCallback = null;
+        closeModal('modal-prs-amend-confirm');
+        if (typeof cb === 'function') cb();
+      });
+    }
+    /* 정정 재확정(사유 입력) 모달 */
+    const amfM = document.getElementById('modal-prs-amend-finalize');
+    if (amfM) {
+      const cancel = () => { STATE.amendFinalizeCallback = null; closeModal('modal-prs-amend-finalize'); };
+      amfM.addEventListener('click', e => { if (e.target === amfM) cancel(); });
+      amfM.querySelectorAll('[data-prs-amf-close]').forEach(b => b.addEventListener('click', cancel));
+      const okBtn = amfM.querySelector('[data-prs-amf-confirm]');
+      if (okBtn) okBtn.addEventListener('click', () => {
+        const cb = STATE.amendFinalizeCallback;
+        STATE.amendFinalizeCallback = null;
+        const reasonEl = amfM.querySelector('[data-prs-amf-reason]');
+        const reason = reasonEl ? reasonEl.value.trim() : '';
+        closeModal('modal-prs-amend-finalize');
+        if (typeof cb === 'function') cb(reason);
+      });
+    }
+    /* 연차수당 대사 확인(사유 입력) 모달 */
+    const lrM = document.getElementById('modal-prs-leave-recon');
+    if (lrM) {
+      const cancel = () => { STATE.leaveReconCallback = null; closeModal('modal-prs-leave-recon'); };
+      lrM.addEventListener('click', e => { if (e.target === lrM) cancel(); });
+      lrM.querySelectorAll('[data-prs-lr-close]').forEach(b => b.addEventListener('click', cancel));
+      const okBtn = lrM.querySelector('[data-prs-lr-confirm]');
+      if (okBtn) okBtn.addEventListener('click', () => {
+        const cb = STATE.leaveReconCallback;
+        STATE.leaveReconCallback = null;
+        const reasonEl = lrM.querySelector('[data-prs-lr-reason]');
+        const reason = reasonEl ? reasonEl.value.trim() : '';
+        closeModal('modal-prs-leave-recon');
+        if (typeof cb === 'function') cb(reason);
+      });
+    }
+    /* 처리 이력 모달 (조회 전용) */
+    const amhM = document.getElementById('modal-prs-amend-history');
+    if (amhM) {
+      const close = () => closeModal('modal-prs-amend-history');
+      amhM.addEventListener('click', e => { if (e.target === amhM) close(); });
+      amhM.querySelectorAll('[data-prs-amh-close]').forEach(b => b.addEventListener('click', close));
+    }
   }
 
   /* ============ 계산 / 중단 / 확정 확인 모달 오픈 ============
@@ -4784,6 +5107,206 @@
     const nameEl = modal.querySelector('#prs-fc-name');
     if (nameEl) nameEl.textContent = r.name || '';
     openModal('modal-prs-finalize-confirm');
+  }
+  /* 급여명세서 배부 확인 모달 — 배부는 회수 불가, 배부 후 정정은 익월 소급 반영. */
+  function openDistributeConfirmModal(r, onConfirm) {
+    const modal = document.getElementById('modal-prs-distribute-confirm');
+    if (!modal) { if (onConfirm) onConfirm(); return; }
+    STATE.distributeCallback = onConfirm;
+    const nameEl = modal.querySelector('#prs-dist-name');
+    if (nameEl) nameEl.textContent = r.name || '';
+    const cntEl = modal.querySelector('#prs-dist-count');
+    if (cntEl) cntEl.textContent = `${(r.ledger && r.ledger.rows ? r.ledger.rows.length : 0)}명`;
+    openModal('modal-prs-distribute-confirm');
+  }
+
+  /* ============ 정정(편집 모드 복귀) 확인 모달 ============ */
+  function openAmendConfirmModal(r, onConfirm) {
+    const modal = document.getElementById('modal-prs-amend-confirm');
+    if (!modal) { if (onConfirm) onConfirm(); return; }
+    STATE.amendCallback = onConfirm;
+    const nameEl = modal.querySelector('#prs-am-name');
+    if (nameEl) nameEl.textContent = r.name || '';
+    openModal('modal-prs-amend-confirm');
+  }
+
+  /* ============ 정정 재확정(사유 입력) 모달 ============
+   *   변경 내역·처리자·처리일시를 노출하고, 사유(선택) 를 입력받아 이력에 기록. */
+  function openAmendFinalizeModal(r, changes, onConfirm) {
+    const modal = document.getElementById('modal-prs-amend-finalize');
+    if (!modal) { if (onConfirm) onConfirm(''); return; }
+    STATE.amendFinalizeCallback = onConfirm;
+    const body = modal.querySelector('#prs-amf-body');
+    if (body) body.innerHTML = renderAmendFinalizeBody(r, changes);   /* 본문에 정산명 포함 */
+    openModal('modal-prs-amend-finalize');
+  }
+
+  /* 정정 전(_amendBase) vs 현재 급여대장 을 비교해 변경된 지급·공제 셀 목록을 산출.
+   *   반환: [{ emp, item, kind:'pay'|'deduct', before, after }] */
+  function computeAmendChanges(base, cur, f) {
+    const out = [];
+    if (!base || !cur || !base.rows || !cur.rows) return out;
+    const baseById = {};
+    base.rows.forEach(row => { baseById[row.empId] = row; });
+    const payCodes = (f && f.payItemCodes) || [];
+    cur.rows.forEach(cr => {
+      const br = baseById[cr.empId];
+      if (!br) return;
+      payCodes.forEach(code => {
+        const b = Number((br.amounts || {})[code]) || 0;
+        const a = Number((cr.amounts || {})[code]) || 0;
+        if (b !== a) out.push({ emp: cr.name, item: payItemLabelFor(code, f), kind: 'pay', before: b, after: a });
+      });
+      const dedKeys = Object.keys(cr.deductions || {});
+      dedKeys.forEach(key => {
+        const b = Number((br.deductions || {})[key]) || 0;
+        const a = Number((cr.deductions || {})[key]) || 0;
+        if (b !== a) out.push({ emp: cr.name, item: (deductColByKey(key) || {}).label || key, kind: 'deduct', before: b, after: a });
+      });
+    });
+    return out;
+  }
+
+  /* 정정 재확정 모달 본문 — 처리자/처리일시 + 변경 내역 표 + 사유 입력(선택) */
+  function renderAmendFinalizeBody(r, changes) {
+    const list = changes || [];
+    const changeRows = list.length
+      ? list.map(c => `
+          <tr>
+            <td style="white-space:nowrap;">${esc(c.emp)}</td>
+            <td>${esc(c.item)} <span class="pill pill--${c.kind === 'deduct' ? 'warning' : 'info'}" style="font-size:var(--fs-xs);">${c.kind === 'deduct' ? '공제' : '지급'}</span></td>
+            <td style="text-align:right;color:var(--color-text-muted);">${fmtMoney(c.before)}</td>
+            <td style="text-align:center;color:var(--color-text-muted);">→</td>
+            <td style="text-align:right;font-weight:var(--fw-semibold);color:var(--color-brand-primary);">${fmtMoney(c.after)}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--color-text-muted);">변경된 항목이 없습니다.</td></tr>`;
+    return `
+      <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+        <strong style="color:var(--color-brand-primary);">${esc(r.name || '')}</strong>
+        <span style="color:var(--color-text-sub);"> 정정 내역을 확정하고 이력에 기록합니다.</span>
+      </div>
+      <div class="prs-dl" style="margin-bottom:14px;">
+        <div class="prs-dl__row prs-dl__row--2">
+          <div class="prs-dl__k">처리자</div><div class="prs-dl__v">${esc(currentUserName())}</div>
+          <div class="prs-dl__k">처리일시</div><div class="prs-dl__v">${esc(fmtDT(nowStamp()))}</div>
+        </div>
+      </div>
+      <div style="font-size:var(--fs-sm);font-weight:var(--fw-semibold);color:var(--color-text);margin-bottom:6px;">
+        정정 내역 <span style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(${list.length}건)</span>
+      </div>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);margin-bottom:14px;">
+        <table class="tbl" style="width:100%;">
+          <thead>
+            <tr>
+              <th style="width:88px;">대상자</th>
+              <th>항목</th>
+              <th style="width:96px;text-align:right;">변경 전</th>
+              <th style="width:24px;"></th>
+              <th style="width:96px;text-align:right;">변경 후</th>
+            </tr>
+          </thead>
+          <tbody>${changeRows}</tbody>
+        </table>
+      </div>
+      <label style="display:block;font-size:var(--fs-sm);font-weight:var(--fw-semibold);color:var(--color-text);margin-bottom:6px;">
+        정정 사유 <span style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(선택)</span>
+      </label>
+      <textarea class="input" data-prs-amf-reason rows="3" placeholder="정정 사유를 입력하세요 (선택 사항)" style="width:100%;resize:vertical;"></textarea>
+    `;
+  }
+
+  /* ============ 연차수당 대사(수기 값 ↔ 폐쇄 잔액) 확인 모달 ============
+   *   확정 직전, 불일치 행 목록·처리자·처리일시를 노출하고 사유(선택) 를 입력받아 처리 이력에 기록. */
+  function openLeaveReconModal(r, mismatches, onConfirm) {
+    const modal = document.getElementById('modal-prs-leave-recon');
+    if (!modal) { if (onConfirm) onConfirm(''); return; }
+    STATE.leaveReconCallback = onConfirm;
+    const body = modal.querySelector('#prs-lr-body');
+    if (body) body.innerHTML = renderLeaveReconBody(r, mismatches);
+    openModal('modal-prs-leave-recon');
+  }
+  /* 대사 확인 모달 본문 — 처리자/처리일시 + 불일치 표(폐쇄 잔액↔수기 값·차이) + 사유(선택) */
+  function renderLeaveReconBody(r, mismatches) {
+    const list = mismatches || [];
+    const rowsHTML = list.map(c => `
+      <tr>
+        <td style="white-space:nowrap;">${esc(c.emp)}</td>
+        <td style="text-align:right;">${c.days}일</td>
+        <td style="text-align:right;color:var(--color-text-muted);">${fmtMoney(c.closed)}</td>
+        <td style="text-align:right;font-weight:var(--fw-semibold);color:var(--color-brand-primary);">${fmtMoney(c.manual)}</td>
+        <td style="text-align:right;${_insDeltaStyle(c.diff)}">${_insDeltaText(c.diff)}</td>
+      </tr>`).join('');
+    return `
+      <div style="padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-md);margin-bottom:14px;">
+        <strong style="color:var(--color-danger);">연차수당 ${list.length}건</strong>
+        <span style="color:var(--color-text-sub);"> 수기 값이 실제 폐쇄 잔액(미사용연차 × 통상일급)과 일치하지 않습니다. 확인 후 확정하면 처리 이력에 기록됩니다.</span>
+      </div>
+      <div class="prs-dl" style="margin-bottom:14px;">
+        <div class="prs-dl__row prs-dl__row--2">
+          <div class="prs-dl__k">처리자</div><div class="prs-dl__v">${esc(currentUserName())}</div>
+          <div class="prs-dl__k">처리일시</div><div class="prs-dl__v">${esc(fmtDT(nowStamp()))}</div>
+        </div>
+      </div>
+      <div style="font-size:var(--fs-sm);font-weight:var(--fw-semibold);color:var(--color-text);margin-bottom:6px;">
+        대사 불일치 <span style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(${list.length}건)</span>
+      </div>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);margin-bottom:14px;">
+        <table class="tbl" style="width:100%;">
+          <thead>
+            <tr>
+              <th style="width:88px;">대상자</th>
+              <th style="width:72px;text-align:right;">미사용</th>
+              <th style="width:104px;text-align:right;">폐쇄 잔액</th>
+              <th style="width:104px;text-align:right;">수기 값</th>
+              <th style="width:96px;text-align:right;">차이</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
+      <label style="display:block;font-size:var(--fs-sm);font-weight:var(--fw-semibold);color:var(--color-text);margin-bottom:6px;">
+        대사 사유 <span style="color:var(--color-text-muted);font-weight:var(--fw-regular);">(선택)</span>
+      </label>
+      <textarea class="input" data-prs-lr-reason rows="3" placeholder="수기 조정 사유를 입력하세요 (선택 사항)" style="width:100%;resize:vertical;"></textarea>
+    `;
+  }
+
+  /* 처리 이력 모달 본문 — processHistory(정정 / 연차수당 대사) 를 최신순 카드로. 비어 있으면 안내 문구. */
+  function renderProcessHistoryBody(f) {
+    const hist = (f && f.processHistory) || [];
+    if (!hist.length) return `<div style="text-align:center;padding:36px;color:var(--color-text-muted);">처리 이력이 없습니다.</div>`;
+    const amendDetail = (h) => {
+      const changes = h.changes || [];
+      return changes.length
+        ? `<ul style="margin:8px 0 0;padding-left:16px;color:var(--color-text-sub);font-size:var(--fs-xs);line-height:1.8;">
+             ${changes.map(c => `<li><strong style="color:var(--color-text);">${esc(c.emp)}</strong> · ${esc(c.item)} : <span style="color:var(--color-text-muted);">${fmtMoney(c.before)}</span> → <strong style="color:var(--color-brand-primary);">${fmtMoney(c.after)}</strong></li>`).join('')}
+           </ul>`
+        : `<div style="margin-top:6px;color:var(--color-text-muted);font-size:var(--fs-xs);">변경된 항목 없음</div>`;
+    };
+    const reconDetail = (h) => {
+      const recon = h.recon || [];
+      return recon.length
+        ? `<ul style="margin:8px 0 0;padding-left:16px;color:var(--color-text-sub);font-size:var(--fs-xs);line-height:1.8;">
+             ${recon.map(c => `<li><strong style="color:var(--color-text);">${esc(c.emp)}</strong> · 미사용 ${c.days}일 · 폐쇄 잔액 <span style="color:var(--color-text-muted);">${fmtMoney(c.closed)}</span> → 수기 <strong style="color:var(--color-brand-primary);">${fmtMoney(c.manual)}</strong> <span style="${_insDeltaStyle(c.diff)}">(${_insDeltaText(c.diff)})</span></li>`).join('')}
+           </ul>`
+        : `<div style="margin-top:6px;color:var(--color-text-muted);font-size:var(--fs-xs);">대상 없음</div>`;
+    };
+    const cards = hist.map((h) => {
+      const isRecon = h.kind === 'leaveRecon';
+      const typePill = isRecon
+        ? `<span class="pill pill--warning" style="font-size:var(--fs-xs);">연차수당 대사</span>`
+        : `<span class="pill pill--info" style="font-size:var(--fs-xs);">정정</span>`;
+      return `
+        <div style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="font-size:var(--fs-sm);"><strong style="color:var(--color-text);">${esc(h.by || '-')}</strong> <span style="color:var(--color-text-muted);">${esc(fmtDT(h.at))}</span></div>
+            ${typePill}
+          </div>
+          ${h.reason ? `<div style="margin-top:6px;font-size:var(--fs-sm);color:var(--color-text-sub);">사유: ${esc(h.reason)}</div>` : ''}
+          ${isRecon ? reconDetail(h) : amendDetail(h)}
+        </div>`;
+    }).join('');
+    return `<div style="display:flex;flex-direction:column;gap:12px;">${cards}</div>`;
   }
 
   /* ============ 정산 설정 (상세) 모달 ============
@@ -4859,6 +5382,18 @@
       </div>
     `;
     openModal('modal-prs-config');
+  }
+
+  /* ============ 처리 이력 모달 ============
+   *   페이지바 [처리 이력] 버튼으로 오픈. processHistory(정정·연차수당 대사) 를 최신순 카드로 노출. */
+  function openAmendHistoryModal() {
+    const f = STATE.form;
+    if (!f) return;
+    const modal = document.getElementById('modal-prs-amend-history');
+    if (!modal) return;
+    const body = modal.querySelector('#prs-amh-body');
+    if (body) body.innerHTML = renderProcessHistoryBody(f);
+    openModal('modal-prs-amend-history');
   }
 
   /* =========================================================

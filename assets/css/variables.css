@@ -43,6 +43,8 @@
   --color-focus:    rgba(0, 52, 125, 0.25);
   --color-danger-soft:       rgba(220, 38, 38, 0.07);   /* 긴급 행 하이라이트 배경 */
   --color-danger-soft-hover: rgba(220, 38, 38, 0.13);   /* 긴급 행 hover 배경 */
+  --color-warning-soft:       rgba(245, 158, 11, 0.12);  /* 확인 필요(주의) 셀·칩 배경 */
+  --color-warning-soft-hover: rgba(245, 158, 11, 0.20);  /* 확인 필요(주의) hover 배경 */
 
   /* Layout */
   --gnb-height:        56px;
@@ -140,6 +142,8 @@
   --color-focus:    rgba(96, 165, 250, 0.45);
   --color-danger-soft:       rgba(248, 113, 113, 0.14);
   --color-danger-soft-hover: rgba(248, 113, 113, 0.22);
+  --color-warning-soft:       rgba(251, 191, 36, 0.18);
+  --color-warning-soft-hover: rgba(251, 191, 36, 0.28);
 
   /* Shadow — 다크에선 더 짙게 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
