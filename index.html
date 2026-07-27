@@ -314,13 +314,15 @@
       <!-- ===== Page: HR > 평가 관리 > 수습 평가 설정 ===== -->
       <section id="page-hr-eval-prob-set" class="page"></section>
       <!-- ===== Page: 근태 관리 > 나의 근태현황 ===== -->
-      <section id="page-att-my-work" class="page"></section>
+      <section id="page-att-my-work" class="page att-mopt"></section>
       <!-- ===== Page: 근태 관리 > 부서별 근태현황 ===== -->
-      <section id="page-att-status" class="page"></section>
+      <section id="page-att-status" class="page att-mopt"></section>
+      <!-- ===== Page: 근태 관리 > 도급직 근태현황 ===== -->
+      <section id="page-att-outsourced" class="page"></section>
       <!-- ===== Page: 휴가 관리 > 나의 연차현황 ===== -->
-      <section id="page-att-my-leave" class="page"></section>
+      <section id="page-att-my-leave" class="page att-mopt"></section>
       <!-- ===== Page: 휴가 관리 > 부서별 연차현황 ===== -->
-      <section id="page-att-leave" class="page"></section>
+      <section id="page-att-leave" class="page att-mopt"></section>
       <!-- ===== Page: 휴가 관리 > 연차 계획서 ===== -->
       <section id="page-att-leave-plan" class="page"></section>
       <!-- ===== Page: 근무스케줄 관리 > 부서별 근무스케줄 현황 ===== -->
@@ -335,6 +337,8 @@
       <section id="page-hr-payslip" class="page"></section>
       <!-- ===== Page: HR > 복리후생 > 식권 정산 ===== -->
       <section id="page-hr-meal" class="page"></section>
+      <!-- ===== Page: HR > 복리후생 > 라이선스 현황 ===== -->
+      <section id="page-hr-license" class="page"></section>
 
       <!-- ===== Page: Generic (그 외 화면 공통) ===== -->
       <section id="page-generic" class="page page--scroll">
@@ -809,29 +813,6 @@
 
   <!-- ※ SCR-CTR-05 계약서 상세는 풀페이지 split layout 으로 page-hr-contract.js 안에서 렌더됨 -->
 
-  <!-- ============ 계약 — 무효화 사유 입력 ============ -->
-  <div class="modal-backdrop" id="modal-ctr-void" data-modal-id="ctr-void">
-    <div class="modal">
-      <div class="modal__header">
-        <div class="modal__title">계약 무효화</div>
-        <button class="modal__close" data-modal-close type="button" aria-label="닫기">✕</button>
-      </div>
-      <div class="modal__body">
-        <div style="padding:10px 12px;background:rgba(220,38,38,.08);border-left:3px solid var(--color-danger);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:var(--fs-sm);color:var(--color-text);margin-bottom:14px;">
-          무효 처리 후에는 원상 복구할 수 없습니다. 원본 이력은 보존됩니다.
-        </div>
-        <div class="form-field">
-          <label class="form-label is-required" for="ctr-v-reason">무효화 사유</label>
-          <textarea class="input input--full" id="ctr-v-reason" rows="4" placeholder="무효화 사유를 상세히 기재해주세요."></textarea>
-        </div>
-      </div>
-      <div class="modal__footer">
-        <button class="btn" type="button" data-modal-close>취소</button>
-        <button class="btn btn--danger" type="button" data-ctr-v-submit disabled>무효 처리</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ [근태] 근태 신청 모달 ============ -->
   <div class="modal-backdrop" id="modal-att-apply" data-modal-id="att-apply">
     <div class="modal modal--lg" style="max-width:760px;">
@@ -1226,6 +1207,7 @@
   <script src="assets/js/page-hr-payslip.js"></script>
   <script src="assets/js/att-shift-data.js"></script>
   <script src="assets/js/page-att-status.js"></script>
+  <script src="assets/js/page-att-outsourced.js"></script>
   <script src="assets/js/page-att-my-work.js"></script>
   <script src="assets/js/page-att-my-leave.js"></script>
   <script src="assets/js/page-att-leave.js"></script>
@@ -1233,6 +1215,7 @@
   <script src="assets/js/page-att-shift-status.js"></script>
   <script src="assets/js/page-att-shift-batch.js"></script>
   <script src="assets/js/page-hr-meal.js"></script>
+  <script src="assets/js/page-hr-license.js"></script>
   <script src="assets/js/page-att-settings.js"></script>
 
   <script src="assets/js/app.js"></script>

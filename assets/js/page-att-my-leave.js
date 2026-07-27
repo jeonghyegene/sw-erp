@@ -213,7 +213,7 @@
       { label: '잔여 연차',      value: `${lv.remain}${_kpiUnit('일')}`,  color: 'var(--color-success)' },
     ];
     return `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="att-statgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
         ${items.map(it => kpiCard(it.label, it.value, it.color)).join('')}
       </div>
     `;
@@ -237,7 +237,7 @@
           <strong style="font-size:var(--fs-md);">대체 휴가</strong>
           <span class="t-muted" style="font-size:var(--fs-xs);">사무직 휴일근무로 발생한 대체 휴가입니다.</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+        <div class="att-statgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
           ${items.map(it => kpiCard(it.label, it.value, it.color)).join('')}
         </div>
       </div>
@@ -294,6 +294,30 @@
       </div>
     `;
   }
+  /* 모바일(≤768) 세로 리스트 — 캘린더 대신, 이벤트(연차/반차/출장/외근/교육) 있는 날만 세로 나열. */
+  function renderMobileLeaveList(ym, events) {
+    const days = daysInMonth(ym);
+    const rows = [];
+    for (let d = 1; d <= days; d++) {
+      const dateStr = `${ym}-${pad2(d)}`;
+      const evs = events[dateStr] || [];
+      if (!evs.length) continue;
+      const wd = dowOfDate(ym, d);
+      const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
+      const chips = evs.map(ev => `<span class="lv-cal__chip lv-cal__chip--${ev.cls}" title="${esc(ev.label + (ev.reason ? ' · ' + ev.reason : ''))}">${esc(ev.label)}</span>`).join('');
+      const reasons = evs.map(ev => ev.reason).filter(Boolean).join(' · ');
+      rows.push(`
+        <div class="att-mlist__row ${wdCls}">
+          <div class="att-mlist__date"><span class="att-mlist__day">${d}</span><span class="att-mlist__dow">${DOW_KO[wd]}</span></div>
+          <div class="att-mlist__main">
+            <div class="att-mlist__chips">${chips}</div>
+            ${reasons ? `<div class="att-mlist__detail">${esc(reasons)}</div>` : ''}
+          </div>
+        </div>`);
+    }
+    return `<div class="att-mlist">${rows.join('') || '<div class="att-mlist__empty">이 달 휴가·외근 내역이 없습니다.</div>'}</div>`;
+  }
+
   function renderCalView() {
     const ym = STATE.calYm;
     const events = buildCalEvents(ym);
@@ -323,6 +347,7 @@
     const total = leadBlanks + days;
     const trail = (7 - (total % 7)) % 7;
     for (let i = 0; i < trail; i++) cells.push(`<div class="att-cal__cell att-cal__cell--blank"></div>`);
+    /* 데스크톱: 월간 캘린더(.att-cal) / 모바일(≤768): 세로 리스트(.att-mlist). CSS 로 토글. */
     return `
       <div class="att-cal">
         <div class="att-cal__weekdays">
@@ -330,6 +355,7 @@
         </div>
         <div class="att-cal__grid">${cells.join('')}</div>
       </div>
+      ${renderMobileLeaveList(ym, events)}
     `;
   }
 
@@ -429,20 +455,25 @@
   function renderAppsPager(total, start, size) {
     const totalPages = Math.max(1, Math.ceil(total / size));
     const page = STATE.appPage;
-    const info = total === 0 ? '0건' : `${start + 1}-${Math.min(start + size, total)} / ${total}건`;
-    const btns = [];
-    btns.push(`<button class="pagination__btn" data-myl-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`);
-    btns.push(`<button class="pagination__btn" data-myl-page="${Math.max(1, page - 1)}" ${page === 1 ? 'disabled' : ''}>‹</button>`);
+    const nums = [];
     const win = 10;
     let s = Math.max(1, page - Math.floor(win / 2));
     let e = Math.min(totalPages, s + win - 1);
     if (e - s < win - 1) s = Math.max(1, e - win + 1);
     for (let i = s; i <= e; i++) {
-      btns.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-myl-page="${i}">${i}</button>`);
+      nums.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-myl-page="${i}">${i}</button>`);
     }
-    btns.push(`<button class="pagination__btn" data-myl-page="${Math.min(totalPages, page + 1)}" ${page === totalPages ? 'disabled' : ''}>›</button>`);
-    btns.push(`<button class="pagination__btn" data-myl-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`);
-    const sizeOpts = [20, 50, 100].map(v => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('');
+    /* 데스크톱: « ‹ [번호] › »  ·  모바일(≤768, 신청내역): '‹ 이전' '다음 ›' 만 노출(요청).
+       처음/끝(--edge)·번호(.pagination__nums)는 모바일에서 CSS 로 숨기고 .pg-mlabel 라벨을 노출. */
+    const listHTML =
+      `<button class="pagination__btn pagination__btn--edge" data-myl-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`
+      + `<button class="pagination__btn pagination__btn--step" data-myl-page="${Math.max(1, page - 1)}" ${page === 1 ? 'disabled' : ''}>‹<span class="pg-mlabel"> 이전</span></button>`
+      + `<span class="pagination__nums">${nums.join('')}</span>`
+      + `<button class="pagination__btn pagination__btn--step" data-myl-page="${Math.min(totalPages, page + 1)}" ${page === totalPages ? 'disabled' : ''}><span class="pg-mlabel">다음 </span>›</button>`
+      + `<button class="pagination__btn pagination__btn--edge" data-myl-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`;
+    /* 휴직 관리(page-hr-loa) 와 동일 — 좌측 정보(1-N/총건) + '페이지당 N건' 셀렉터 + 페이지 버튼 */
+    const info = total === 0 ? '0건' : `${start + 1}-${Math.min(start + size, total)} / 총 ${total}건`;
+    const sizeOpts = [20, 50, 100].map(v => `<option value="${v}"${v === size ? ' selected' : ''}>${v}</option>`).join('');
     return `
       <div class="pagination">
         <div class="pagination__info">${info}</div>
@@ -452,7 +483,7 @@
             <select class="select" data-myl-pagesize>${sizeOpts}</select>
             <span>건</span>
           </div>
-          <div class="pagination__list">${btns.join('')}</div>
+          <div class="pagination__list">${listHTML}</div>
         </div>
       </div>
     `;
@@ -465,6 +496,7 @@
       <header class="att-page__head" data-myl-head></header>
       <div class="att-page__body" data-myl-body></div>
       <div data-myl-legend></div>
+      <div class="att-page__mobile-actions" data-myl-mobile-actions></div>
     `;
   }
   function renderBody() {
@@ -474,6 +506,9 @@
   }
   function renderAll(pageEl) {
     pageEl.querySelector('[data-myl-tabbar]').innerHTML = renderTabBar();
+    /* 모바일(≤768) 하단 고정 신청 바 — 상단과 동일한 휴가 신청 버튼(양 탭 공통). */
+    const mAct = pageEl.querySelector('[data-myl-mobile-actions]');
+    if (mAct) mAct.innerHTML = `<button class="btn btn--primary btn--sm" type="button" data-myl-apply-hol>휴가 신청</button>`;
     /* 연차 현황 탭에서만 월 이동·뷰 토글 toolbar 노출. 신청 내역 탭은 toolbar/그리드가 본문. */
     const headEl = pageEl.querySelector('[data-myl-head]');
     headEl.innerHTML = STATE.level === 'status' ? renderHead() : '';

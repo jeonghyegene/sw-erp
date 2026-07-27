@@ -60,6 +60,10 @@ window.NAV_DATA = [
       { label: '복리후생', icon: 'heart', items: [
         { id: 'hr-meal', label: '식권 정산', page: 'page-hr-meal' },
       ]},
+      { label: '라이선스 관리', icon: 'award', items: [
+        /* 라이선스 현황 — 목록 + 개별 배정형/공용형 상세(요약 카드 + 이용 직원 그리드). */
+        { id: 'hr-license', label: '라이선스 현황', page: 'page-hr-license' },
+      ]},
       { label: '퇴사 관리', icon: 'exit', items: [
         { id: 'hr-leave',        label: '퇴사 현황',   page: 'page-hr-leave' },
         { id: 'hr-pension',      label: '퇴직연금 관리', page: 'page-hr-pension' },
@@ -83,6 +87,8 @@ window.NAV_DATA = [
         { id: 'att-my-work',        label: '나의 근태현황',   page: 'page-att-my-work' },
         /* 부서별 근태현황 — 권한자 시점. 전체 / 임직원별 / 부서별 뷰. 수동 새로고침 지원. */
         { id: 'att-status',         label: '부서별 근태현황', page: 'page-att-status' },
+        /* 도급직 근태현황 — 도급직만 필터. 소속회사(협력사) 단위 월 집계 / 상세내역 다운로드. */
+        { id: 'att-outsourced',     label: '도급직 근태현황', page: 'page-att-outsourced' },
       ]},
       { label: '근무스케줄 관리', icon: 'shuffle', items: [
         /* 부서별 근무스케줄 현황 — 전체 / 임직원별 / 부서별 뷰. [근무조 설정] 버튼으로도 편성 detail 진입. */

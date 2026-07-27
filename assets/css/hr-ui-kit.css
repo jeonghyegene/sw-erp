@@ -572,6 +572,8 @@
 .dd--row .dd__menu { left: auto; right: 0; min-width: 140px; }
 .dd__item--danger { color: var(--color-danger); }
 .dd__item--danger:hover { background: rgba(220,38,38,.08); }
+/* 현재 선택된 항목 — 목록형 드롭다운(기간 선택 등)에서 활성 표시 */
+.dd__item.is-active { background: var(--color-active); color: var(--color-brand-primary); font-weight: var(--fw-semibold); }
 /* 행 액션 더보기 버튼 (kebab) — 표 셀 안에서 사용 */
 .btn--kebab {
   width: 28px; height: 28px; padding: 0;
@@ -4912,6 +4914,34 @@ textarea.doc-editor__paper {
   .split--collapsible .split__right > .split__head > div:last-child { order: 8; flex: 0 0 auto; }  /* Row2 — 검색바 옆 ◀ ▶ */
 }
 
+/* 400px 이하 — Mobile S (갤럭시 폴드 접힘 280~360 포함) 우측 툴바 3행 재편:
+     Row1: [조직도▸] 부서명 ………(우측)……… 총 N명
+     Row2: [성명·사원번호 검색 — 풀폭]
+     Row3: [즐겨찾기] [도급직] ………(우측)……… ◀ ▶
+   검색 input 을 flex-basis:100% 로 단독 행에 두어 앞/뒤 요소가 자연 줄바꿈되며 3행이 된다
+   (::after 강제 줄바꿈 불필요 → 제거). 좁은 폭에서 8개 요소가 한 행에 몰려 부서명이
+   뭉개지고 칩이 제멋대로 접히던 문제(폴드 접힘·소형폰) 해소. order 재지정만으로 처리(DOM 불변). */
+@media (max-width: 400px) {
+  .split--collapsible .split__right > .split__head {
+    justify-content: flex-start;   /* space-between → 좌측 정렬. 우측 정렬은 margin-left:auto 로 */
+    column-gap: 8px;
+    row-gap: 8px;
+  }
+  .split--collapsible .split__right > .split__head::after { content: none; }  /* 기존 강제 줄바꿈 pseudo 제거 (빈 행 방지) */
+  /* Row1 — 조직도 펼치기 · 부서명 · 총 N명 */
+  .split--collapsible .split__right > .split__head > .split__expander     { order: 1; flex: 0 0 auto; }
+  .split--collapsible .split__right > .split__head > #hr-emp-dept-title    { order: 2; flex: 0 1 auto; min-width: 0; }
+  .split--collapsible .split__right > .split__head > div[style*="flex:1"]  { order: 3; flex: 1 1 auto; }  /* 스페이서 → 총 N명 을 우측 끝으로 */
+  .split--collapsible .split__right > .split__head > .toolbar__count       { order: 4; flex: 0 0 auto; }
+  /* Row2 — 검색 풀폭 (단독 행 → 앞/뒤 자동 줄바꿈 경계) */
+  .split--collapsible .split__right > .split__head > #hr-emp-keyword {
+    order: 5; flex: 1 1 100%; width: 100%; min-width: 0; max-width: none;
+  }
+  /* Row3 — 즐겨찾기 · 도급직 (좌) ……… ◀ ▶ (우) */
+  .split--collapsible .split__right > .split__head > .chk                  { order: 6; flex: 0 0 auto; }
+  .split--collapsible .split__right > .split__head > div:last-child        { order: 7; flex: 0 0 auto; margin-left: auto; }
+}
+
 /* ==================== HR Card (인사카드 — 밸런스형) ====================
    - 부서 섹션(.dept-strip) 안에 한 줄씩 쌓이는 카드
    - 아바타 + 이름/직위·소속 칩 + 상태 + 연락처 inline + 즐겨찾기 */
@@ -5163,6 +5193,77 @@ a.hr-card__contact-value:hover {
   background: var(--color-divider);
   flex-shrink: 0;
 }
+
+/* 600px 이하 (모바일 전체 — 폴드 접힘 280~360 · 폴드 펼침 근처 포함) 카드 세로 스택 + 예쁜 연락처 버튼.
+   [사진(가운데 위)] → [이름·직위] → [전화 CTA 버튼] → [이메일 보조 버튼] 순 세로 정렬.
+   - 좁은 폭: 가로 배치는 연락처 폭이 눌려(≈232px) 전화번호가 잘림 → 세로 스택으로 해소.
+   - 넓은 모바일(≈576px): 좌측 아바타 + 우측 여백만 큰 허전한 카드 → 콘텐츠 max-width 로 '가운데 프로필 카드' 통일.
+   전화 = 브랜드 CTA 필(pill, 반투명 아이콘칩 + 흰 굵은 번호 + 소프트 그림자), 이메일 = 작은 보조 pill.
+   아이콘·값 앵커가 같은 tel:/mailto: 라 값 앵커 flex:1 로 버튼 전체를 탭 타깃으로. */
+@media (max-width: 600px) {
+  /* 세로 스택 — 그리드 단일 컬럼, 아바타 가운데, 본문은 전체 폭 stretch */
+  .hr-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 12px;
+    padding: 18px 14px 16px;
+  }
+  .hr-card__body { justify-self: stretch; width: 100%; align-items: center; gap: 10px; }
+  .hr-card__head { justify-content: center; padding-right: 0; }  /* 이름·직위·칩 가운데, fav 회피 padding 불요(이름이 상단이 아님) */
+
+  /* 연락처 — 가운데 컬럼, 과도한 stretch 방지. 컨테이너 박스(보더/배경)는 제거하고 버튼 각각을 pill 로 */
+  .hr-card__contact {
+    align-self: center;
+    width: 100%;
+    max-width: 320px;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .hr-card__contact-item > a.hr-card__contact-value { flex: 1 1 auto; }
+
+  /* 전화 (첫 아이템) — 연한 브랜드 틴트 소프트 pill (가볍게) */
+  .hr-card__contact-item:first-child {
+    min-height: 44px;                        /* 손가락 탭 권장 높이 */
+    padding: 0 14px;
+    gap: 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-active);         /* 연한 브랜드 틴트 (배경만, 그림자·강한 테두리 없음) */
+    border: 0;
+  }
+  .hr-card__contact-item:first-child > .hr-card__contact-icon {
+    width: 24px; height: 24px;
+    background: var(--color-surface);        /* 틴트 위 흰 원형 아이콘칩 */
+    border-color: transparent;
+    color: var(--color-brand-primary);       /* 브랜드색 전화 아이콘 */
+  }
+  .hr-card__contact-item:first-child > .hr-card__contact-icon svg { width: 13px; height: 13px; }
+  .hr-card__contact-item:first-child > .hr-card__contact-value {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-bold);
+    color: var(--color-brand-primary);       /* 진한 브랜드색 번호 */
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;      /* 숫자 폭 균일 — 번호가 깔끔하게 정렬 */
+  }
+  a.hr-card__contact-value:hover { text-decoration: none; }   /* hover 밑줄 억제 (탭 UI라 불필요) */
+
+  /* 이메일 (마지막 아이템) — 작은 보조 pill */
+  .hr-card__contact-item:last-child {
+    min-height: 32px;
+    padding: 0 12px;
+    gap: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-divider);
+  }
+  .hr-card__contact-item:last-child > .hr-card__contact-value {
+    font-size: var(--fs-xs);
+    color: var(--color-text-sub);
+    overflow: hidden; text-overflow: ellipsis;
+  }
+}
+
 .hr-card__fav {
   position: absolute;
   top: 14px; right: 14px;                 /* 카드 padding 라인과 정렬 */
@@ -5357,6 +5458,7 @@ a.hr-card__contact-value:hover {
   .dept-strip__cards > .hr-card {
     width: 100%;
     min-width: 0;
+    cursor: default;   /* 모바일: 카드 탭으로 상세를 열지 않으므로 클릭 가능 커서 제거 (전화/메일 앵커는 자체 pointer) */
   }
 }
 

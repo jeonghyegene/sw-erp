@@ -366,10 +366,15 @@
       id: r.id,
       name: r.name || ((r.fname || '') + (r.gname || '')),
       dept: (function () { const pool = attDeptPool(); return pool[i % pool.length]; })(),   /* 권한 관리 부서 트리 기준 재배치 */
+      /* 실제 소속 부서(임직원 관리 원본) — 도급직 근태현황 등 재배치 전 부서를 표기해야 하는 화면용 */
+      homeDept: r.dept || '',
       rank: r.rank || '',
       position: r.position || '',
       photoUrl: r.photoUrl || '',
       shift: _SHIFT_POOL[i % _SHIFT_POOL.length],
+      /* 고용형태 / 도급 소속회사 — 도급직 근태현황 필터·그룹 축 (임직원 관리 원본 유지) */
+      empType: r.empType || '',
+      contractCompany: r.contractCompany || '',
     }));
     /* 부서 목록 — 명단의 distinct 부서(등장 순서) */
     DEPTS.length = 0;
@@ -379,6 +384,15 @@
     return true;
   }
   const DOW_KO = ['일','월','화','수','목','금','토'];
+
+  /* 조직도 패널 접기/펼치기 버튼용 셰브론 (임직원 현황과 동일) */
+  const ICON_CHEVRON_L = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+  const ICON_CHEVRON_R = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  /* 기간(주/월/연) 톱니바퀴 메뉴 트리거 아이콘 — 모바일에서 세그먼트 토글 대체 */
+  const ICON_GEAR = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  /* 모바일 폭 판정 — CSS @media(max-width:768px) 와 동일 기준(임직원 현황 패턴) */
+  const MOBILE_BP = 768;
+  function isMobileWidth() { return window.matchMedia('(max-width: ' + MOBILE_BP + 'px)').matches; }
 
   /* ============ Helper ============ */
   function esc(s) {
@@ -795,6 +809,8 @@
     lastRefreshAt: null,
     /* 통계(KPI) 패널 접힘 상태 — 퇴사 현황 화면과 동일한 접기/펼치기 UX */
     statOpen: true,
+    /* 좌측 조직도 패널 접힘 여부 — 임직원 현황과 동일(모바일 기본 접힘, 데스크톱 펼침) */
+    leftCollapsed: false,
     /* 부서별 뷰 표시 모드 — 'month'(월간 집계, 기본) | 'week'(주간 일자별) */
     deptMode: 'month',
     /* 전사(C0) 뷰 표시 모드 — 'week'(주간) | 'month'(월간, 기본) | 'year'(연간) */
@@ -981,9 +997,13 @@
    * ========================================================= */
   function renderShell(pageEl) {
     pageEl.innerHTML = `
-      <div class="split" style="--split-left:240px;height:100%;">
+      <div class="split split--collapsible is-left-collapsed" id="att-status-split" style="--split-left:240px;height:100%;">
         <aside class="split__left">
-          <div class="split__head"><h3>조직도</h3></div>
+          <div class="split__head">
+            <h3>조직도</h3>
+            <div style="flex:1"></div>
+            <button class="split__collapser" type="button" data-split-collapse="att-status-split" title="조직도 접기">${ICON_CHEVRON_L}</button>
+          </div>
           <div class="split__body" style="padding:0;display:flex;flex-direction:column;min-height:0;">
             <ul class="tree tree--selectable" data-att-tree style="flex:1;overflow:auto;padding:8px 10px;margin:0;"></ul>
           </div>
@@ -994,6 +1014,26 @@
         </section>
       </div>
     `;
+  }
+
+  /* 좌측 조직도 상태를 폭에 맞춰 동기화 — 모바일: 접힘 유지 / 데스크톱: 펼침 (임직원 현황과 동일).
+     마크업 기본값이 is-left-collapsed(닫힘) 라, JS 가 못 돌아도 드로어가 카드를 덮지 않는다. */
+  function applyMobileSplitState(pageEl) {
+    const root = pageEl ? pageEl.querySelector('#att-status-split') : document.getElementById('att-status-split');
+    if (!root) return;
+    if (isMobileWidth()) { root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true; }
+    else { root.classList.remove('is-left-collapsed'); STATE.leftCollapsed = false; }
+  }
+  /* 페이지 외부에서 한 번만 바인딩 — resize 시 모바일이면 접기 */
+  if (!window.__attStatusResizeBound) {
+    window.__attStatusResizeBound = true;
+    window.addEventListener('resize', () => {
+      const root = document.getElementById('att-status-split');
+      if (!root) return;
+      if (isMobileWidth() && !root.classList.contains('is-left-collapsed')) {
+        root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true;
+      }
+    });
   }
 
   /* 좌측 조직도 — 임직원 관리(App.HRInfoMgmt) 의 트리를 단일 소스로 재사용(구조 100% 동일).
@@ -1044,26 +1084,35 @@
         weekLabel = `<div class="att-tb__weekrange">${esc(fmtYM(wk.ym))} ${wk.week}주차 · ${esc(fmtDisp(ds[0]))} ~ ${esc(fmtDisp(ds[ds.length - 1]))}</div>`;
       }
     }
-    const segTab = (grp, key, label, active) => `<button type="button" class="tabs__tab ${active ? 'is-active' : ''}" data-att-${grp}-mode="${key}">${label}</button>`;
+    const grp = isDept ? 'dept' : 'comp';
+    const curMode = isDept ? STATE.deptMode : STATE.companyMode;
+    const modeOpts = isDept
+      ? [{ key: 'month', label: '월간' }, { key: 'week', label: '주간' }]
+      : [{ key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'year', label: '연간' }];
+    const segTab = (o) => `<button type="button" class="tabs__tab ${curMode === o.key ? 'is-active' : ''}" data-att-${grp}-mode="${o.key}"><span class="seg-lbl-full">${o.label}</span><span class="seg-lbl-short">${o.label.charAt(0)}</span></button>`;
+    const ddItem = (o) => `<button type="button" class="dd__item ${curMode === o.key ? 'is-active' : ''}" data-att-${grp}-mode="${o.key}">${o.label.charAt(0)}</button>`;
+    const curShort = ((modeOpts.find(o => o.key === curMode) || modeOpts[0]).label).charAt(0);
+    /* 데스크톱 — 세그먼트 토글(.att-tb__mode-seg) / 모바일(≤700) — 톱니바퀴 드롭다운(.att-tb__mode-dd, UI Kit .dd 재사용) 으로 주·월·연 선택 */
     const modeToggle = `
-      <div style="flex:1;display:flex;justify-content:center;">
-        <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
-          <div class="tabs__nav">
-            ${isDept
-              ? segTab('dept', 'month', '월간', STATE.deptMode === 'month') + segTab('dept', 'week', '주간', STATE.deptMode === 'week')
-              : segTab('comp', 'week', '주간', STATE.companyMode === 'week') + segTab('comp', 'month', '월간', STATE.companyMode === 'month') + segTab('comp', 'year', '연간', STATE.companyMode === 'year')}
-          </div>
+      <div class="att-tb__mode" style="flex:1;display:flex;justify-content:center;">
+        <div class="tabs tabs--segmented att-tb__mode-seg" style="display:inline-flex;width:auto;">
+          <div class="tabs__nav">${modeOpts.map(segTab).join('')}</div>
+        </div>
+        <div class="dd att-tb__mode-dd dd--row">
+          <button type="button" class="btn btn--sm att-tb__mode-gear" data-att-mode-menu aria-haspopup="true" title="기간 선택 (주·월·연)">${esc(curShort)} ${ICON_GEAR}</button>
+          <div class="dd__menu">${modeOpts.map(ddItem).join('')}</div>
         </div>
       </div>`;
 
     /* 기간 선택 — 연간이면 연도만, 그 외는 연/월 피커. 화살표는 모드에 따라 주/월/연 단위로 이동(핸들러 분기). */
     const periodCtrl = companyYear
-      ? `<span class="att-tb__title" style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">${parseYM(STATE.ym).y}년</span>`
+      ? `<span class="att-tb__title att-tb__title--year">${parseYM(STATE.ym).y}년</span>`
       : App.YmPicker.html({ name: 'ym', ym: STATE.ym, todayYm: TODAY.slice(0, 7) });
     const navAria = companyYear ? ['이전 해', '다음 해'] : isWeek ? ['이전 주', '다음 주'] : ['이전 달', '다음 달'];
 
     return `
       <div class="att-tb">
+        <button class="split__expander" type="button" data-split-expand="att-status-split" title="조직도 펼치기"><span>조직도</span>${ICON_CHEVRON_R}</button>
         <div class="att-tb__left">
           ${periodCtrl}
           <div class="att-tb__nav">
@@ -1710,7 +1759,53 @@
           <span><span class="att-cal__doc-mark">📄</span>품의서</span>
         </div>
       </div>
+      ${renderMobileDaily(empId, recs)}
     `;
+  }
+
+  /* 모바일(≤768) 세로 일자별 근태 리스트 — 캘린더 대체(.att-mopt @media 로 전환).
+     나의 근태현황(.att-mlist)과 동일 톤. 캘린더 셀과 동일한 색상 블록/근무조 칩/품의서 배지 재사용. */
+  function renderMobileDaily(empId, recs) {
+    const items = recs.map(r => {
+      const dd = Number(r.date.split('-')[2]);
+      const wd = new Date(r.date).getDay();
+      const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
+      const todayCls = r.date === TODAY ? 'is-today' : '';
+      const docs = empId === ME_ID ? appsByDate(ME_ID, r.date) : [];
+      const docMark = docs.length ? `<button type="button" class="att-cal__doc" data-att-doc-open="${esc(docs[0].id)}" title="${esc(docs[0].codeLabel || (docs[0].otKind === 'night' ? '연장근무 신청서' : '휴일근무 신청서'))} (${esc(APP_STATUSES[docs[0].status].label)})">📄${docs.length > 1 ? `<span class="att-cal__doc-more">+${docs.length - 1}</span>` : ''}</button>` : '';
+      const shiftChip = calShiftChip(r.shift);
+      let gubun = '예정', gubunCls = 'att-mlist__gubun--future', detail = '';
+      const chips = [];
+      if (r.kind === 'work') {
+        gubun = '출근'; gubunCls = 'att-mlist__gubun--work';
+        if (r.checkIn) detail = `출근 <strong>${esc(r.checkIn)}</strong> · 퇴근 <strong>${esc(r.checkOut)}</strong>`;
+        const mm = calShiftMismatch(r);
+        if (mm) chips.push(`<span class="att-cal__block att-cal__block--warn" title="근무조 불일치 — 등록 ${esc(mm.code)} ${esc(mm.sched)} · 실제 출근 ${esc(mm.actual)}">근무조 불일치 !</span>`);
+        if (r.isLate)           chips.push(`<span class="att-cal__block att-cal__block--late">지각 ${r.lateMin || 0}분</span>`);
+        if (r.isEarly)          chips.push(`<span class="att-cal__block att-cal__block--early">조퇴 ${r.earlyMin || 0}분</span>`);
+        if (r.ot && r.ot.extra) chips.push(`<span class="att-cal__block att-cal__block--ot">연장 ${r.ot.extra}h</span>`);
+        if (r.ot && r.ot.night) chips.push(`<span class="att-cal__block att-cal__block--night">야간 ${r.ot.night}h</span>`);
+      } else if (r.kind === 'att') {
+        gubun = '휴가'; gubunCls = 'att-mlist__gubun--leave';
+        detail = calLeaveLabel(r).replace(/^휴가:\s*/, '');   /* 이미 esc 됨 */
+        if (r.checkIn) chips.push(`<span class="att-cal__block ${calShiftColorCls(r.shift)}">출근 ${esc(r.checkIn)}~${esc(r.checkOut)}</span>`);
+      } else if (r.kind === 'holiday') {
+        gubun = '휴일'; gubunCls = 'att-mlist__gubun--off'; detail = '주말';
+      }
+      return `
+        <div class="att-mlist__row ${wdCls} ${todayCls}">
+          <div class="att-mlist__date"><span class="att-mlist__day">${dd}</span><span class="att-mlist__dow">${DOW_KO[wd]}</span></div>
+          <div class="att-mlist__main">
+            <div class="att-mlist__top">
+              <span class="att-mlist__gubun ${gubunCls}">${gubun}</span>
+              ${detail ? `<span class="att-mlist__detail">${detail}</span>` : ''}
+              <span class="att-mlist__tail">${shiftChip}${docMark}</span>
+            </div>
+            ${chips.length ? `<div class="att-mlist__chips">${chips.join('')}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    return `<div class="att-mlist">${items || '<div class="att-mlist__empty">표시할 근태 기록이 없습니다.</div>'}</div>`;
   }
   function renderCalCell(empId, r) {
     const d = Number(r.date.split('-')[2]);
@@ -1829,7 +1924,7 @@
           </span>
         </button>
         <div style="padding:14px 16px;${open ? '' : 'display:none;'}">
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+          <div class="att-statgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
             ${items.map(it => kpiCardClickable(it.cat, it.label, it.value, it.color)).join('')}
           </div>
         </div>
@@ -1933,7 +2028,47 @@
       if (e.detail.name === 'ym') { STATE.ym = e.detail.ym; STATE.weekMonday = null; renderAll(pageEl); }
     });
 
+    /* 모바일 — 조직도 드로어가 열려있을 때 우측(카드) 클릭 시 자동 닫기 (임직원 현황과 동일).
+       capture 단계에서 먼저 받아 카드 클릭 핸들러보다 앞서 처리. */
+    pageEl.addEventListener('click', (e) => {
+      if (!isMobileWidth()) return;
+      const root = pageEl.querySelector('#att-status-split');
+      if (!root || root.classList.contains('is-left-collapsed')) return;
+      if (e.target.closest('[data-split-expand]')) return;   /* 펼치기 버튼은 통과 */
+      if (e.target.closest('.split__right')) {
+        root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true;
+        e.stopPropagation();
+      }
+    }, true);
+
+    /* 기간 dots 메뉴 — 트리거·메뉴 밖 클릭 시 닫기 */
+    pageEl.addEventListener('click', (e) => {
+      if (e.target.closest('[data-att-mode-menu]') || e.target.closest('.att-tb__mode-dd .dd__menu')) return;
+      const open = pageEl.querySelector('.att-tb__mode-dd.is-open');
+      if (open) open.classList.remove('is-open');
+    });
+
     pageEl.addEventListener('click', e => {
+      /* 조직도 패널 접기 / 펼치기 (임직원 현황과 동일) */
+      if (e.target.closest('[data-split-collapse]')) {
+        const root = pageEl.querySelector('#att-status-split');
+        if (root) { root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true; }
+        return;
+      }
+      if (e.target.closest('[data-split-expand]')) {
+        const root = pageEl.querySelector('#att-status-split');
+        if (root) { root.classList.remove('is-left-collapsed'); STATE.leftCollapsed = false; }
+        return;
+      }
+
+      /* 기간(주/월/연) dots 메뉴 열고닫기 (모바일) */
+      const modeMenuBtn = e.target.closest('[data-att-mode-menu]');
+      if (modeMenuBtn) {
+        const dd = modeMenuBtn.closest('.dd');
+        if (dd) dd.classList.toggle('is-open');
+        return;
+      }
+
       /* 기간 이동 + 오늘 — 전사 연간=연 단위 / 주간(부서·전사)=주 단위 / 그 외=월 단위 */
       const isC0 = STATE.selectedDeptId === 'C0';
       const isYearNav = isC0 && STATE.companyMode === 'year';
@@ -1981,6 +2116,11 @@
       if (treeNode) {
         STATE.selectedDeptId = treeNode.dataset.id;
         renderAll(pageEl);
+        /* 모바일 — 부서 선택 후 조직도 드로어 자동 닫기 */
+        if (isMobileWidth()) {
+          const root = pageEl.querySelector('#att-status-split');
+          if (root) { root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true; }
+        }
         return;
       }
 
@@ -2311,15 +2451,19 @@
     body.innerHTML = `
       ${renderApplyBalanceCards(d.tab)}
       <div class="fm-tbl fm-tbl--compact fm-tbl--bordered fm-tbl--form">
-        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
           <div class="fm-tbl__label">문서번호</div>
           <div class="fm-tbl__value"><a class="link-code">${esc(docNo)}</a> <small class="t-muted">(상신 시 자동 채번)</small></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
           <div class="fm-tbl__label">문서명</div>
           <div class="fm-tbl__value">${esc(applyDocName(d.mode))}</div>
         </div>
-        <div class="fm-tbl__row fm-tbl__row--2" ${gridCol2}>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
           <div class="fm-tbl__label">기안자</div>
           <div class="fm-tbl__value">${esc(ME_NAME)} <span class="t-muted" style="margin-left:4px;">${esc(ME_ID)}</span></div>
+        </div>
+        <div class="fm-tbl__row fm-tbl__row--1" ${gridCol1}>
           <div class="fm-tbl__label">부서</div>
           <div class="fm-tbl__value">${esc(ME_DEPT)}</div>
         </div>
@@ -3078,6 +3222,7 @@
         STATE.lastRefreshAt = nowHMS();
       }
       renderAll(pageEl);
+      applyMobileSplitState(pageEl);   /* 진입/재진입 시 폭에 맞춰 조직도 접힘/펼침 동기화 */
     };
   }
 
@@ -3087,7 +3232,7 @@
   function ensureAttModal() {
     if (document.getElementById('att-modal')) return;
     const html = `
-<div class="modal-backdrop" id="att-modal" data-modal-id="att-modal" style="z-index:1200;">
+<div class="modal-backdrop att-mopt" id="att-modal" data-modal-id="att-modal" style="z-index:1200;">
   <div class="modal modal--lg" style="width:92vw;max-width:1040px;height:86vh;max-height:880px;display:flex;flex-direction:column;">
     <div class="modal__header">
       <div class="modal__title" data-att-modal-title>근태 현황</div>
@@ -3168,7 +3313,7 @@
   function openAttModal(title, bodyHTML) {
     ensureAttModal();
     const modal = document.getElementById('att-modal');
-    modal.querySelector('[data-att-modal-title]').textContent = title;
+    modal.querySelector('[data-att-modal-title]').innerHTML = title;
     modal.querySelector('[data-att-modal-body]').innerHTML = bodyHTML;
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
@@ -3220,8 +3365,8 @@
     STATE.modalView = 'cal';
     STATE.modalYm = STATE.ym;
     STATE.modalDailyFilter = null;
-    const meta = `${emp.name}·${emp.id}·${emp.dept}·${emp.rank || '-'}·${emp.position || '-'}`;
-    openAttModal(`직원별 근태 현황 (${meta})`, renderEmpModalBody());
+    const meta = `${esc(emp.name)} · ${esc(emp.id)} · ${esc(emp.dept)} · ${esc(emp.rank || '-')} · ${esc(emp.position || '-')}`;
+    openAttModal(`<span class="att-modal-title__main">직원별 근태 현황</span><span class="att-modal-title__meta">${meta}</span>`, renderEmpModalBody());
   }
   function renderEmpModalBody() {
     const empId = STATE.modalEmpId;
@@ -3244,7 +3389,7 @@
     /* 월 이동 ‹오늘› + 연월 + 캘린더/대시보드 토글을 한 줄 좌측 정렬.
        월 이동은 두 뷰 모두에서 항상 노출 — 대시보드로 전환해도 조회 월(연월)은 유지된다. */
     const toggle = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <div class="att-emptb" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
         <div class="att-tb__nav">
           <button type="button" data-att-emp-ym-prev aria-label="이전 달">‹</button>
           <button type="button" data-att-emp-ym-today>오늘</button>
@@ -3551,6 +3696,8 @@
     appsForEmp, setAppStatus, isHR,
     /* 지각/조퇴 기록 리스트 모달 — 나의 근태현황에서도 호출 */
     openLateEarlyModal,
+    /* 도급직 근태현황(page-att-outsourced) 재사용 — 직원 상세 모달 / 다운로드 / 일자별 집계 엔진 */
+    openEmpDetailModal, dlEmpDaily, dlEmpApps, empDailyBody, DAILY_HEAD,
     /* 신청 회수(승인 전) / 취소 신청(승인 후, 전자결재) — 나의 근태/연차현황에서 호출 */
     canWithdraw, canCancel, withdrawApp, requestCancelApp,
   };

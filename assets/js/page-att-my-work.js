@@ -89,6 +89,13 @@
     const t = title ? ` title="${esc(title)}"` : '';
     return `<div class="att-cal__block ${colorCls}"${t}><span class="att-cal__block-txt">${text}</span></div>`;
   }
+  /* 블록 텍스트 = 레이블 + 시간/수치(detail) 분리.
+     ≤1280px 에서는 CSS 가 .att-cal__block-dt(시간·수치)만 숨겨 '출근' 같은 레이블만 남긴다.
+     (휴가 라벨 등 detail 없는 블록은 이 헬퍼를 쓰지 않고 기존 텍스트를 그대로 넘긴다.) */
+  function labelDetail(label, detail) {
+    return `<span class="att-cal__block-lb">${label}</span>`
+      + (detail ? `<span class="att-cal__block-dt"> ${detail}</span>` : '');
+  }
   /* 경고 출퇴근 블록 — 근무조 불일치/반차 미신청 등. 찐 다홍 solid + 느낌표. 클릭 시 안내 모달.
      warnData: { date, mm:{code,sched,actual}|null, half:'am'|'pm'|null } */
   function warnBlockHTML(checkIn, checkOut, warnData) {
@@ -96,7 +103,7 @@
       + (warnData.mm ? ` data-mm-code="${esc(warnData.mm.code)}" data-mm-sched="${esc(warnData.mm.sched)}" data-mm-actual="${esc(warnData.mm.actual)}"` : '')
       + (warnData.half ? ` data-warn-half="${esc(warnData.half)}"` : '');
     return `<div class="att-cal__block att-cal__block--warn is-clickable"${attrs} title="근태 경고 — 클릭하여 상세 확인">`
-      + `<span class="att-cal__block-txt">출근 ${esc(checkIn)} 퇴근 ${esc(checkOut)}</span>`
+      + `<span class="att-cal__block-txt">${labelDetail('출근', `${esc(checkIn)} 퇴근 ${esc(checkOut)}`)}</span>`
       + `<span class="att-cal__mm">!</span></div>`;
   }
 
@@ -133,12 +140,25 @@
     { key: 'apps',   label: '신청 내역' },
   ];
 
+  /* 신청 버튼 3개(근태/초과근무/근무조 변경) — 데스크톱 상단 탭바 우측 + 모바일(≤768) 하단 고정 바에서 공유.
+     근무조 변경은 사무직·연구직만(생산직은 팀장·관리자가 스케줄 변경). data-mw-act 위임 핸들러가 위치 무관 처리. */
+  function renderApplyButtons() {
+    return `
+      <button class="btn btn--primary btn--sm" type="button" data-mw-act="apply-att">근태 신청</button>
+      <button class="btn btn--sm" type="button" data-mw-act="apply-ot">초과근무 신청</button>
+      ${canSelfRequestShift()
+        ? `<button class="btn btn--sm" type="button" data-mw-act="shift-change">근무조 변경 신청</button>`
+        : `<span class="t-muted att-page__shift-note" style="font-size:var(--fs-xs);align-self:center;" title="생산직은 팀장·관리자가 근무스케줄을 변경합니다.">근무조 변경은 팀장·관리자 문의</span>`}
+    `;
+  }
+
   function renderShell(pageEl) {
     pageEl.innerHTML = `
       <div class="att-page__tabbar" data-mw-tabbar></div>
       <header class="att-page__head" data-mw-head></header>
       <div class="att-page__body" data-mw-body></div>
       <div data-mw-legend></div>
+      <div class="att-page__mobile-actions" data-mw-mobile-actions></div>
     `;
   }
 
@@ -150,13 +170,7 @@
           <button type="button" class="att-scope-tab ${STATE.level === l.key ? 'is-active' : ''}" data-mw-level="${l.key}">${esc(l.label)}</button>
         `).join('')}
       </div>
-      <div class="att-page__tabbar-actions">
-        <button class="btn btn--primary btn--sm" type="button" data-mw-act="apply-att">근태 신청</button>
-        <button class="btn btn--sm" type="button" data-mw-act="apply-ot">초과근무 신청</button>
-        ${canSelfRequestShift()
-          ? `<button class="btn btn--sm" type="button" data-mw-act="shift-change">근무조 변경 신청</button>`
-          : `<span class="t-muted" style="font-size:var(--fs-xs);align-self:center;" title="생산직은 팀장·관리자가 근무스케줄을 변경합니다.">근무조 변경은 팀장·관리자 문의</span>`}
-      </div>
+      <div class="att-page__tabbar-actions">${renderApplyButtons()}</div>
     `;
   }
 
@@ -211,7 +225,7 @@
     `;
     const isWeek = STATE.span === 'week';
     const spanToggle = `
-      <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
+      <div class="tabs tabs--segmented mw-span-toggle" style="display:inline-flex;width:auto;">
         <div class="tabs__nav">
           <button type="button" class="tabs__tab ${!isWeek ? 'is-active' : ''}" data-mw-span="month">월간</button>
           <button type="button" class="tabs__tab ${isWeek ? 'is-active' : ''}" data-mw-span="week">주간</button>
@@ -381,20 +395,25 @@
   function renderAppsPager(total, start, size) {
     const totalPages = Math.max(1, Math.ceil(total / size));
     const page = STATE.appPage;
-    const info = total === 0 ? '0건' : `${start + 1}-${Math.min(start + size, total)} / ${total}건`;
-    const btns = [];
-    btns.push(`<button class="pagination__btn" data-mw-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`);
-    btns.push(`<button class="pagination__btn" data-mw-page="${Math.max(1, page - 1)}" ${page === 1 ? 'disabled' : ''}>‹</button>`);
+    const nums = [];
     const win = 10;
     let s = Math.max(1, page - Math.floor(win / 2));
     let e = Math.min(totalPages, s + win - 1);
     if (e - s < win - 1) s = Math.max(1, e - win + 1);
     for (let i = s; i <= e; i++) {
-      btns.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-mw-page="${i}">${i}</button>`);
+      nums.push(`<button class="pagination__btn${i === page ? ' is-active' : ''}" data-mw-page="${i}">${i}</button>`);
     }
-    btns.push(`<button class="pagination__btn" data-mw-page="${Math.min(totalPages, page + 1)}" ${page === totalPages ? 'disabled' : ''}>›</button>`);
-    btns.push(`<button class="pagination__btn" data-mw-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`);
-    const sizeOpts = [20, 50, 100].map(v => `<option value="${v}" ${v === size ? 'selected' : ''}>${v}</option>`).join('');
+    /* 데스크톱: « ‹ [번호] › »  ·  모바일(≤768, 신청내역): '‹ 이전' '다음 ›' 만 노출(요청).
+       처음/끝(--edge)·번호(.pagination__nums)는 모바일에서 CSS 로 숨기고 .pg-mlabel 라벨을 노출. */
+    const listHTML =
+      `<button class="pagination__btn pagination__btn--edge" data-mw-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`
+      + `<button class="pagination__btn pagination__btn--step" data-mw-page="${Math.max(1, page - 1)}" ${page === 1 ? 'disabled' : ''}>‹<span class="pg-mlabel"> 이전</span></button>`
+      + `<span class="pagination__nums">${nums.join('')}</span>`
+      + `<button class="pagination__btn pagination__btn--step" data-mw-page="${Math.min(totalPages, page + 1)}" ${page === totalPages ? 'disabled' : ''}><span class="pg-mlabel">다음 </span>›</button>`
+      + `<button class="pagination__btn pagination__btn--edge" data-mw-page="${totalPages}" ${page === totalPages ? 'disabled' : ''}>»</button>`;
+    /* 휴직 관리(page-hr-loa) 와 동일 — 좌측 정보(1-N/총건) + '페이지당 N건' 셀렉터 + 페이지 버튼 */
+    const info = total === 0 ? '0건' : `${start + 1}-${Math.min(start + size, total)} / 총 ${total}건`;
+    const sizeOpts = [20, 50, 100].map(v => `<option value="${v}"${v === size ? ' selected' : ''}>${v}</option>`).join('');
     return `
       <div class="pagination">
         <div class="pagination__info">${info}</div>
@@ -404,7 +423,7 @@
             <select class="select" data-mw-pagesize>${sizeOpts}</select>
             <span>건</span>
           </div>
-          <div class="pagination__list">${btns.join('')}</div>
+          <div class="pagination__list">${listHTML}</div>
         </div>
       </div>
     `;
@@ -548,6 +567,66 @@
     `;
   }
 
+  /* 모바일(≤768px) 일자별 근태 리스트 — 캘린더 대신 세로 스크롤. 최신순(STATE.dailySort).
+     각 행: 날짜/요일 + 구분 pill + 출퇴근/휴가 상세 + 지각·조퇴·연장·야간·경고 칩(캘린더 색상 재사용). */
+  function renderMobileDaily(recs) {
+    const A = App.AttStatus;
+    const DOW = ['일','월','화','수','목','금','토'];
+    const sorted = recs.slice().sort((a, b) => STATE.dailySort === 'asc'
+      ? (a.date || '').localeCompare(b.date || '')
+      : (b.date || '').localeCompare(a.date || ''));
+    const items = sorted.map(r => {
+      const dd = Number(r.date.split('-')[2]);
+      const wd = new Date(r.date).getDay();
+      const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
+      const todayCls = r.date === A.TODAY ? 'is-today' : '';
+      const docMark = docMarkHTML(r.date);
+      let gubun = '예정', gubunCls = 'att-mlist__gubun--future', detail = '', warnMark = '';
+      const chips = [];
+      if (r.kind === 'work') {
+        gubun = '출근'; gubunCls = 'att-mlist__gubun--work';
+        if (r.checkIn) detail = `출근 <strong>${esc(r.checkIn)}</strong> · 퇴근 <strong>${esc(r.checkOut)}</strong>`;
+        if (r.isLate)           chips.push(`<span class="att-cal__block att-cal__block--late">지각 ${r.lateMin || 0}분</span>`);
+        if (r.isEarly)          chips.push(`<span class="att-cal__block att-cal__block--early">조퇴 ${r.earlyMin || 0}분</span>`);
+        if (r.ot && r.ot.extra) chips.push(`<span class="att-cal__block att-cal__block--ot">연장 ${r.ot.extra}h</span>`);
+        if (r.ot && r.ot.night) chips.push(`<span class="att-cal__block att-cal__block--night">야간 ${r.ot.night}h</span>`);
+        /* 경고 — 리스트에선 우측 중앙에 빨강 ! 배지(품의서 옆). 클릭 시 안내 모달. */
+        const mm = shiftMismatch(r), half = halfHint(r);
+        if (mm || half) {
+          warnMark = `<button type="button" class="att-cal__mm att-cal__mm--tail is-clickable" data-mw-warn="${esc(r.date)}"`
+            + (mm ? ` data-mm-code="${esc(mm.code)}" data-mm-sched="${esc(mm.sched)}" data-mm-actual="${esc(mm.actual)}"` : '')
+            + (half ? ` data-warn-half="${esc(half)}"` : '') + ` title="근태 경고 — 클릭하여 상세 확인">!</button>`;
+        }
+      } else if (r.kind === 'att') {
+        const code = r.code || '';
+        const isAbsent = code === 'HOLG02' || code === 'HOLG03';
+        gubun = isAbsent ? '결근' : '휴가';
+        gubunCls = isAbsent ? 'att-mlist__gubun--absent' : 'att-mlist__gubun--leave';
+        detail = esc((A.codeLabel && A.codeLabel(code)) || r.label || '');
+        if (r.checkIn) chips.push(`<span class="att-cal__block ${shiftColorCls(r.shift)}">출근 ${esc(r.checkIn)}~${esc(r.checkOut)}</span>`);
+      } else if (r.kind === 'holiday') {
+        gubun = '휴일'; gubunCls = 'att-mlist__gubun--off';
+        detail = esc(r.label || '');
+      }
+      return `
+        <div class="att-mlist__row ${wdCls} ${todayCls}">
+          <div class="att-mlist__date">
+            <span class="att-mlist__day">${dd}</span>
+            <span class="att-mlist__dow">${DOW[wd]}</span>
+          </div>
+          <div class="att-mlist__main">
+            <div class="att-mlist__top">
+              <span class="att-mlist__gubun ${gubunCls}">${gubun}</span>
+              ${detail ? `<span class="att-mlist__detail">${detail}</span>` : ''}
+              <span class="att-mlist__tail">${warnMark}${docMark}</span>
+            </div>
+            ${chips.length ? `<div class="att-mlist__chips">${chips.join('')}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    return `<div class="att-mlist">${items || '<div class="att-mlist__empty">표시할 근태 기록이 없습니다.</div>'}</div>`;
+  }
+
   function renderCalendar(empId, recs) {
     const A = App.AttStatus;
     const { y, m } = A.parseYM(STATE.ym);
@@ -562,6 +641,8 @@
     const trail = (7 - (total % 7)) % 7;
     for (let i = 0; i < trail; i++) cells.push(`<div class="att-cal__cell att-cal__cell--blank"></div>`);
 
+    /* 데스크톱: 월간 캘린더(.att-cal) / 모바일(≤768): 세로 일자별 리스트(.att-mlist).
+       둘 다 렌더하고 CSS 미디어쿼리로 하나만 노출 → 폭 변화 시 JS 재렌더 없이 즉시 전환. */
     return `
       <div class="att-cal">
         <div class="att-cal__weekdays">
@@ -571,6 +652,7 @@
           ${cells.join('')}
         </div>
       </div>
+      ${renderMobileDaily(recs)}
     `;
   }
 
@@ -620,7 +702,7 @@
     if (r.kind === 'att') {
       const leaveTxt = (A && A.calLeaveLabel) ? A.calLeaveLabel(r) : `휴가: ${esc(r.label)}`;
       const leaveBlocks = [ blockHTML('att-cal__block--leave', leaveTxt, r.label) ];
-      if (r.checkIn) leaveBlocks.push(blockHTML(shiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+      if (r.checkIn) leaveBlocks.push(blockHTML(shiftColorCls(r.shift), labelDetail('출근', `${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`), `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
       return `<div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row"><span class="att-cal__day">${d}</span><span class="att-cal__day-tail">${chip}${docMark}</span></div>
         <div class="att-cal__blocks">${leaveBlocks.join('')}</div>
@@ -636,7 +718,7 @@
     const half = halfHint(r);
     const blocks = [];
     /* 1) 출퇴근 블록 — 평소엔 근무조 색상. 근무조 불일치 또는 반차 미신청이면 경고(찐 다홍) 블록 +
-          느낌표(!). 경고 텍스트는 셀에 두지 않고, 블록을 누르면 안내 모달에서 상세 확인. */
+          느낌표(!). 블록을 누르면 안내 모달에서 상세 확인. */
     if (mm || half) {
       blocks.push(warnBlockHTML(r.checkIn, r.checkOut, {
         date: r.date,
@@ -644,13 +726,13 @@
         half: half || null,
       }));
     } else {
-      blocks.push(blockHTML(shiftColorCls(r.shift), `출근 ${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`, `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
+      blocks.push(blockHTML(shiftColorCls(r.shift), labelDetail('출근', `${esc(r.checkIn)} 퇴근 ${esc(r.checkOut)}`), `출근 ${r.checkIn} · 퇴근 ${r.checkOut}`));
     }
     /* 2) 지각/조퇴/연장/야간 — 각각 블록으로 누적 (지각은 분, 연장/야간은 시간) */
-    if (r.isLate)            blocks.push(blockHTML('att-cal__block--late',  `지각 ${r.lateMin || 0}분`));
-    if (r.isEarly)           blocks.push(blockHTML('att-cal__block--early', `조퇴 ${r.earlyMin || 0}분`));
-    if (r.ot && r.ot.extra)  blocks.push(blockHTML('att-cal__block--ot',    `연장 ${r.ot.extra}h`));
-    if (r.ot && r.ot.night)  blocks.push(blockHTML('att-cal__block--night', `야간 ${r.ot.night}h`));
+    if (r.isLate)            blocks.push(blockHTML('att-cal__block--late',  labelDetail('지각', `${r.lateMin || 0}분`)));
+    if (r.isEarly)           blocks.push(blockHTML('att-cal__block--early', labelDetail('조퇴', `${r.earlyMin || 0}분`)));
+    if (r.ot && r.ot.extra)  blocks.push(blockHTML('att-cal__block--ot',    labelDetail('연장', `${r.ot.extra}h`)));
+    if (r.ot && r.ot.night)  blocks.push(blockHTML('att-cal__block--night', labelDetail('야간', `${r.ot.night}h`)));
     return `
       <div class="att-cal__cell ${wdCls} ${today}">
         <div class="att-cal__day-row">
@@ -666,6 +748,9 @@
 
   function renderAll(pageEl) {
     pageEl.querySelector('[data-mw-tabbar]').innerHTML = renderTabBar();
+    /* 모바일(≤768) 하단 고정 신청 바 — 상단 버튼과 동일(직군 반영). 양 탭 공통 노출. */
+    const mAct = pageEl.querySelector('[data-mw-mobile-actions]');
+    if (mAct) mAct.innerHTML = renderApplyButtons();
     /* 근태 현황 탭에서만 월 이동·뷰 토글 toolbar 노출. 신청 현황 탭은 toolbar/그리드가 본문. */
     const headEl = pageEl.querySelector('[data-mw-head]');
     headEl.innerHTML = STATE.level === 'status' ? renderHead() : '';

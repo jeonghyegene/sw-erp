@@ -265,6 +265,7 @@
         empType: 'regular',
         joinDate: '2023-03-02', registeredAt: '2023-02-25',
         phone: '010-2431-8842', email: 'jung.jg@company.co.kr', birth: '1988-04-12',
+        ename: 'Jung Gyu-jik', address: '[04524] 서울특별시 중구 세종대로 110, 305호',
         photoUrl: 'assets/img/employees/m01.png', userId: 'jung.jg',
         emailSentDate: '2023-02-20',
         contractStartDate: '2023-03-02', contractEndDate: '',   // 정규직 무기계약
@@ -276,6 +277,7 @@
         empType: 'regular',
         joinDate: '2026-05-04', registeredAt: '2026-04-28',
         phone: '010-5567-1290', email: 'jung.ss@company.co.kr', birth: '1998-09-23',
+        ename: 'Jung Su-seup', address: '[06236] 서울특별시 강남구 테헤란로 152',
         photoUrl: 'assets/img/employees/f01.png', userId: 'jung.ss',
         ssn: '980923-2******',
         emailSentDate: '2026-04-24',
@@ -289,6 +291,7 @@
         empType: 'daily',
         joinDate: '2026-06-01', registeredAt: '2026-05-28',
         phone: '010-3382-7741', email: 'jung.iy@company.co.kr', birth: '1995-02-08',
+        ename: 'Jung Il-yong', address: '[13529] 경기도 성남시 분당구 판교역로 235',
         photoUrl: 'assets/img/employees/m02.png', userId: 'jung.iy',
         emailSentDate: '2026-05-24',
         contractStartDate: '2026-06-01', contractEndDate: '2026-12-31',   // 일용직 기간제
@@ -333,6 +336,7 @@
         empType: 'regular',
         joinDate: '2026-07-20', registeredAt: '2026-07-14',
         phone: '010-4402-1187', email: 'kim.gj@company.co.kr', birth: '1996-03-14',
+        ename: 'Kim Gyu-jik', address: '[04766] 서울특별시 성동구 왕십리로 222',
         photoUrl: '', userId: '', infoStatus: 'progress',
         emailSentDate: '2026-07-14',
         contractLabor: false, contractWage: false, docsSent: 0, docSigned: 0,
@@ -467,6 +471,39 @@
         emailSentDate: '2025-10-25',
         contractStartDate: '2025-11-03', contractEndDate: '',   // 프리랜서 — 기간의 정함 없음
         contractSentDate: '2025-10-31', docsSentDate: '2025-11-02',
+      }),
+      /* ============ 퇴직자 3명 — 재직 상태 '퇴직' 데모 ============
+       *   전원 계정 등록완료(acctReg:done) + 승인완료(approval:approved) (base 기본값).
+       *   재직 상태만 retired 로 덮어써 목록에 '퇴직' pill 로 노출된다. 이력 조회·재입사 참조용. */
+      base({
+        id: 'SW22031501', name: '한퇴직', fname: '한', gname: '퇴직', gender: 'M',
+        dept: '영업팀', job: '영업', rank: '차장', position: '팀원', jobCat: 'office', site: '성수동',
+        empType: 'regular', status: 'retired',
+        joinDate: '2022-03-15', registeredAt: '2022-03-10',
+        phone: '010-2214-6690', email: 'han.rt@company.co.kr', birth: '1985-07-19',
+        photoUrl: '', userId: 'han.rt',
+        emailSentDate: '2022-03-08',
+        contractStartDate: '2022-03-15', contractEndDate: '', contractSentDate: '2022-03-11', docsSentDate: '2022-03-14',
+      }),
+      base({
+        id: 'SW23081001', name: '조퇴직', fname: '조', gname: '퇴직', gender: 'F',
+        dept: '홍보팀', job: '마케팅', rank: '대리', position: '파트원', jobCat: 'office', site: '성수동',
+        empType: 'regular', status: 'retired',
+        joinDate: '2023-08-10', registeredAt: '2023-08-04',
+        phone: '010-6647-1123', email: 'jo.rt@company.co.kr', birth: '1991-02-27', ssn: '910227-2******',
+        photoUrl: '', userId: 'jo.rt',
+        emailSentDate: '2023-08-02',
+        contractStartDate: '2023-08-10', contractEndDate: '', contractSentDate: '2023-08-06', docsSentDate: '2023-08-09',
+      }),
+      base({
+        id: 'SW24050201', name: '남퇴직', fname: '남', gname: '퇴직', gender: 'M',
+        dept: '개발팀', job: '개발', rank: '사원', position: '팀원', jobCat: 'research', site: '성수동',
+        empType: 'regular', status: 'retired',
+        joinDate: '2024-05-02', registeredAt: '2024-04-26',
+        phone: '010-9930-4471', email: 'nam.rt@company.co.kr', birth: '1996-09-14',
+        photoUrl: '', userId: 'nam.rt',
+        emailSentDate: '2024-04-24',
+        contractStartDate: '2024-05-02', contractEndDate: '', contractSentDate: '2024-04-28', docsSentDate: '2024-05-01',
       }),
     ];
     rows.forEach(r => { r.sentDate = r.emailSentDate; });   // 이메일 발송일 (기존 호환 필드)
@@ -789,14 +826,10 @@
     const kw   = (p.keyword || '').trim().toLowerCase();
     /* 계정 상태 — 'registered' = 등록완료 (MILESTONES.idDone), 'unregistered' = 미등록 */
     const accountVal = (p.advanced && p.advanced.account) || '';
-    const empTypeVal = (p.advanced && p.advanced.empType) || '';
-    /* 근로/임금 계약 — 서명 상태(unsigned/signing/signed/soon/expired) 로 매칭.
-     *   contractCellState 의 ctr.code 와 직접 비교. 해당없음(도급직) 은 어느 값에도 매칭 안 됨 → 자동 제외. */
-    const laborInfoVal = (p.advanced && p.advanced.laborInfo) || '';
-    const wageInfoVal  = (p.advanced && p.advanced.wageInfo)  || '';
-    const probationOnly = !!(p.checks && Array.isArray(p.checks.probation) && p.checks.probation.includes('on'));
-    /* 계약직 세부 (촉탁/인턴) — 체크된 sub-type 행만 통과 */
-    const subTypeChecked = (p.checks && Array.isArray(p.checks.contractSubType)) ? p.checks.contractSubType : [];
+    /* 재직 상태 — active(재직) / onLeave(휴직) / retired(퇴직). employmentStatusPill 과 동일 기준. */
+    const empStatusVal = (p.advanced && p.advanced.empStatus) || '';
+    /* 승인 상태 — approval 필드 직접 매칭(none/pending/approved/rejected). */
+    const approvalVal = (p.advanced && p.advanced.approval) || '';
 
     /* 트리에서 선택된 부서 subtree (자손 포함). 'C0' (전체) 면 미적용. */
     let treeDeptIds = null;
@@ -806,8 +839,7 @@
     }
 
     STATE.filtered = STATE.rows.filter(r => {
-      /* 퇴사자는 본 화면에서 자동 숨김 */
-      if (r.status === 'retired') return false;
+      /* 퇴사자도 본 화면에 노출 (재직 상태 '퇴직' pill 로 구분). 이력 조회·재입사 참조용. */
       /* 트리 부서 필터 — 선택 부서 + 그 하위 부서의 사원만 통과 */
       if (treeDeptIds && !treeDeptIds.has(DEPT_NAME_TO_ID[r.dept] || '')) return false;
       /* 계정 상태 — 등록완료(idDone) / 등록실패(반려) / 등록대기(그 외).
@@ -815,22 +847,12 @@
       if (accountVal === 'registered'   && !MILESTONES.idDone(r)) return false;
       if (accountVal === 'unregistered' && (MILESTONES.idDone(r) || r.approval === 'rejected')) return false;
       if (accountVal === 'failed'       &&  r.approval !== 'rejected') return false;
-      /* 근로 계약 — 서명 상태 코드 매칭. unsigned(미발송)·signing(발송후 미서명) 은
-         사용자 표기상 모두 '서명대기(signing)' 로 정규화하여 함께 매칭. na 는 '해당없음' 값에만 매칭. */
-      if (laborInfoVal) {
-        const st = contractCellState(r, 'labor');
-        const code = st.na ? 'na' : (st.ctr.code === 'unsigned' ? 'signing' : st.ctr.code);
-        if (code !== laborInfoVal) return false;
-      }
-      /* 임금 계약 — 위와 동일 규칙. 일용직은 시급제 대상. */
-      if (wageInfoVal) {
-        const st = contractCellState(r, 'wage');
-        const code = st.na ? 'na' : (st.ctr.code === 'unsigned' ? 'signing' : st.ctr.code);
-        if (code !== wageInfoVal) return false;
-      }
-      if (empTypeVal && r.empType !== empTypeVal) return false;
-      if (probationOnly && !r.probation) return false;
-      if (subTypeChecked.length > 0 && !subTypeChecked.includes(r.contractSubType)) return false;
+      /* 재직 상태 — 퇴직(retired) / 휴직(onLeave, 퇴직 아님) / 재직(그 외). */
+      if (empStatusVal === 'retired' && r.status !== 'retired') return false;
+      if (empStatusVal === 'onLeave' && !(r.onLeave && r.status !== 'retired')) return false;
+      if (empStatusVal === 'active'  && (r.status === 'retired' || r.onLeave)) return false;
+      /* 승인 상태 — approval 값 직접 매칭(값 없으면 'none' 취급). */
+      if (approvalVal && (r.approval || 'none') !== approvalVal) return false;
       if (from && r.joinDate < from) return false;
       if (to   && r.joinDate > to)   return false;
       if (kw) {
@@ -1251,33 +1273,28 @@
       ],
       /* placeholder 미지정 — 공통 기본값('검색어를 입력하세요') 사용.
          검색조건 드롭다운(성명/사번)이 바뀔 때마다 문구가 흔들리지 않도록 전 화면 공통 워딩으로 통일. */
+      /* 상세검색 — 그리드 컬럼(재직 상태 · 계정 등록 · 승인 상태)에 대응하는 3개 상태 필터만 노출.
+       *   부서 필터는 좌측 조직도 트리(STATE.selectedDeptId) 가 담당하므로 제외. */
+      cols: 3,
       advanced: [
-        { name: 'account', label: '계정 상태', options: [
+        /* 재직 상태 — employmentStatusPill 기준(재직/휴직/퇴직) */
+        { name: 'empStatus', label: '재직 상태', options: [
+          { value: 'active',  label: '재직' },
+          { value: 'onLeave', label: '휴직' },
+          { value: 'retired', label: '퇴직' },
+        ]},
+        /* 상태(계정 상태) — 등록대기 / 등록완료 / 등록실패(반려) */
+        { name: 'account', label: '상태', options: [
           { value: 'unregistered', label: '등록대기' },
           { value: 'registered',   label: '등록완료' },
           { value: 'failed',       label: '등록실패' },
         ]},
-        { name: 'empType', label: '근로 유형', options: [
-          { value: 'regular',    label: '정규직' },
-          { value: 'contract',   label: '계약직' },
-          { value: 'daily',      label: '일용직' },
-          { value: 'outsourced', label: '도급직' },
-        ]},
-        /* 부서 필터는 상세검색에서 제외 — 좌측 조직도 트리(STATE.selectedDeptId) 가 부서 필터를 담당해 중복. */
-        /* 근로/임금 계약 — 서명 상태 5단계(미작성/서명대기/서명완료/만료/만료 임박).
-         *   해당없음 행(도급직) 은 어느 상태값에도 매칭되지 않아 자동 제외. */
-        { name: 'laborInfo', label: '근로 계약', options: SIGN_FILTER_OPTIONS.slice() },
-        { name: 'wageInfo',  label: '임금 계약', options: SIGN_FILTER_OPTIONS.slice() },
-      ],
-      checkGroups: [
-        /* 계약직 세부 — 근로 유형=계약직 선택 시만 활성 */
-        { key: 'contractSubType', label: '계약직 세부', wide: false, items: [
-          { value: 'chotak', label: '촉탁' },
-          { value: 'intern', label: '인턴' },
-        ]},
-        /* 수습 — 근로 유형=정규직 한정 */
-        { key: 'probation', label: '수습여부', wide: false, items: [
-          { value: 'on', label: '수습 적용' },
+        /* 승인 상태 — approvalCellHTML 기준(승인 전/승인 대기/승인완료/반려) */
+        { name: 'approval', label: '승인 상태', options: [
+          { value: 'none',     label: '승인 전' },
+          { value: 'pending',  label: '승인 대기' },
+          { value: 'approved', label: '승인완료' },
+          { value: 'rejected', label: '반려' },
         ]},
       ],
     });
@@ -1498,13 +1515,6 @@
     /* 이 페이지는 기간 필터 기본값 없음 — attach 가 m1 을 강제 적용하므로 즉시 제거 */
     setupNoDefaultRange(searchRoot, onSearch);
 
-    /* 고용 형태 ↔ 계약직 세부 연동 — 정규직/일용직 선택 시 촉탁·인턴 체크박스 숨김.
-     *   숨길 때 체크 상태도 초기화하여 필터에 잔류하지 않도록 함. */
-    bindEmpTypeSubLink(searchRoot, onSearch);
-
-    /* 상세 검색 — 고용 형태(계약직/일용직) 선택 시 수습 필터 비활성 */
-    setupProbationGate(searchRoot, onSearch);
-
     pageEl.addEventListener('click', (e) => {
       /* 툴바 액션 — 인사정보 관리: 개별 등록 / 엑셀 다운로드 / 이메일 발송 / 삭제 */
       const tb = e.target.closest('.toolbar [data-act]');
@@ -1623,57 +1633,6 @@
     onSearch && onSearch(App.Search.readParams(searchRoot));
   }
 
-  /* 고용 형태 select 와 계약직 세부 체크박스 행의 연동
-   *   - empType = 'regular' (정규직) | 'daily' (일용직) → 계약직 세부 체크박스 행 숨김 + 체크 해제
-   *   - empType = '' (전체) | 'contract' (계약직) → 표시 */
-  function bindEmpTypeSubLink(searchRoot, onSearch) {
-    if (!searchRoot) return;
-    const empTypeSel = searchRoot.querySelector('[data-name="empType"]');
-    const firstSubCheck = searchRoot.querySelector('[data-check="contractSubType"]');
-    const subRow = firstSubCheck ? firstSubCheck.closest('.search__adv-field') : null;
-    if (!empTypeSel || !subRow) return;
-
-    function apply() {
-      const v = empTypeSel.value;
-      const hide = (v === 'regular' || v === 'daily');
-      subRow.style.display = hide ? 'none' : '';
-      if (hide) {
-        /* 체크 해제 + 필터 즉시 재조회 (잔류 필터 제거) */
-        let anyChecked = false;
-        searchRoot.querySelectorAll('[data-check="contractSubType"]').forEach(cb => {
-          if (cb.checked) { cb.checked = false; anyChecked = true; }
-        });
-        if (anyChecked) onSearch && onSearch(App.Search.readParams(searchRoot));
-      }
-    }
-    empTypeSel.addEventListener('change', apply);
-    apply();  // 초기 1회 적용
-  }
-
-  /* 상세검색 — 고용 형태이 계약직/일용직이면 수습 체크박스 행 자체를 숨김.
-   *  수습은 정규직 전용 개념이므로 잘못된 조합 입력 자체를 막는다 */
-  function setupProbationGate(searchRoot, onSearch) {
-    if (!searchRoot) return;
-    const empTypeSel = searchRoot.querySelector('.search__advanced [data-name="empType"]');
-    const firstProbCb = searchRoot.querySelector('.search__advanced [data-check="probation"]');
-    const probRow = firstProbCb ? firstProbCb.closest('.search__adv-field') : null;
-    if (!empTypeSel || !probRow) return;
-    const sync = () => {
-      const v = empTypeSel.value;
-      const hide = (v === 'contract' || v === 'daily');
-      probRow.style.display = hide ? 'none' : '';
-      if (hide) {
-        let anyChecked = false;
-        searchRoot.querySelectorAll('[data-check="probation"]').forEach(cb => {
-          if (cb.checked) { cb.checked = false; anyChecked = true; }
-        });
-        if (anyChecked && onSearch) onSearch(App.Search.readParams(searchRoot));
-      }
-    };
-    empTypeSel.addEventListener('change', sync);
-    sync();
-  }
-
   function getPageRows() {
     const start = (STATE.page - 1) * STATE.pageSize;
     return STATE.filtered.slice(start, start + STATE.pageSize);
@@ -1748,21 +1707,49 @@
     updateActionButtons();
   }
 
-  /* 삭제 정책 (v4) ====================================================
+  /* 삭제 정책 (v5) ====================================================
    *   · 종료 라이프사이클(contractExpired / retired) — 삭제 가능 (흔적 보존 불필요)
    *   · 입사확정(completed) — 본 화면에서 삭제 불가. [퇴사 처리] 후 삭제 (별도 화면: 인사 관리)
    *   · 온보딩(계정 등록 승인 워크플로) 진행 중(registered / inProgress) —
-   *       승인 '반려'(rejected) 건만 삭제 가능.
-   *       승인 전(none) / 승인 대기(pending) / 승인완료(approved) 는 삭제 불가 (진행 중 데이터 보호). */
+   *       - 승인 '반려'(rejected) 건 : 삭제 가능
+   *       - '등록대기' 건 : 최근 안내 발송 후 WAITING_DELETABLE_DAYS(7)일 경과 & 본인 미등록이면 삭제 가능
+   *                        (무한정 방치된 노쇼·연락두절·오등록 유령 행 정리용. 방금 초대한 신규자는 보호)
+   *       - 승인 대기(pending) / 승인완료(approved) : 삭제 불가 (진행 중 데이터 보호) */
+  const WAITING_DELETABLE_DAYS = 7;
+  /* 등록대기 경과일 — 최근 안내 활동(최초 발송 emailSentDate | 마지막 재발송) 이후 경과 일수.
+   *   발송 기록이 전혀 없으면 null(경과 판정 불가 → 삭제 불가로 처리). */
+  function waitingDaysSinceContact(r) {
+    let refTs = 0;
+    if (r.emailSentDate) {
+      const d = new Date(r.emailSentDate + 'T00:00:00');
+      if (!isNaN(d.getTime())) refTs = d.getTime();
+    }
+    const lastResend = lastResendTs(r);   // resendHistory 최신 ts (없으면 0)
+    if (lastResend > refTs) refTs = lastResend;
+    if (!refTs) return null;
+    return Math.floor((Date.now() - refTs) / 86400000);
+  }
+  /* 등록대기(승인 전·본인 미등록) + 경과일 도달 → 삭제 가능 */
+  function isWaitingDeletable(r) {
+    if (acctRegCode(r) !== 'waiting') return false;
+    const days = waitingDaysSinceContact(r);
+    return days != null && days >= WAITING_DELETABLE_DAYS;
+  }
   function isDeletable(r) {
     if (r.status === 'contractExpired' || r.status === 'retired') return true;
     if (r.status === 'completed') return false;
-    return r.approval === 'rejected';   // 온보딩 진행 중 — 반려 건만 삭제 가능
+    if (r.approval === 'rejected') return true;   // 온보딩 진행 중 — 반려 건
+    return isWaitingDeletable(r);                  // 등록대기 N일 경과 건
   }
   /* 삭제 불가 사유 (blocked 안내 문구용) */
   function deleteBlockReason(r) {
     if (r.status === 'completed') return '입사확정 — 퇴사 처리 후 삭제 가능';
-    const ap = { none: '승인 전', pending: '승인 대기', approved: '승인완료' }[r.approval] || '승인 전';
+    if (acctRegCode(r) === 'waiting') {
+      const days = waitingDaysSinceContact(r);
+      const left = (days == null) ? WAITING_DELETABLE_DAYS : Math.max(0, WAITING_DELETABLE_DAYS - days);
+      return `등록대기 — 안내 발송 후 ${WAITING_DELETABLE_DAYS}일 경과 시 삭제 가능 (약 ${left}일 남음)`;
+    }
+    const ap = { pending: '승인 대기', approved: '승인완료' }[r.approval] || '승인 전';
     return `${ap} — 반려 건만 삭제 가능`;
   }
 
@@ -2308,6 +2295,42 @@
     });
   }
 
+  /* 최초 서명대기 계약 수정 — App.HRContract.amendSigningContract 에 넘길 spec 을 emp 에서 구성.
+     kind: '근로계약서' | '임금계약서'. addRowFromExternal 과 동일한 salary 스펙 형태를 맞춘다. */
+  function buildContractAmendSpec(emp, kind) {
+    const empPayload = {
+      id: emp.id, name: displayName(emp), fname: emp.fname, gname: emp.gname,
+      dept: emp.dept, job: emp.job, rank: emp.rank, position: emp.position,
+      empType: emp.empType, contractSubType: emp.contractSubType,
+      contractOut: !!emp.contractOut, jobCat: emp.jobCat, site: emp.site || '성수동',
+    };
+    if (kind === '임금계약서') {
+      return {
+        emp: empPayload,
+        startDate: emp.wageContractStartDate || emp.contractStartDate || emp.joinDate || '',
+        endDate: emp.wageContractEndDate || '',
+        indefinite: !!emp.wageIndefinite,
+        salary: {
+          base: emp.baseSalary || '', allowance: '', meal: '', payday: emp.payDay || '',
+          wageType: emp.wageType || '', wageKind: emp.wageContractKind || '',
+          contractAmount: emp.contractAmount || '',
+          fixedOT: emp.fixedOTAmount || '', inclusiveOT: emp.inclusiveOTAmount || '',
+          hourly: emp.hourlyWage || '', holiday: emp.hourlyWage ? Math.floor(Number(emp.hourlyWage) * 0.2) : '',
+          fixedOTHours: emp.fixedOTHours || '',
+        },
+      };
+    }
+    /* 근로계약서 — 정규직은 무기(종료일 없음) */
+    const isRegular = emp.empType === 'regular';
+    return {
+      emp: empPayload,
+      startDate: emp.contractStartDate || emp.joinDate || '',
+      endDate: isRegular ? '' : (emp.contractEndDate || ''),
+      indefinite: isRegular && !emp.contractEndDate,
+      salary: { base: '', allowance: '', meal: '', payday: '' },
+    };
+  }
+
   /* ============ 계약 관리(App.HRContract) 동기화 ============
    *   인사정보카드에서 계약서 작성·발송 시 계약 관리 STATE.rows 에 row 추가.
    *   kind: 'labor' (근로계약서) | 'wage' (임금계약서)
@@ -2325,13 +2348,6 @@
       contractOut: !!emp.contractOut, jobCat: emp.jobCat,
       site: data.근무지 || emp.site || '성수동',
     };
-    /* 임금계약서는 최신 근로계약을 자동 기준으로 연결한다(직원이 별도 선택하지 않음).
-       ※ 하나의 근로계약에 임금계약을 여러 번 갱신 작성 가능 — 모두 동일 근로계약번호로 연결된다. */
-    let linkedLaborId = '';
-    if (kind === 'wage' && typeof App.HRContract.historyRowsByEmp === 'function') {
-      const laborRows = (App.HRContract.historyRowsByEmp(emp.id) || []).filter(it => it.kind === '근로계약서');
-      linkedLaborId = laborRows.length ? laborRows[0].id : '';   // 최신순 정렬 → 첫 건이 최신 근로계약
-    }
     App.HRContract.addRowFromExternal({
       emp: empPayload,
       kind: kind === 'labor' ? '근로계약서' : '임금계약서',
@@ -2343,7 +2359,6 @@
       registeredBy: currentUserName(),
       sentBy: currentUserName(),
       source: '인사정보카드 발송',
-      linkedLaborId: linkedLaborId,
       salary: kind === 'wage' ? {
         base:      data.기본급 || '',
         allowance: data.직무수당 || '',
@@ -2569,7 +2584,7 @@
     if (!targets || !targets.length) return;
     const blocked = targets.filter(r => !isDeletable(r));
     if (blocked.length) {
-      const msg = `다음은 삭제할 수 없습니다.\n계정 등록 승인 워크플로는 '반려' 건만, 입사확정자는 퇴사 처리 후 삭제할 수 있습니다.\n\n` +
+      const msg = `다음은 삭제할 수 없습니다.\n계정 등록 승인 워크플로는 '반려' 또는 '등록대기 ${WAITING_DELETABLE_DAYS}일 경과' 건만, 입사확정자는 퇴사 처리 후 삭제할 수 있습니다.\n\n` +
         blocked.slice(0, 5).map(r => `· ${displayName(r)} (${r.id}) — ${deleteBlockReason(r)}`).join('\n') +
         (blocked.length > 5 ? `\n... 외 ${blocked.length - 5}명` : '');
       window.sweet ? window.sweet({ icon: 'warn', title: '삭제 불가', text: msg, confirmText: '확인' })
@@ -3338,6 +3353,12 @@
   function canEditPersonal() { return CARD_STATE.role === 'employee'; }
   /* 고용·계약 정보 탭 편집 권한 — 인사담당자만. (당사자는 발령/계약 변경 권한 없음) */
   function canEditEmployment() { return CARD_STATE.role === 'hr_admin'; }
+  /* 등록 대기(승인 전) 상태 — 본인이 아직 인사정보를 등록/제출하지 않아 검토·승인 대상이 아닌 단계.
+   *   그리드 「승인 전」 pill 과 동일 기준(approval==='none'; 예: 김규직·김수습).
+   *   이 상태에서는 기본 정보 탭 각 섹션을 편집할 수 없고 본문은 '등록 대기 중입니다' 안내로 대체한다. */
+  function isRegistrationPending(emp) {
+    return !!emp && emp.approval === 'none';
+  }
   /* 내 정보(셀프서비스) 화면 여부 — GNB 프로필 > 내 정보로 진입한 본인 카드.
    *   이 화면은 열람 전용: 각 섹션의 편집/추가/서명요청 등 수정 액션과 일부 관리용 섹션을 숨긴다. */
   function isMyInfoView() {
@@ -3484,6 +3505,13 @@
     return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--color-text-muted);padding:36px 16px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       <span style="font-size:13px;">권한이 없어 비공개 처리된 항목입니다</span>
+    </div>`;
+  }
+  /* 등록 대기(승인 전) 안내 — 본인 인사정보 미등록 상태의 기본 정보 탭 섹션 본문 대체. */
+  function registrationPendingHTML() {
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--color-text-muted);padding:36px 16px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span style="font-size:13px;">등록 대기 중입니다</span>
     </div>`;
   }
 
@@ -4092,6 +4120,53 @@
       </div>
     `;
   }
+  /* 등록 대기(승인 전) 신상 정보 — HR이 임직원 등록 시 입력한 항목(사번·이름·입사일·개인 이메일·휴대전화)만 표시.
+   *   주민번호·주소·학력 등 상세 항목은 본인 등록·승인 후 노출되므로 하단 안내로 대체한다.
+   *   (신상 정보 섹션 전체를 '등록 대기 중'으로 덮으면 이미 아는 기본 정보까지 가려지는 문제를 해소.) */
+  function renderSectionBasicPending(emp) {
+    const photoInner = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--color-text-muted);background:var(--color-surface-alt);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+        <span style="font-size:11px;">사진 없음</span>
+      </div>`;
+    const joinCell = emp.joinDate
+      ? `<span style="display:inline-flex;align-items:center;">${esc(dispYmd(emp.joinDate))}${pillWarm(workDurationText(emp.joinDate))}</span>`
+      : '';
+    /* HR 등록 필드 노출 — 신상 정보 정상 그리드의 상단 항목과 순서 일치.
+       영문 이름·생년월일·주소는 임직원 등록의 '선택 정보'라 HR이 입력했으면 등록대기 상태에서도 표시,
+       미입력이면 행 자체를 생략(-/입력하기 대신 깔끔하게 감춤). 주민번호·사진 등은 본인 등록·승인 후. */
+    const enameCell = emp.ename ? esc(emp.ename) : '';
+    const birthCell = emp.birth ? esc(dispYmd(emp.birth)) : '';
+    const addrCell  = (() => {
+      if (!emp.address) return '';
+      const z = String(emp.address).match(/^\[(\d{5})\]\s*(.*)$/);
+      if (z) return `<span style="display:inline-flex;align-items:center;">${esc(z[2])}${pillChip(`우 ${z[1]}`)}</span>`;
+      return esc(emp.address);
+    })();
+    const rows = [
+      ['사번',        emp.id || '',    { html: false }],
+      ['이름',        displayName(emp) || '', { html: false }],
+    ];
+    if (enameCell) rows.push(['영문 이름', enameCell, { html: true }]);
+    rows.push(['입사일',      joinCell,        { html: true  }]);
+    rows.push(['개인 이메일', emp.email || '',  { html: false }]);
+    if (birthCell) rows.push(['생년월일', birthCell, { html: true }]);
+    rows.push(['휴대전화',    emp.phone || '',  { html: false }]);
+    if (addrCell) rows.push(['주소', addrCell, { html: true, full: true }]);
+    const note = `<div style="margin-top:14px;display:flex;align-items:center;gap:7px;color:var(--color-text-muted);font-size:12px;line-height:1.5;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>주민등록번호·사진 등 일부 신상 정보는 본인 등록·승인 후 표시됩니다.</span>
+      </div>`;
+    return `
+      <div class="empi-basic" style="display:flex;gap:22px;align-items:flex-start;">
+        <div class="empi-basic__photo" style="flex-shrink:0;width:96px;">
+          <div style="width:96px;height:128px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,0.04);">
+            ${photoInner}
+          </div>
+        </div>
+        <div class="empi-basic__fields" style="flex:1;min-width:0;">${fieldGridHTML(rows)}${note}</div>
+      </div>
+    `;
+  }
   /* 인라인 서브 블록 — 카드 wrapper 없이 헤더 + 본문만 일자로 나열. 메인 섹션 내부에 평탄하게 들어감.
    *   actions 지원 — 헤더 우측에 [편집]/[+ 추가]/[이력] 버튼 노출. */
   function subBlockHTML(opts) {
@@ -4321,6 +4396,19 @@
     /* 내 정보(셀프서비스)는 열람 전용 — 직접 편집·추가 대신 섹션별 [변경 요청](전자결재 상신) 노출.
      *   HR 인사정보카드 모달은 기존대로 편집/추가. */
     const myInfo = isMyInfoView();
+    /* 등록 대기(승인 전) — 본인이 아직 인사정보를 등록하지 않음.
+     *   신상 정보~개인 정보 4개 섹션 모두 편집 버튼 숨김 + 본문 '등록 대기 중입니다' 안내로 대체. */
+    if (isRegistrationPending(emp)) {
+      const wait = registrationPendingHTML();
+      /* 신상 정보는 HR 등록 필드(이름·입사일·개인 이메일·휴대전화 등)를 그대로 노출하고,
+         본인이 등록하는 학력·자격·개인 정보만 '등록 대기 중' 안내로 대체한다. */
+      return [
+        sectionShellHTML({ key:'basic',          level:1, title:'신상 정보',  visibility:'public',  actions:[], body: renderSectionBasicPending(emp) }),
+        sectionShellHTML({ key:'edu-career',     level:1, title:'학력·경력',  visibility:'public',  actions:[], body: wait }),
+        sectionShellHTML({ key:'qualifications', level:1, title:'자격·역량',  visibility:'private', actions:[], body: wait }),
+        sectionShellHTML({ key:'personal',       level:1, title:'개인 정보',  visibility:'public',  actions:[], body: wait }),
+      ].join('');
+    }
     const editAct = (!myInfo && (canEditPersonal() || canEditEmployment())) ? ['edit'] : [];
     const addAct  = (!myInfo && canEditPersonal()) ? ['add']  : [];
     const reqAct  = myInfo ? ['request'] : [];
@@ -4425,6 +4513,15 @@
   /* 임금 유형 — 연봉제 / 시급제 2종. (월급제 제거)
      · 정규직·계약직 → 연봉제만  · 일용직 → 시급제만 (renderCardEditWage 에서 empType 로 제약) */
   const WAGE_TYPES   = [['annual','연봉제'], ['hourly','시급제']];
+  /* 근로 유형이 요구하는 임금 유형 — 일용직=시급제 / 그 외(정규·계약)=연봉제. (프리랜서는 별도 폼) */
+  function requiredWageType(empType) { return empType === 'daily' ? 'hourly' : 'annual'; }
+  /* 근로 유형 ↔ 임금 유형 정합성 — 최초 서명대기 계약 수정 시 검증.
+     임금계약 미설정(wageType 없음) 또는 프리랜서(별도 폼)는 제약 없음(true). */
+  function isEmpWageTypeCompatible(empType, wageType) {
+    if (!wageType) return true;
+    if (empType === 'freelancer') return true;
+    return requiredWageType(empType) === wageType;
+  }
   /* 임금 계약 유형 — 고정 OT / 포괄임금 2종. (일반 제거 — 연봉제는 둘 중 하나 필수) */
   const WAGE_KINDS   = [['fixedOT','고정 OT'], ['inclusive','포괄임금']];
   /* 임금 계약 유형별 한 줄 설명 — 라디오 옵션 아래 노출되며 관리자가 의미를 빠르게 이해하도록 돕는다. */
@@ -4568,20 +4665,6 @@
     return false;
   }
 
-  /* 임금 계약서 작성 선행 조건 (정책) — 금일(오늘) 기준 '유효한' 근로 계약서가 존재해야 한다.
-     유효한 근로 계약서 = 근로 계약 이력 중 서명완료 + 오늘 계약기간 내(만료 아님). '만료 임박'도 아직 유효하므로 포함.
-       · 판정은 실제 근로 계약 이력(App.HRContract) 을 진실원으로 한다 — 근로 계약 이력이 하나도 없으면 false.
-         (contractLabor 같은 flag 만 있고 실제 이력이 없는 경우 작성 불가.)
-       · App.HRContract 미로드 시에만 flag(isSignValid) 로 폴백.
-     (도급직은 근로계약 해당없음 → 애초에 임금 계약 자체가 없어 이 게이트에 도달하지 않음) */
-  function hasValidLaborContract(emp) {
-    if (!emp) return false;
-    if (window.App && App.HRContract && typeof App.HRContract.hasValidLaborContract === 'function') {
-      return App.HRContract.hasValidLaborContract(emp.id);
-    }
-    return isSignValid(emp, 'labor') === true;   // 폴백 — 계약 이력 모듈 미로드 환경
-  }
-
   /* 임금 계약 이력 존재 여부 — 급여 정산(정산 정보) 자동 세팅의 선행 조건.
      정책: 실제 임금계약서가 이력(App.HRContract)에 1건이라도 있어야 정산 정보를 세팅한다.
      이력이 비어 있으면 emp 필드(contractWage 등)만으로 정산 정보를 채우지 않는다 —
@@ -4685,10 +4768,10 @@
 
     if (kind === 'wage') {
       if (!isWageContractApplicable(emp)) return NA;
-      /* 선행 조건 (정책) — 근로 계약 정보 완료 + 금일 기준 '유효한' 근로 계약서 존재.
-         (소정근로시간은 임금 계약 모달에서 함께 입력)
-         근로계약이 미작성/서명대기/만료면 임금 계약 작성 불가 → '선행대기'. */
-      const laborDone   = isContractInfoComplete(emp) && hasValidLaborContract(emp);
+      /* 선행 조건 (정책) — 근로 계약 정보(근로 유형 포함) 작성 완료 시 임금 계약 작성 가능.
+         임금 유형은 근로 유형(empType)으로 파생되므로, 유효한(서명·기간내) 근로계약서 존재 여부는
+         선행 조건이 아니다. 근로 계약 정보가 미완료면 '선행대기'. */
+      const laborDone   = isContractInfoComplete(emp);
       const hasWageInfo = !!(emp.wageContractStartDate || emp.wageContractEndDate || emp.wageType || emp.contractAmount || emp.contractWage);
       const wageSigned  = !!emp.contractWage;
       const wageSigning = !wageSigned && !!emp.wageContractSentDate;
@@ -4919,11 +5002,11 @@
      *     · 데이터 있음 → [편집]
      *   '승인 대기중' 뱃지는 wageApprovalPending 기준. */
     const wageApplicable = isWageContractApplicable(emp);
-    /* 선행 조건 (정책) — (1) 근로 계약 정보 완료 (2) 금일 기준 유효한 근로 계약서 존재.
+    /* 선행 조건 (정책) — 근로 계약 정보(근로 유형 포함) 작성 완료 시 임금 계약 작성 가능.
+       임금 유형은 근로 유형(empType)으로 파생되므로 유효한 근로계약서 존재는 선행 조건이 아니다.
        소정근로시간은 임금 계약 모달에서 함께 입력하므로 별도 선행 조건이 아니다. */
     const laborInfoDone   = isContractInfoComplete(emp);
-    const laborHistExists = hasValidLaborContract(emp);
-    const laborDone = laborInfoDone && laborHistExists;
+    const laborDone = laborInfoDone;
     const hasWageInfo = !!(emp.wageContractStartDate || emp.wageContractEndDate || emp.wageType || emp.contractAmount || emp.contractWage);
     const wageAct = (!selfView && canEditEmployment() && wageApplicable && laborDone) ? (hasWageInfo ? ['edit'] : ['add']) : [];
     /* 버튼 매트릭스 — 근로계약과 동일 (등록상태 × 계약상태):
@@ -4940,8 +5023,8 @@
         ['계약 기간', '해당없음'],
       ], { scroll: true });
     } else if (!hasWageInfo && !laborDone) {
-      /* 임금 정보가 아직 없고 선행 조건(근로 정보 + 근로 계약 이력) 미충족 → 입력 차단 안내 */
-      wageBody = wageGatedHTML(!laborInfoDone ? 'info' : 'history');
+      /* 임금 정보가 아직 없고 선행 조건(근로 계약 정보) 미충족 → 입력 차단 안내 */
+      wageBody = wageGatedHTML('info');
     } else if (!hasWageInfo) {
       wageBody = wageContractEmptyHTML();
     } else {
@@ -5036,12 +5119,12 @@
       body: contractHistoryTableHTML(allHist.filter(it => it.kind === '근로계약서')),
     });
     /* 임금 계약 이력 [+ 계약서 작성] — 버튼은 활성 상태로 노출하고, 클릭 시 선행 조건을 검사한다.
-       정책: 금일 기준 유효한 근로 계약서가 없으면 클릭 시 안내가 뜨고 진입이 막힌다(아래 click 핸들러).
+       정책: 근로 계약 정보(근로 유형 포함)가 미완료면 클릭 시 안내가 뜨고 진입이 막힌다(아래 click 핸들러).
        (버튼을 비활성화하면 클릭이 안 돼 안내도 뜨지 않으므로 항상 활성 유지.) */
     const wageHist = subBlockHTML({
       key:'ctrhist-wage', title: '임금 계약 이력', visibility: 'public',
       badge: newCtrBtn('wage', wageApplicable, false),
-      body: contractHistoryTableHTML(allHist.filter(it => it.kind === '임금계약서'), { showLinkedLabor: true }),
+      body: contractHistoryTableHTML(allHist.filter(it => it.kind === '임금계약서')),
     });
 
     /* 외부(계약 관리 개별 작성) 에서 단일 박스만 재사용 — opts.only: 'labor' | 'wage' | 'hist' */
@@ -5088,12 +5171,10 @@
     </div>`;
   }
   function wageGatedHTML(reason) {
-    /* reason: 'info' — 근로 계약 정보 미완료 / 'history' — 서명완료(유효) 근로 계약서 부재 / 'stdhours' — 소정근로시간 미등록 */
-    const msg = reason === 'history'
-      ? '금일 기준 유효한 근로 계약서가 있어야<br/>임금 계약 정보를 입력할 수 있습니다. 근로계약서 서명·유효기간을 먼저 확인해 주세요.'
-      : reason === 'stdhours'
+    /* reason: 'info' — 근로 계약 정보(근로 유형 포함) 미완료 / 'stdhours' — 소정근로시간 미등록 */
+    const msg = reason === 'stdhours'
       ? '소정근로시간을 먼저 등록해 주세요.<br/>소정근로시간 정보가 등록된 후 임금 계약 정보를 입력할 수 있습니다.'
-      : '근로 계약 정보 작성이 완료된 후<br/>임금 계약 정보를 입력할 수 있습니다.';
+      : '근로 계약 정보(근로 유형 포함) 작성이 완료된 후<br/>임금 계약 정보를 입력할 수 있습니다.';
     return `<div style="padding:18px 16px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;color:var(--color-text-muted);font-size:13px;text-align:center;line-height:1.6;">
       ${msg}
     </div>`;
@@ -5102,9 +5183,6 @@
      · 날짜: SWADPIA §1 YY/MM/DD.  · §3.1 정렬: 계약번호·유형·기간·상태·작성일=중앙 / 작성 담당자(이름)=좌.
      · 계약번호는 link-code — 행 클릭(is-clickable) 시 서명본 미리보기(data-empi-ctrhist-preview). */
   function contractHistoryTableHTML(rows, opts) {
-    const o = opts || {};
-    /* 임금계약 이력만 '연결 근로계약' 컬럼 노출 — 임금계약은 근로계약에 의존하므로 어떤 근로계약 기준인지 표기. */
-    const showLinked = !!o.showLinkedLabor;
     if (!rows || !rows.length) {
       return `<div style="padding:14px 16px;background:var(--color-surface-alt);border:1px dashed var(--color-divider);border-radius:6px;color:var(--color-text-muted);font-size:13px;text-align:center;">등록된 계약 이력이 없습니다.</div>`;
     }
@@ -5119,17 +5197,12 @@
     const cancelBtn = (it) => it.canCancel
       ? ` <button class="btn btn--xs btn--soft-danger" type="button" data-empi-ctrhist-cancel="${esc(it.id)}" title="서명 대기 계약을 취소합니다.">취소</button>`
       : '';
-    /* 계약번호를 눌러야 미리보기 — 행 전체 클릭으로는 열지 않는다.
-       임금계약 이력의 '연결 근로계약' 번호를 누르면 연결된 근로계약서 미리보기가 열린다. */
-    const linkedCell = (it) => showLinked
-      ? `<td class="col-center">${it.linkedLaborId ? `<span class="link-code" data-empi-ctrhist-preview="${esc(it.linkedLaborId)}" style="cursor:pointer;" title="연결된 근로계약서 미리보기">${esc(it.linkedLaborId)}</span>` : '<span style="color:var(--color-text-muted);">-</span>'}</td>`
-      : '';
+    /* 계약번호를 눌러야 미리보기 — 행 전체 클릭으로는 열지 않는다. */
     const body = rows.map(it => `
       <tr>
         <td class="col-center"><span class="link-code" data-empi-ctrhist-preview="${esc(it.id)}" style="cursor:pointer;" title="${esc(it.kind)} 미리보기">${esc(it.id)}</span></td>
         <td class="col-center">${esc(it.kind)}</td>
         <td class="col-center">${period(it)}</td>
-        ${linkedCell(it)}
         <td class="col-center"><span class="pill${it.statusPill ? ' pill--' + it.statusPill : ''}" style="font-size:11px;">${esc(it.statusLabel)}</span>${cancelBtn(it)}</td>
         <td>${esc(it.registeredBy || '-')}</td>
         <td class="col-center">${yy(it.createdAt)}</td>
@@ -5140,7 +5213,6 @@
           <th class="col-center">계약번호</th>
           <th class="col-center">유형</th>
           <th class="col-center">계약 기간</th>
-          ${showLinked ? '<th class="col-center">연결 근로계약</th>' : ''}
           <th class="col-center">상태</th>
           <th>작성 담당자</th>
           <th class="col-center">작성일</th>
@@ -6737,10 +6809,10 @@
           return;
         }
 
-        /* 임금계약서 — 정책: 금일 기준 유효한 근로계약서가 있어야 작성 가능.
-           유효 = 서명완료 + 오늘 계약기간 내(만료 아님). 미작성/서명대기/만료 근로계약만으로는 작성 불가. */
-        if (!hasValidLaborContract(emp)) {
-          alertInfo('유효한 근로 계약서 필요', '금일 기준 유효한 근로 계약서가 있어야 임금계약서를 작성할 수 있습니다. 근로계약서 서명·유효기간을 먼저 확인해 주세요.');
+        /* 임금계약서 — 정책: 근로 계약 정보(근로 유형 포함)가 작성 완료되어야 작성 가능.
+           임금 유형은 근로 유형으로 파생되므로, 유효한(서명·기간내) 근로계약서 존재는 요구하지 않는다. */
+        if (!isContractInfoComplete(emp)) {
+          alertInfo('근로 계약 정보 필요', '근로 계약 정보(근로 유형 포함) 작성 완료 후 임금계약서를 작성할 수 있습니다.');
           return;
         }
         /* 도급직 — 임금 계약 해당 없음 */
@@ -6748,26 +6820,10 @@
           alertInfo('임금 계약 해당 없음', '도급직은 임금 계약 해당 사항이 없습니다.');
           return;
         }
-        /* 최근 근로계약서 일자 — 이력 최신순 첫 행 기준 */
-        const laborHistRows = (window.App && App.HRContract && App.HRContract.historyRowsByEmp)
-          ? (App.HRContract.historyRowsByEmp(emp.id) || []).filter(it => it.kind === '근로계약서')
-          : [];
-        const latest = laborHistRows[0];
-        const baseDate = latest ? (latest.createdAt || latest.startDate || '') : '';
-        const yy = baseDate ? baseDate.slice(2).replace(/-/g, '/') : '';
-        const proceedWage = () => {
-          CARD_STATE.newContractFlow = 'wage';
-          openCardSectionEdit('wage');
-        };
-        if (window.sweet) {
-          window.sweet({
-            icon: 'info', title: '임금계약서 작성',
-            text: `${yy ? yy + ' 일자 ' : '최근 '}근로계약서 내용을 기준으로 임금계약서를 작성합니다.`,
-            cancelText: '취소', confirmText: '확인', onConfirm: proceedWage,
-          });
-        } else {
-          proceedWage();
-        }
+        /* 임금계약 작성 진입 — 임금 유형은 직원의 근로 유형으로 자동 파생된다.
+           (특정 근로계약서에 연결하지 않으므로 별도 확인 없이 바로 진입) */
+        CARD_STATE.newContractFlow = 'wage';
+        openCardSectionEdit('wage');
         return;
       }
       /* 본인 제출 서류 — 업로드 모달 열기 */
@@ -6854,11 +6910,18 @@
           : ((window.App && App.HRContract && App.HRContract.historyByEmp) ? App.HRContract.historyByEmp(emp.id) : []);
         const item = list.find(x => x.id === ctrHistBtn.dataset.empiCtrhistPreview);
         if (item) {
-          injectDocPreviewModal();
+          injectDocPreviewModal(); bindDocPreviewModal();
           const t = document.getElementById('empi-doc-preview-title');
           const b = document.getElementById('empi-doc-preview-body');
           if (t) t.textContent = `${item.kind} — ${displayName(emp)} (${item.id})`;
           if (b) b.innerHTML = item.previewHTML;
+          /* [수정] 노출 — 최초(임직원 등록 발송) + 서명대기 계약, 인사담당자(모달) 열람 시에만.
+             서명 전 계약은 정보를 정정해 재서명 받을 수 있다(근로↔임금 유형 정합성 검증 포함). */
+          const editable = !isMyInfoView() && canEditEmployment()
+            && item.status === 'signing' && item.source === '임직원 등록 발송';
+          CARD_STATE.previewCtrItem = editable ? item : null;
+          const amendBtn = document.querySelector('#modal-empi-doc-preview [data-empi-ctr-amend]');
+          if (amendBtn) amendBtn.hidden = !editable;
           openModal('modal-empi-doc-preview');
         }
         return;
@@ -6944,13 +7007,6 @@
             } else {
               window.alert('근로 계약 정보 작성 완료 후 임금 계약 정보를 입력할 수 있습니다.');
             }
-            return;
-          }
-          /* 정책 — 임금 계약은 금일 기준 유효한 근로 계약서가 있어야 진입 가능 (우회 클릭 방어). */
-          if (sec === 'wage' && emp && !hasValidLaborContract(emp)) {
-            const m = '금일 기준 유효한 근로 계약서가 있어야 임금 계약을 작성할 수 있습니다. 근로계약서 서명·유효기간을 먼저 확인해 주세요.';
-            if (window.App && typeof App.sweetAlert === 'function') App.sweetAlert({ icon: 'info', title: '유효한 근로 계약서 필요', message: m });
-            else window.alert(m);
             return;
           }
           if (sec === 'wage' && emp && !hasStandardHours(emp)) {
@@ -7124,7 +7180,8 @@
     const laborHistCount = (window.App && App.HRContract && typeof App.HRContract.historyRowsByEmp === 'function')
       ? (App.HRContract.historyRowsByEmp(emp.id) || []).filter(it => it.kind === '근로계약서').length
       : 0;
-    const lockType = !!CARD_STATE.contractEditLockType || laborHistCount > 0;
+    /* 최초 서명대기 계약 수정(contractAmend) 은 근로 유형 변경을 허용한다(단, 임금 유형과의 정합성은 저장 시 검증). */
+    const lockType = CARD_STATE.contractAmend ? false : (!!CARD_STATE.contractEditLockType || laborHistCount > 0);
     const typeDis = lockType ? ' disabled' : '';
     const lockMsg = CARD_STATE.contractEditLockType
       ? '계약서 종류 선택에 따라 근로 유형은 변경할 수 없습니다.'
@@ -8599,6 +8656,10 @@
 
   function openCardSectionEdit(sectionKey, opts) {
     CARD_STATE.contractEditLockType = !!(opts && opts.lockEmpType);
+    /* 최초 서명대기 계약 수정 모드 — 계약 이력 미리보기 [수정] 진입 시에만 true.
+       근로 유형 잠금 해제 + 근로↔임금 유형 정합성 검증 + 결재 없이 즉시 반영(재서명용). */
+    CARD_STATE.contractAmend = !!(opts && opts.contractAmend);
+    if (!CARD_STATE.contractAmend) CARD_STATE.amendCtrItem = null;
     const emp = CARD_STATE.emp;
     if (!emp) return;
     injectCardEditModal();
@@ -8607,8 +8668,9 @@
     CARD_STATE.editSection = sectionKey;
     CARD_STATE._workinfoConfirmed = false;   /* 근무 정보 저장 시 도급직 여부 확인 모달 재요구 */
     const TITLE = {
-      employment: '근로 계약 정보 설정',
-      wage:       '임금 계약 정보 설정',
+      'contract-amend': '근로·임금 계약 정보 수정',
+      employment: CARD_STATE.contractAmend ? '근로 계약 정보 수정' : '근로 계약 정보 설정',
+      wage:       CARD_STATE.contractAmend ? '임금 계약 정보 수정' : '임금 계약 정보 설정',
       stdhours:   '소정근로시간 정보 설정',
       dependents: '부양가족 정보 적용',
       workinfo:   '근무 정보 등록',
@@ -8619,7 +8681,8 @@
     };
     modal.querySelector('[data-empi-cedit-title]').textContent = TITLE[sectionKey] || '정보 편집';
     let bodyHTML;
-    if      (sectionKey === 'employment')   bodyHTML = renderCardEditEmployment(emp);
+    if      (sectionKey === 'contract-amend') bodyHTML = renderContractAmendBody(emp);
+    else if (sectionKey === 'employment')   bodyHTML = renderCardEditEmployment(emp);
     else if (sectionKey === 'wage')         bodyHTML = renderCardEditWage(emp);
     else if (sectionKey === 'stdhours')     bodyHTML = renderCardEditStdHours(emp);
     else if (sectionKey === 'dependents')   bodyHTML = renderCardEditDependents(emp);
@@ -8629,10 +8692,130 @@
     else if (sectionKey === 'payroll-pay')  bodyHTML = renderCardEditBank(emp);
     else                                    bodyHTML = renderCardEditBelonging(emp);
     modal.querySelector('[data-empi-cedit-body]').innerHTML = bodyHTML;
-    if      (sectionKey === 'employment') wireEmploymentEditDeps(modal);
+    if (sectionKey === 'contract-amend') {
+      wireEmploymentEditDeps(modal);
+      wireWageEditDeps(modal);
+    }
+    else if (sectionKey === 'employment') wireEmploymentEditDeps(modal);
     else if (sectionKey === 'wage')       wireWageEditDeps(modal);
     else if (sectionKey === 'workinfo')   wireWorkInfoEditDeps(modal);
     openModal('modal-empi-card-edit');
+  }
+
+  /* 최초 서명대기 계약 수정 — 근로 계약 정보 + 임금 계약 정보를 한 모달에 함께 렌더(임직원 등록 폼과 동일 구성).
+     근로 유형 변경 시 임금 유형이 자동 파생(일용직=시급제 / 그 외=연봉제)되도록 임금 body 를 재렌더한다
+     (bindCardEditModal 의 change 위임에서 처리). 저장 시 두 계약을 함께 갱신한다. */
+  function renderContractAmendBody(emp) {
+    const groupHead = (title, desc) => `
+      <div style="display:flex;align-items:baseline;gap:8px;margin:0 0 12px;padding:0 0 8px;border-bottom:2px solid var(--color-brand-primary);">
+        <span style="font-size:15px;font-weight:var(--fw-bold);color:var(--color-text);letter-spacing:-0.2px;">${esc(title)}</span>
+        <span style="font-size:12px;color:var(--color-text-muted);">${esc(desc)}</span>
+      </div>`;
+    return `
+      <div style="display:flex;align-items:flex-start;gap:8px;margin:0 0 18px;padding:10px 14px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;color:var(--color-text-sub);font-size:12.5px;line-height:1.5;">
+        <span style="color:var(--color-brand-primary);flex-shrink:0;">ⓘ</span>
+        <span>서명 전(서명 대기) 계약입니다. 근로·임금 계약 정보를 함께 수정하면 수정본으로 다시 서명 요청됩니다.
+        근로 유형을 바꾸면 임금 유형이 자동으로 맞춰집니다(일용직=시급제 / 정규·계약직=연봉제).</span>
+      </div>
+      <section style="margin-bottom:26px;">
+        ${groupHead('근로 계약 정보', '고용 조건·계약기간')}
+        <div data-empi-amend-labor>${renderCardEditEmployment(emp)}</div>
+      </section>
+      <section>
+        ${groupHead('임금 계약 정보', '임금 유형·계약금액')}
+        <div data-empi-amend-wage>${renderCardEditWage(emp)}</div>
+      </section>
+    `;
+  }
+  /* 근로 유형 변경 → 임금 body 재렌더 (임금 유형 자동 파생). 임금 폼의 기존 입력값은 emp 기준으로 복원된다. */
+  function renderAmendWageBody(modal) {
+    const host = modal.querySelector('[data-empi-amend-wage]');
+    if (!host) return;
+    const emp = CARD_STATE.emp;
+    const selType = (modal.querySelector('[name="empi-ce-emptype"]:checked') || {}).value || emp.empType;
+    const workEmp = Object.assign({}, emp, { empType: selType });
+    host.innerHTML = renderCardEditWage(workEmp);
+    wireWageEditDeps(modal);
+  }
+  /* 최초 서명대기 계약 수정 저장 — 근로+임금 폼을 함께 검증·반영하고 두 계약(서명대기)을 갱신한다(재서명용). */
+  function handleContractAmendSave(modal) {
+    const emp = CARD_STATE.emp;
+    if (!emp) { closeModal('modal-empi-card-edit'); return; }
+    /* 각 폼 필수 검증 (근로 → 임금 순) */
+    if (!validateEmploymentForm(modal)) return;
+    if (!validateWageForm(modal)) return;
+    /* 정합성 가드 — 근로 유형 변경 시 임금 유형이 자동 파생되어 대개 일치하지만, 방어적으로 한 번 더 확인 */
+    const selType = (modal.querySelector('[name="empi-ce-emptype"]:checked') || {}).value || emp.empType;
+    const selWage = (modal.querySelector('[name="empi-cw-wagetype"]:checked') || {}).value || emp.wageType;
+    if (!isEmpWageTypeCompatible(selType, selWage)) {
+      const slot = modal.querySelector('[data-empi-ce-err="emptype"]');
+      if (slot) {
+        slot.textContent = `근로 유형 ‘${EMP_TYPE_LABEL[selType] || selType}’과(와) 임금 유형 ‘${WAGE_TYPE_LABEL[selWage] || selWage}’이(가) 맞지 않습니다. (정규·계약직=연봉제 / 일용직=시급제)`;
+        slot.hidden = false;
+      }
+      return;
+    }
+    /* 두 폼 patch 반영 (근로 → 임금 순) */
+    const empPatch  = readCardEditPatch(modal, 'employment');
+    const wagePatch = readCardEditPatch(modal, 'wage');
+    Object.keys(empPatch).forEach(k => { emp[k] = empPatch[k]; });
+    Object.keys(wagePatch).forEach(k => { emp[k] = wagePatch[k]; });
+    if (typeof normalizeStatus === 'function') normalizeStatus(emp);
+    /* 계약 관리의 서명대기 근로·임금 계약을 함께 갱신 */
+    if (window.App && App.HRContract && typeof App.HRContract.amendSigningContract === 'function') {
+      if (CARD_STATE.amendLaborId) App.HRContract.amendSigningContract(emp.id, CARD_STATE.amendLaborId, buildContractAmendSpec(emp, '근로계약서'));
+      if (CARD_STATE.amendWageId)  App.HRContract.amendSigningContract(emp.id, CARD_STATE.amendWageId,  buildContractAmendSpec(emp, '임금계약서'));
+    }
+    CARD_STATE.contractAmend = false;
+    CARD_STATE.amendLaborId = null;
+    CARD_STATE.amendWageId = null;
+    CARD_STATE.amendCtrItem = null;
+    if (typeof applyFilter === 'function') applyFilter();
+    if (typeof renderTable === 'function') renderTable();
+    /* 수정 완료 — 인사정보카드 관련 모달을 모두 닫고, 결과 안내 모달을 띄운다(토스트 대신).
+       [닫기] | [재발송] — 재발송 시 수정된 계약서 서명 링크를 SMS 로 재발송하고 그리드 기능 컬럼을 갱신. */
+    closeModal('modal-empi-card-edit');
+    closeModal('modal-empi-doc-preview');
+    closeModal('modal-empi-card');
+    const openAmendDoneDialog = () => {
+      if (window.sweet) {
+        window.sweet({
+          icon: 'success',
+          title: '계약 정보 수정 완료',
+          text: '근로·임금 계약 정보가 수정되었습니다. 수정된 내용으로 재서명을 받으세요.',
+          cancelText: '닫기',
+          confirmText: '재발송',
+          onConfirm: () => doAmendResend(emp),
+        });
+      } else {
+        if (window.confirm('근로·임금 계약 정보가 수정되었습니다. 수정된 내용으로 재서명을 받으세요.\n\n[확인] 재발송 / [취소] 닫기')) doAmendResend(emp);
+      }
+    };
+    openAmendDoneDialog();
+  }
+  /* 계약 수정 후 재발송 — 수정된 계약서 서명 링크를 SMS 로 재발송.
+     resendHistory 에 기록 → 그리드 「기능」 컬럼의 [재발송]/[재발송 이력] 이 새 링크 기준으로 갱신된다. */
+  function doAmendResend(emp) {
+    if (!emp) return;
+    const gate = resendGate(emp);
+    if (!gate.ok) {
+      if (window.App && typeof App.sweetAlert === 'function') App.sweetAlert({ icon: 'warn', title: '재발송 불가', message: gate.msg });
+      else window.toast && window.toast(gate.msg, 'warning');
+      return;
+    }
+    emp.resendHistory = emp.resendHistory || [];
+    emp.resendHistory.unshift({ at: nowStamp(), ts: Date.now(), reason: '근로·임금 계약 정보 수정 후 재서명 요청', by: currentUserName() });
+    if (emp.approval === 'rejected') emp.approval = 'none';
+    if (typeof applyFilter === 'function') applyFilter();
+    if (typeof renderTable === 'function') renderTable();   // 기능 컬럼 [재발송]/이력 갱신
+    if (window.App && typeof App.sweetAlert === 'function') {
+      App.sweetAlert({
+        icon: 'success', title: '재발송 완료',
+        message: `${displayName(emp)} 님에게 등록된 휴대폰 번호(${emp.phone || '-'})로 수정된 계약서 서명 링크가 전송됩니다.`,
+      });
+    } else {
+      window.alert('등록된 휴대폰 번호로 수정된 계약서 서명 링크가 전송됩니다.');
+    }
   }
 
   /* 근무 정보 편집 — 도급직 여부 토글: '해당' 시 소속회사(도급 전용) 노출, '해당 없음' 시 숨김·초기화.
@@ -9314,11 +9497,21 @@
     if (!modal) return;
     if (modal.dataset.bound === '1') return;
     modal.dataset.bound = '1';
+    /* 최초 서명대기 계약 통합 수정 — 근로 유형 변경 시 임금 body 를 재렌더해 임금 유형을 자동 파생시킨다. */
+    modal.addEventListener('change', (e) => {
+      if (CARD_STATE.editSection !== 'contract-amend') return;
+      const t = e.target;
+      if (t && t.name === 'empi-ce-emptype') renderAmendWageBody(modal);
+    });
     modal.addEventListener('click', (e) => {
       if (e.target === modal || e.target.closest('[data-modal-close]')) {
         CARD_STATE.externalOnSaved = null;   /* 저장 없이 닫으면 외부 콜백 폐기 */
         CARD_STATE.externalDirectApply = false;
         CARD_STATE.newContractFlow = null;   /* [+계약서 작성] 흐름 취소 */
+        CARD_STATE.contractAmend = false;    /* 최초 서명대기 계약 수정 흐름 취소 */
+        CARD_STATE.amendCtrItem = null;
+        CARD_STATE.amendLaborId = null;
+        CARD_STATE.amendWageId = null;
         closeModal('modal-empi-card-edit');
         return;
       }
@@ -9326,6 +9519,9 @@
       const emp = CARD_STATE.emp;
       const section = CARD_STATE.editSection;
       if (!emp || !section) { closeModal('modal-empi-card-edit'); return; }
+
+      /* 최초 서명대기 계약 수정(근로+임금 통합) — 전용 저장 흐름으로 분기 */
+      if (section === 'contract-amend') { handleContractAmendSave(modal); return; }
 
       /* 필수 정보 인라인 검증 — 섹션별 검증 함수 호출.
        *   실패 시 더 진행하지 않고 사용자가 잘못된 필드를 수정하도록 유도. */
@@ -9437,6 +9633,8 @@
       };
       let diffs = Object.keys(patch).filter(k => !eqPatch(patch[k], emp[k]));
       if (diffs.length === 0) {
+        CARD_STATE.contractAmend = false;   /* 변경 없이 닫음 — 수정 흐름 상태 정리 */
+        CARD_STATE.amendCtrItem = null;
         closeModal('modal-empi-card-edit');
         return;
       }
@@ -9485,6 +9683,7 @@
       const empTypeChanged = section === 'employment' && diffs.indexOf('empType') >= 0;
       const directApply = !!CARD_STATE.externalDirectApply && !empTypeChanged;
       const bypass = ((section === 'employment' || section === 'wage') && !wasComplete)
+                  || (CARD_STATE.contractAmend && (section === 'employment' || section === 'wage'))  /* 최초 서명대기 계약 수정 — 결재 없이 즉시 반영(재서명) */
                   || (section === 'belonging' && !orgWasSet)
                   || section === 'basic'         /* 신상 정보 — 인사담당자 권한으로 결재 없이 직접 저장 */
                   || section === 'payroll-pay'   /* 지급 정보(계좌) — 동일하게 직접 저장 */
@@ -9494,11 +9693,20 @@
                   || directApply;
 
       if (bypass) {
+        const wasAmend = CARD_STATE.contractAmend;
         diffs.forEach(k => { emp[k] = patch[k]; });
         /* 성/이름 수정 시 표시용 통합 name 동기화 (그리드·헤더가 emp.name / displayName 사용) */
         if (section === 'basic' && (diffs.indexOf('fname') >= 0 || diffs.indexOf('gname') >= 0)) {
           emp.name = displayName(emp);
         }
+        /* 최초 서명대기 계약 수정 — 계약 관리(App.HRContract)의 해당 서명대기 계약 본문/기간/급여를 갱신(재서명용). */
+        if (wasAmend && CARD_STATE.amendCtrItem && window.App && App.HRContract
+            && typeof App.HRContract.amendSigningContract === 'function') {
+          const it = CARD_STATE.amendCtrItem;
+          App.HRContract.amendSigningContract(emp.id, it.id, buildContractAmendSpec(emp, it.kind));
+        }
+        CARD_STATE.contractAmend = false;
+        CARD_STATE.amendCtrItem = null;
         if (typeof normalizeStatus === 'function') normalizeStatus(emp);
         if (typeof applyFilter === 'function') applyFilter();
         if (typeof renderTable === 'function') renderTable();
@@ -9511,7 +9719,9 @@
           CARD_STATE.externalDirectApply = false;
           try { cb(emp, section); } catch (_) {}
         }
-        if (section === 'belonging') {
+        if (wasAmend) {
+          window.toast && window.toast(`${sectionLabel}가 수정되었습니다. 수정된 내용으로 재서명을 받으세요.`, 'success');
+        } else if (section === 'belonging') {
           window.toast && window.toast('조직 정보가 등록되었습니다. 이후 변경은 발령으로 처리됩니다.', 'success');
         } else if (section === 'basic') {
           window.toast && window.toast('신상 정보가 저장되었습니다.', 'success');
@@ -9745,6 +9955,7 @@
     if (!modal) return;
     CARD_STATE.emp = _createEmp;
     CARD_STATE.contractEditLockType = false;
+    CARD_STATE.contractAmend = false;   /* 신규 등록 폼은 최초 수정 모드가 아님 */
     CARD_STATE.newContractFlow = null;
     renderCreateLaborBody(modal);
     renderCreateWageBody(modal);
@@ -10549,9 +10760,8 @@
         empType: row.empType, contractSubType: row.contractSubType, contractOut: false, jobCat: row.jobCat,
         site: row.site || '성수동',
       };
-      /* 근로계약서 먼저 발송 → 반환된 계약번호를 임금계약서의 '연결 근로계약'으로 연결.
-         (임금계약은 근로계약에 의존 — 최신 근로계약 기준으로 자동 연결, 직원이 별도 선택하지 않음) */
-      const laborRow = App.HRContract.addRowFromExternal({
+      /* 근로계약서 + 임금계약서 세트 발송. 임금유형은 직원의 근로유형(empType)으로 파생된다. */
+      App.HRContract.addRowFromExternal({
         emp: empPayload, kind: '근로계약서', mode: 'individual',
         startDate: joinVal, endDate: laborEndForPush, indefinite: laborIndef,
         status: 'signing', registeredBy: '정혜진', sentBy: '정혜진', source: '임직원 등록 발송',
@@ -10561,7 +10771,6 @@
         emp: empPayload, kind: '임금계약서', mode: 'individual',
         startDate: joinVal, endDate: row.wageContractEndDate || '', indefinite: !!row.wageIndefinite,
         status: 'signing', registeredBy: '정혜진', sentBy: '정혜진', source: '임직원 등록 발송',
-        linkedLaborId: laborRow && laborRow.id,   // 연결된 근로계약번호
         salary: {
           base: row.baseSalary || '', allowance: '', meal: '', payday: row.payDay || '',
           wageType: row.wageType || '', wageKind: row.wageContractKind || '',
@@ -10673,6 +10882,10 @@
       : (o.name || (docMeta ? docMeta.label : '입사서류'));
     $('#empi-doc-preview-title').textContent = `${title} — ${displayName(emp)} (${emp.id})`;
     $('#empi-doc-preview-body').innerHTML = buildDocPreviewHTML(emp, type, key, o);
+    /* 이 경로(서명완료 계약·입사서류 열람)는 수정 대상이 아니므로 [수정] 숨김 */
+    CARD_STATE.previewCtrItem = null;
+    const amendBtn = document.querySelector('#modal-empi-doc-preview [data-empi-ctr-amend]');
+    if (amendBtn) amendBtn.hidden = true;
     /* .modal-backdrop--over-oc 의 z-index:1100!important 를 이겨 다른 모달(서명 이력 1195 등) 위로 올림 */
     const pm = document.getElementById('modal-empi-doc-preview');
     if (pm) pm.style.setProperty('z-index', '1460', 'important');
@@ -10694,6 +10907,8 @@
       <div class="doc-editor__paper is-readonly" id="empi-doc-preview-body" style="font-family:inherit;max-width:760px;margin:0 auto;"></div>
     </div>
     <div class="modal__footer">
+      <!-- 수정 — 최초(임직원 등록 발송) + 서명대기 계약에서만 노출(좌하단). 클릭 시 미리보기를 닫고 계약 정보 수정 모달을 연다. -->
+      <button class="btn btn--soft-primary" type="button" data-empi-ctr-amend hidden style="margin-right:auto;">수정</button>
       <button class="btn" type="button" data-modal-close>닫기</button>
       <button class="btn" type="button" data-empi-doc-print>인쇄</button>
       <button class="btn btn--primary" type="button" data-empi-doc-pdf>PDF 다운로드</button>
@@ -10732,6 +10947,24 @@
       const title = (($('#empi-doc-preview-title').textContent || '문서').split('—')[0] || '문서').trim();
       if (typeof App.downloadFile === 'function') App.downloadFile(`${title}_서명본.pdf`, { context: title });
       else window.toast && window.toast('다운로드 모듈을 불러올 수 없습니다.', 'warning');
+    });
+    /* 수정 — 최초 서명대기 계약 정보 수정. 미리보기를 닫고 근로·임금 계약 정보를 함께 수정하는 모달을 연다.
+       (임직원 등록 시처럼 근로+임금을 한 화면에서 수정 — 근로 유형↔임금 유형 정합성은 자동 파생으로 유지) */
+    const amendBtn = modal.querySelector('[data-empi-ctr-amend]');
+    if (amendBtn) amendBtn.addEventListener('click', () => {
+      const item = CARD_STATE.previewCtrItem;
+      const emp = CARD_STATE.emp;
+      if (!item || !emp) return;
+      closeModal('modal-empi-doc-preview');
+      /* 이 임직원의 최초(임직원 등록 발송) 서명대기 근로·임금 계약 id 를 함께 확보 — 저장 시 둘 다 갱신 */
+      const hist = (window.App && App.HRContract && App.HRContract.historyRowsByEmp)
+        ? (App.HRContract.historyRowsByEmp(emp.id) || []) : [];
+      const isAmendable = (it, k) => it && it.kind === k && it.status === 'signing' && it.source === '임직원 등록 발송';
+      const laborRow = hist.find(it => isAmendable(it, '근로계약서'));
+      const wageRow  = hist.find(it => isAmendable(it, '임금계약서'));
+      CARD_STATE.amendLaborId = laborRow ? laborRow.id : null;
+      CARD_STATE.amendWageId  = wageRow  ? wageRow.id  : null;
+      openCardSectionEdit('contract-amend', { contractAmend: true });
     });
   }
 
@@ -11870,6 +12103,8 @@
     /* 부서 id → 상위(부모) 부서 id. 루트는 null. 근무조 설정 상속 판정 등에 사용. */
     deptParentId: (id) => { const d = findDept(id); return d ? d.parentId : null; },
     empsInDept,
+    /* 도급 소속회사 마스터 — 임직원 등록/근무정보 편집의 소속회사 셀렉트와 동일 소스. 도급직 근태현황 필터 옵션 공급. */
+    contractCompanies: () => (MASTER.contractCompanies || []).filter(Boolean),
     /* 최상위 조직(본부/팀) 목록 — 루트 직속 노드. 업무보고 현황 등 본부 단위 그룹핑용. */
     topDepts: () => deptChildren('C0').map(d => ({ id: d.id, name: d.name })),
     /* 전체 조직 목록 — 트리 DFS 순서. [{ id, name, parentId, type(hq|team|part), level }].
@@ -11916,11 +12151,7 @@
         alert('근무 정보 필요', '근무 정보(근무지·부서·직위·직책·직무) 작성 완료 후 근로 계약 정보를 입력할 수 있습니다.'); return;
       }
       if (sec === 'wage' && !isContractInfoComplete(emp)) {
-        alert('근로 계약 정보 필요', '근로 계약 정보 작성 완료 후 임금 계약 정보를 입력할 수 있습니다.'); return;
-      }
-      /* 정책 — 임금 계약은 금일 기준 유효한 근로 계약서가 있어야 진입 가능. */
-      if (sec === 'wage' && !hasValidLaborContract(emp)) {
-        alert('유효한 근로 계약서 필요', '금일 기준 유효한 근로 계약서가 있어야 임금 계약을 작성할 수 있습니다. 근로계약서 서명·유효기간을 먼저 확인해 주세요.'); return;
+        alert('근로 계약 정보 필요', '근로 계약 정보(근로 유형 포함) 작성 완료 후 임금 계약 정보를 입력할 수 있습니다.'); return;
       }
       if (sec === 'wage' && !hasStandardHours(emp)) {
         alert('소정근로시간 필요', '소정근로시간을 먼저 등록해 주세요. 소정근로시간 정보가 등록된 후 임금 계약 정보를 입력할 수 있습니다.'); return;
@@ -11929,9 +12160,10 @@
       if (emp[pendingFlag]) { alert('결재 진행 중', '승인이 결정나야 진행할 수 있습니다.'); return; }
       CARD_STATE.emp = emp;
       CARD_STATE.externalOnSaved = typeof opts.onSaved === 'function' ? opts.onSaved : null;
-      /* 계약 관리에서 편집해도 인사정보카드와 동일하게 변경 승인 요청(발령 결재)을 거친다.
-         (즉시 반영 안 함 — 등록완료 계약의 변경은 결재 후 반영) */
-      CARD_STATE.externalDirectApply = false;
+      /* 계약 관리 > 계약서 작성 — 근로/임금 계약 정보 편집은 결재(발령 승인 모달) 없이
+         인사담당자 권한으로 즉시 반영한다. 즉시 반영되므로 변경 직후 바로 서명 요청 발송이 가능.
+         (단, 근로 유형(신분) 변경은 '발령'이라 저장 핸들러에서 별도 승인 경로로 흐른다) */
+      CARD_STATE.externalDirectApply = true;
       bindCardEditModal();
       /* 근로 유형도 자유 편집 — 계약직→정규직 전환 등 */
       openCardSectionEdit(sec);

@@ -2,8 +2,8 @@ import { defineConfig } from 'vitepress'
 
 /* 정책서 버전 — 원본 문서(성원애드피아_ERP_인사근태급여_통합정책서.md)와 동일하게 관리한다.
    원본 버전이 올라가면 이 값과 changelog.md 를 함께 갱신한다. */
-const VERSION = 'v1.1'
-const DOC_DATE = '2026-07-22'
+const VERSION = 'v1.3'
+const DOC_DATE = '2026-07-24'
 
 /* GitHub 호환 slugify — 한글 heading ID 를 원본 문서의 앵커(#임직원-관리 등)와 일치시킨다.
    소문자화 → 문자/숫자/공백/하이픈 외 제거(·, 괄호 등) → 공백을 하이픈으로. */

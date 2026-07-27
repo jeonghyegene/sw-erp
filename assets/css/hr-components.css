@@ -392,6 +392,10 @@ textarea.input {
   font-size: var(--fs-sm);
 }
 .pagination__list { display: inline-flex; align-items: center; gap: 2px; }
+/* 신청 내역 페이지네이션 — 모바일 '‹ 이전'/'다음 ›' 축약용 보조 요소.
+   데스크톱 기본: 모바일 라벨(.pg-mlabel) 숨김(화살표만), 번호 묶음(.pagination__nums)은 flex 항목으로 그대로 노출. */
+.pg-mlabel { display: none; }
+.pagination__nums { display: contents; }
 .pagination__btn {
   min-width: 30px; height: 30px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1235,6 +1239,7 @@ textarea.input {
    좌·우 header 의 하단 divider 라인이 같은 Y 에 정렬되도록 우측도 48px 로 고정하고
    내부 툴바(.att-tb)의 상하 패딩을 제거해 콘텐츠를 세로 중앙 정렬한다. */
 #page-att-status .att-page__head,
+#page-att-outsourced .att-page__head,
 #page-att-leave .att-page__head,
 #page-att-leave-plan .att-page__head,
 #page-att-shift-status .att-page__head {
@@ -1244,6 +1249,7 @@ textarea.input {
   justify-content: center;
 }
 #page-att-status .att-tb,
+#page-att-outsourced .att-tb,
 #page-att-leave .att-tb,
 #page-att-leave-plan .att-tb,
 #page-att-shift-status .att-tb {
@@ -1268,6 +1274,9 @@ textarea.input {
   font-weight: var(--fw-bold);
   color: var(--color-text);
 }
+/* 연간 모드 타이틀(예: 2026년) — 연/월/주 전환 시 좌측 여백·굵기가 일정하도록
+   연/월 피커 트리거(.ym-picker__trigger, padding:2px 6px)와 동일 여백을 부여해 텍스트 좌측 끝을 맞춘다. */
+.att-tb__title--year { display: inline-flex; align-items: center; padding: 2px 6px; }
 .att-tb__weekrange {
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
@@ -1724,6 +1733,8 @@ textarea.input {
   min-width: 0;
 }
 .att-cal__block-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* 블록 텍스트 = 레이블(.att-cal__block-lb, 항상 표시) + 시간·수치(.att-cal__block-dt, ≤1280px 에서 숨김).
+   데스크톱에선 둘 다 노출. 숨김 규칙은 아래 반응형(@media max-width:1280) 참조. */
 /* 출퇴근 블록 — 근무조 색상(.shift-chip--*)을 물려받으므로 자체 배경 없음.
    근무조 미배정 등 색상 클래스가 없을 때만 이 기본(연회색) 을 사용. */
 .att-cal__block--work     { background: var(--color-surface-alt); color: var(--color-text-sub); }
@@ -1815,6 +1826,287 @@ textarea.input {
 /* 블록 스와치 범례 항목 — 스와치 + 라벨 정렬 */
 .att-cal__legend > span { display: inline-flex; align-items: center; gap: 4px; }
 .att-cal__legend .att-cal__sw { margin: 0; }
+
+/* =========================================================
+ *  월간 캘린더(att-cal) 반응형 — 나의 근태현황 · 나의 연차현황 공용(.att-mopt 로 스코프).
+ *   · ≤1280px : 블록의 시간·수치(detail) 숨기고 레이블만. 셀 컴팩트(일반 달력 형태 유지).
+ *   · ≤900px  : 셀 높이·폰트·간격 추가 축소.
+ *   · ≤768px 부터는 캘린더 자체를 숨기고 세로 리스트(.att-mlist)로 대체(아래 블록) → 여기선 769~1280 만 유효.
+ *   ⚠️ .att-cal 계열은 다른 근태·연차 페이지 공용 클래스라 반드시 .att-mopt(my-work/my-leave 섹션) 로 한정. */
+@media (max-width: 1280px) {
+  .att-mopt .att-cal__block-dt { display: none; }        /* 시간·수치 생략 → 레이블만 남김 */
+  .att-mopt .att-cal { padding: 10px; }
+  .att-mopt .att-cal__cell { min-height: 84px; padding: 6px 7px; }
+  .att-mopt .att-cal__cell.is-today { padding: 4px 5px; }
+}
+@media (max-width: 900px) {
+  .att-mopt .att-cal__weekdays, .att-mopt .att-cal__grid { gap: 3px; }
+  .att-mopt .att-cal__cell { min-height: 72px; }
+  .att-mopt .att-cal__day { font-size: var(--fs-sm); }
+}
+
+/* =========================================================
+ *  나의 근태현황 모바일(≤768px) 레이아웃 — 캘린더 → 세로 일자별 리스트 + 하단 신청 바
+ *   · .att-mlist        : 일자별 근태 카드(세로 스크롤). 데스크톱 숨김 / ≤768 노출.
+ *   · .att-page__mobile-actions : 근태·초과근무·근무조변경 신청 3버튼 하단 고정 바(양 탭 공통).
+ * ========================================================= */
+.att-mlist { display: none; }                     /* 데스크톱: 캘린더가 보이므로 숨김 */
+.att-page__mobile-actions { display: none; }      /* 데스크톱: 상단 탭바 버튼 사용 → 하단 바 숨김 */
+
+.att-mlist__row {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.att-mlist__row.is-today { border-color: var(--color-brand-primary); border-width: 2px; padding: 11px 13px; }
+.att-mlist__date {
+  flex: 0 0 auto; width: 38px;
+  display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+}
+.att-mlist__day { font-size: var(--fs-xl); font-weight: var(--fw-bold); color: var(--color-text); }
+.att-mlist__dow { font-size: var(--fs-xs); color: var(--color-text-muted); margin-top: 2px; }
+.att-mlist__row.is-sun .att-mlist__day, .att-mlist__row.is-sun .att-mlist__dow { color: var(--color-danger); }
+.att-mlist__row.is-sat .att-mlist__day, .att-mlist__row.is-sat .att-mlist__dow { color: var(--color-info); }
+.att-mlist__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.att-mlist__top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.att-mlist__gubun {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+  padding: 2px 9px; border-radius: var(--radius-pill);
+  background: var(--color-surface-alt); color: var(--color-text-sub);
+}
+.att-mlist__gubun--work   { background: rgba(0, 52, 125, 0.08); color: var(--color-brand-primary); }
+.att-mlist__gubun--leave  { background: #EDE9FE; color: #6D28D9; }                 /* 캘린더 휴가 색과 통일 */
+.att-mlist__gubun--absent { background: rgba(220, 38, 38, 0.10); color: var(--color-danger); }
+.att-mlist__gubun--off,
+.att-mlist__gubun--future { background: var(--color-surface-alt); color: var(--color-text-muted); }
+.att-mlist__detail { font-size: var(--fs-sm); color: var(--color-text-sub); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-mlist__detail strong { color: var(--color-text); font-weight: var(--fw-semibold); }
+.att-mlist__tail { margin-left: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }   /* 경고 ! 배지 + 품의서 나란히·수직 중앙 */
+/* 리스트 우측 경고 ! 배지 — 흰 배경 위라 빨강 원 + 흰 ! 로. 클릭 가능(button). */
+.att-mlist__tail .att-cal__mm--tail {
+  margin-left: 0;
+  background: var(--color-danger); color: #fff;
+  border: 0; cursor: pointer; padding: 0;
+}
+.att-mlist__tail .att-cal__mm--tail:hover { filter: brightness(0.94); }
+.att-mlist__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+/* 칩 — 캘린더 색상 클래스(.att-cal__block--*) 재사용하되 리스트에선 pill 형태로. 숫자(지각 30분 등)는 표시(공간 충분).
+   경고 칩은 <button> 이므로 UA 기본 테두리/폰트 리셋. */
+.att-mlist__chips .att-cal__block {
+  font-size: 11px; line-height: 1.4; padding: 2px 9px; border-radius: var(--radius-pill);
+  border: 0; font-family: inherit; appearance: none; -webkit-appearance: none;
+}
+.att-mlist__chips button.att-cal__block { cursor: pointer; }
+.att-mlist__empty { text-align: center; color: var(--color-text-muted); padding: 40px 0; font-size: var(--fs-sm); }
+
+/* 나의 근태현황 — 상단 toolbar 정리(요청):
+   · 월간|주간 토글: 상시 숨김.
+   · 새로고침: 태블릿 L(≤1279px) 이하 숨김 → 데스크톱(≥1280px)에서만 노출. */
+#page-att-my-work .mw-span-toggle { display: none !important; }   /* 요소의 인라인 style="display:inline-flex" 를 덮어써야 하므로 !important */
+@media (max-width: 1279.98px) {
+  #page-att-my-work .att-tb__refresh { display: none; }
+}
+
+/* ⚠️ .att-cal / .shift-grid-legend / .att-page__body 는 다른 근태·연차 페이지에서도 쓰는 공통 클래스라
+   반드시 .att-mopt(my-work/my-leave 섹션) 로 스코프를 한정한다(전역 적용 시 다른 캘린더까지 숨겨지는 사고). */
+@media (max-width: 768px) {
+  .att-mopt .att-cal { display: none; }                  /* 모바일: 캘린더 숨김 → 세로 리스트로 대체 */
+  .att-mopt .att-mlist { display: flex; flex-direction: column; gap: 8px; }
+  .att-mopt .shift-grid-legend { display: none; }        /* 캘린더 범례 숨김 */
+  .att-mopt .att-page__tabbar-actions { display: none; } /* 상단 신청 버튼 숨김 → 하단 바로 이동 */
+  /* 현황(캘린더/리스트) body 에만 여백. 신청 내역 body 는 원래 padding:0 유지(하단 여백 사고 방지). */
+  .att-mopt .att-page__body:not(.att-page__body--apps) { padding: 12px 12px 16px; }
+
+  /* 요청: 상단 툴바(.att-tb) 좌우 여백 축소 — 페이지 바깥 여백 제거와 함께 콘텐츠를 화면에 더 가깝게 */
+  .att-mopt .att-tb { padding-left: 12px; padding-right: 12px; }
+  /* 요청: 툴바 월/날짜 라벨 살짝 축소 (신청내역 툴바의 인라인 fs-lg 도 덮도록 !important) */
+  .att-mopt .att-tb__title { font-size: var(--fs-lg) !important; }
+  /* 요청: 나의 근태/연차현황 상단 탭(근태 현황 | 신청 내역) 축소 — 탭바는 my-work/my-leave 에만 존재 */
+  .att-mopt .att-tabbar__tabs .att-scope-tab { padding: 11px 13px; font-size: var(--fs-md); }
+
+  .att-mopt .att-page__mobile-actions {
+    display: flex; gap: 8px; flex: 0 0 auto;
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));   /* 제스처 바/노치 회피 */
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-divider);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  }
+  .att-mopt .att-page__mobile-actions .btn {
+    flex: 1 1 0; min-width: 0;
+    justify-content: center;
+    padding: 8px 6px;
+    white-space: nowrap; line-height: 1.25;          /* 요청: 긴 라벨(근무조 변경 신청)이 줄바꿈되지 않게 한 줄 유지 */
+    /* 요청: 좁은 폭에서 폰트를 자동 축소해 줄바꿈 없이 한 줄에 들어가게 함 (뷰포트 비례, 최대 fs-sm) */
+    font-size: clamp(11px, 3.1vw, var(--fs-sm)) !important;
+    font-weight: var(--fw-semibold);
+    min-height: 46px;
+  }
+  .att-mopt .att-page__mobile-actions .att-page__shift-note { display: none; }   /* 생산직 안내문구는 하단 바에서 생략 */
+
+  /* 신청 내역 페이지네이션 — 모바일(요청):
+     · 처음/끝(« »)·번호·정보(1-N/총건)·페이지당 셀렉터 모두 숨김
+     · '‹ 이전' '다음 ›' 2버튼만, 전체 폭을 50:50 으로 채움 */
+  .att-mopt .att-page__body--apps .pagination__btn--edge,
+  .att-mopt .att-page__body--apps .pagination__nums,
+  .att-mopt .att-page__body--apps .pagination__info,
+  .att-mopt .att-page__body--apps .pagination__size { display: none; }
+  .att-mopt .att-page__body--apps .pg-mlabel { display: inline; }
+  .att-mopt .att-page__body--apps .pagination { padding-left: 12px; padding-right: 12px; }
+  .att-mopt .att-page__body--apps .pagination__right { width: 100%; margin-left: 0; gap: 8px; flex-wrap: nowrap; }
+  .att-mopt .att-page__body--apps .pagination__list { width: 100%; flex-wrap: nowrap; gap: 8px; }
+  .att-mopt .att-page__body--apps .pagination__btn--step { flex: 1 1 0; min-width: 0; height: 40px; padding: 0 14px; gap: 2px; }
+
+  /* 부서별 근태/연차현황 — 통계 카드 모바일 컴팩트(2열, 여백·값 폰트 축소).
+     카드는 인라인 스타일로 렌더되므로 모바일 축소는 !important 로 덮는다(≤768 스코프 한정). */
+  .att-mopt .att-statgrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .att-mopt .att-statgrid > * { padding: 9px 11px !important; }
+  .att-mopt .att-statgrid > * > div:last-child { font-size: var(--fs-lg) !important; }     /* 값 폰트 축소 */
+  .att-mopt .att-statgrid [data-att-stat-cat] > div:first-child > span { display: none; }   /* '대상자 ›' 힌트 숨김 */
+
+  /* 나의 근태현황 대시보드 KPI — 부서별(.att-statgrid) 과 동일하게 모바일 2열 컴팩트(요청). */
+  #page-att-my-work .att-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  #page-att-my-work .att-kpi__card { padding: 9px 11px; }
+  #page-att-my-work .att-kpi__value { font-size: var(--fs-lg); }
+}
+
+/* 근태·연차 4개 화면(나의/부서별 근태현황·연차현황) — 모바일에서 페이지 바깥 여백과
+   카드 박스(테두리·라운드·그림자) 를 제거해 콘텐츠를 화면 가득 채운다(요청).
+   .main 의 20px padding 제거 + .page(=.att-mopt) 의 border/radius/shadow 제거.
+   `.main:has(#page-my-info…)` 선례(하단)와 동일 패턴. */
+@media (max-width: 768px) {
+  .main:has(.page.att-mopt.is-active) { padding: 0; }
+  .page.att-mopt { border: 0; border-radius: 0; box-shadow: none; }
+}
+
+/* 부서별 근태현황 · 부서별 연차현황 (+ 직원 상세 모달) — 모바일(≤700px)에서는
+   다운로드 버튼과 새로고침(마지막 갱신) 을 숨긴다(요청). id 스코프라 우선순위로 .btn 을 덮는다. */
+@media (max-width: 700px) {
+  #page-att-status .att-tb__refresh,
+  #page-att-leave  .att-tb__refresh { display: none; }
+
+  #page-att-status [data-att-comp-sum-dl],
+  #page-att-status [data-att-comp-detail-dl],
+  #page-att-status [data-att-dept-week-dl],
+  #page-att-status [data-att-dept-month-dl],
+  #page-att-status [data-att-dept-detail-dl],
+  #page-att-status [data-att-emp-daily-dl],
+  #page-att-status [data-att-emp-apps-dl],
+  #att-modal       [data-att-modal-daily-dl],
+  #att-modal       [data-att-modal-apps-dl],
+  #page-att-leave  [data-lv-emp-apps-dl],
+  #lv-modal        [data-lv-modal-apps-dl] { display: none; }
+}
+
+/* 부서별 근태/연차현황 — 모바일(≤700px)에서 기간 토글(주간/월간/연간) 을 한 글자(주/월/연)로 축약 (요청).
+   버튼 안에 전체 라벨(.seg-lbl-full)과 축약 라벨(.seg-lbl-short) 을 함께 렌더하고 폭에 따라 하나만 노출. */
+.seg-lbl-short { display: none; }
+@media (max-width: 700px) {
+  #page-att-status .tabs--segmented .seg-lbl-full,
+  #page-att-leave  .tabs--segmented .seg-lbl-full  { display: none; }
+  #page-att-status .tabs--segmented .seg-lbl-short,
+  #page-att-leave  .tabs--segmented .seg-lbl-short { display: inline; }
+}
+
+/* 부서별 근태/연차현황 — 좁은 폭(≤700px)에서 상단 툴바(조직도 펼치기·연월·날짜 이동·주월연) 가
+   한 줄에 안 들어가면 줄바꿈을 허용하고 헤더 높이를 늘려, 360px 등에서 깨지지 않게 한다(요청).
+   ⚠️ .att-tb 의 nowrap·고정 48px 는 위쪽 #page-att-* 규칙에서 강제되므로, 여기서 같은 스코프로 되돌린다. */
+@media (max-width: 700px) {
+  #page-att-status .att-page__head,
+  #page-att-leave  .att-page__head { height: auto; min-height: 48px; }
+  #page-att-status .att-tb,
+  #page-att-leave  .att-tb { flex-wrap: wrap; align-items: center; row-gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+
+  /* Row 1 — 조직도 펼치기(좌) + 기간 톱니바퀴(우) 한 줄 */
+  #page-att-status .att-tb > .split__expander,
+  #page-att-leave  .att-tb > .split__expander { order: 0; }
+  #page-att-status .att-tb__mode,
+  #page-att-leave  .att-tb__mode { order: 1; margin-left: auto; flex: 0 0 auto !important; justify-content: flex-end !important; }
+  /* Row 2 — 날짜 + ‹ 오늘 › (전체 폭) */
+  #page-att-status .att-tb__left,
+  #page-att-leave  .att-tb__left { order: 2; flex: 1 0 100%; }
+  /* 우측 새로고침 컨테이너(내용은 이미 숨김) — 빈 줄 방지 위해 숨김 */
+  #page-att-status .att-tb__right,
+  #page-att-leave  .att-tb__right { display: none; }
+
+  /* 주간 라벨(기간 범위)도 좁은 폭에서 줄바꿈 허용 */
+  #page-att-status .att-tb__weekrange,
+  #page-att-leave  .att-tb__weekrange { white-space: normal; }
+}
+
+/* 기간(주/월/연) 토글 — 데스크톱: 세그먼트(.att-tb__mode-seg) / 모바일(≤700): 톱니바퀴 드롭다운
+   (.att-tb__mode-dd, UI Kit .dd 재사용). 좁은 폭에서 토글이 자리를 많이 차지하지 않도록 톱니바퀴로 대체(요청). */
+.att-tb__mode .att-tb__mode-dd { display: none; }   /* 데스크톱: 톱니바퀴 숨김 (.dd 의 inline-block 를 특이도로 덮음) */
+.att-tb__mode-gear { gap: 6px; white-space: nowrap; }
+@media (max-width: 700px) {
+  #page-att-status .att-tb__mode-seg,
+  #page-att-leave  .att-tb__mode-seg { display: none !important; }   /* 세그먼트의 inline display:inline-flex 를 덮어야 하므로 !important */
+  #page-att-status .att-tb__mode-dd,
+  #page-att-leave  .att-tb__mode-dd { display: inline-block; }
+}
+
+/* 직원별 근태/연차현황 상세 모달(#att-modal · #lv-modal) — 모바일(≤700px) 최적화.
+   near-fullscreen 으로 넓게, 상단 월이동·뷰토글 줄바꿈, KPI 2열 컴팩트. (캘린더→리스트는 .att-mopt 로 이미 전환) */
+@media (max-width: 700px) {
+  #att-modal .modal,
+  #lv-modal  .modal {
+    width: 100vw !important; max-width: none !important;
+    height: 100% !important; max-height: none !important;
+    border-radius: 0 !important;
+  }
+  /* 상단 월이동 ‹오늘› + 연월 + 캘린더/대시보드 토글 — 좁으면 줄바꿈 */
+  #att-modal .att-emptb,
+  #lv-modal  .att-emptb { flex-wrap: wrap; row-gap: 8px; }
+  /* KPI 카드 2열 컴팩트 — 근태 모달은 .att-kpi, 연차 모달은 .att-statgrid(공용 규칙) 사용 */
+  #att-modal .att-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #att-modal .att-kpi__card { padding: 9px 11px; }
+  #att-modal .att-kpi__value { font-size: var(--fs-lg); }
+}
+
+/* 직원별 근태/연차현황 모달 타이틀 — 2줄: 메인 제목 + 작은 메타(이름·사번·부서·직위·직책) */
+.att-modal-title__main { display: block; }
+.att-modal-title__meta {
+  display: block; margin-top: 2px;
+  font-size: var(--fs-xs); font-weight: var(--fw-regular);
+  color: var(--color-text-muted); line-height: 1.35;
+}
+
+/* #3 신청 내역 테이블 — 컬럼 줄바꿈 금지(nowrap) + 넓은 테이블 유지(가로 스크롤). 전 폭 공통 적용. */
+.att-mopt .att-page__body--apps .tbl th,
+.att-mopt .att-page__body--apps .tbl td { white-space: nowrap; }
+
+/* #2 신청 모달(근태 신청 / 초과근무 신청 / 근무조 변경 신청) 모바일 최적화 — 360px 대응.
+   모달은 부서별 근태현황과 공용이라 모달 ID 로 직접 스코프(페이지 무관). */
+@media (max-width: 480px) {
+  #modal-att-apply .modal,
+  #modal-att-ot .modal,
+  #modal-att-shiftchg .modal {
+    width: calc(100vw - 16px);
+    max-width: none !important;                    /* 인라인 max-width(760/560) 덮어씀 → 폭 가득 */
+    max-height: calc(100vh - 20px);
+  }
+  #modal-att-apply .modal__body,
+  #modal-att-ot .modal__body,
+  #modal-att-shiftchg .modal__body { padding: 14px; }
+  #modal-att-apply .modal__header,
+  #modal-att-ot .modal__header,
+  #modal-att-shiftchg .modal__header { padding: 12px 14px; }
+  #modal-att-apply .modal__footer,
+  #modal-att-ot .modal__footer,
+  #modal-att-shiftchg .modal__footer { padding: 10px 14px; }
+  /* 폼 행 — 라벨은 값 옆(스택 X). 2-컬럼 행(라벨·값·라벨·값)만 한 쌍씩 한 줄로 접어 좁은 폭 대응.
+     라벨 폭만 살짝 줄여(96px) 값 영역 확보. 인라인 grid-template-columns 덮어씀. */
+  #modal-att-apply .fm-tbl__row,
+  #modal-att-ot .fm-tbl__row,
+  #modal-att-shiftchg .fm-tbl__row { grid-template-columns: 96px minmax(0, 1fr) !important; }
+  /* 하단 버튼 — 취소/상신 각 절반 폭으로 눌러 쉽게 */
+  #modal-att-apply .modal__footer .btn,
+  #modal-att-ot .modal__footer .btn,
+  #modal-att-shiftchg .modal__footer .btn { flex: 1 1 0; }
+}
 
 /* =========================================================
  *  연차 계획 — 캘린더 셀 내 인원 pill / 대시보드 색상 점

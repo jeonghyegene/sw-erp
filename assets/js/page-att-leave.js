@@ -45,6 +45,8 @@
     compWeekMonday: null,
     /* 통계(KPI) 패널 접힘 상태 — 「근태 현황」 과 동일한 접기/펼치기 UX */
     statOpen: true,
+    /* 좌측 조직도 패널 접힘 여부 — 임직원 현황과 동일(모바일 기본 접힘, 데스크톱 펼침) */
+    leftCollapsed: false,
     /* 부서 선택 시 뷰 — 'cal'(캘린더형) | 'dash'(대시보드형). 대시보드형은 구성원별 발생/사용/잔여. */
     viewMode: 'cal',
     /* 캘린더형 — 월별 전환 (팀원 각자의 연차/외근 사용을 한 달 단위로 조회) */
@@ -58,6 +60,14 @@
     modalCalYm: '2026-05',
   };
   const DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  /* 조직도 패널 접기/펼치기 버튼용 셰브론 (임직원 현황과 동일) */
+  const ICON_CHEVRON_L = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+  const ICON_CHEVRON_R = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  /* 기간(주/월/연) 톱니바퀴 메뉴 트리거 아이콘 — 모바일에서 세그먼트 토글 대체 */
+  const ICON_GEAR = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+  /* 모바일 폭 판정 — CSS @media(max-width:768px) 와 동일 기준(임직원 현황 패턴) */
+  const MOBILE_BP = 768;
+  function isMobileWidth() { return window.matchMedia('(max-width: ' + MOBILE_BP + 'px)').matches; }
   function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
   function dowOfDate(ym, d) { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1, d).getDay(); }
   function shiftMonth(ym, delta) {
@@ -248,6 +258,10 @@
     const mode = STATE.viewMode;
     /* 스코프 칩(부서명·N명) 은 좌측 조직도 선택으로 대체 — 헤더에서 제거 */
     const chipHTML = '';
+    /* 조직도 펼치기 버튼 — 관리자(조직도 존재) 일 때만. 접힘 상태에서 CSS 로 노출됨 */
+    const expanderHTML = STATE.isManager
+      ? `<button class="split__expander" type="button" data-split-expand="att-leave-split" title="조직도 펼치기"><span>조직도</span>${ICON_CHEVRON_R}</button>`
+      : '';
     /* 월 이동 ‹오늘› — 캘린더로 과거 연차현황을 조회. 부서 선택(또는 팀원) 시 노출 */
     const monthNav = `
           ${App.YmPicker.html({ name: 'cal', ym: STATE.calYm, todayYm: App.AttStatus.TODAY.slice(0, 7) })}
@@ -277,17 +291,23 @@
             ${(window.Icons && window.Icons.refresh) || '↻'} 새로고침
           </button>
         </div>`;
-      const segTab = (key, label, active) => `<button type="button" class="tabs__tab ${active ? 'is-active' : ''}" data-lv-comp-mode="${key}">${label}</button>`;
+      const modeOpts = [{ key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'year', label: '연간' }];
+      const segTab = (o) => `<button type="button" class="tabs__tab ${cm === o.key ? 'is-active' : ''}" data-lv-comp-mode="${o.key}"><span class="seg-lbl-full">${o.label}</span><span class="seg-lbl-short">${o.label.charAt(0)}</span></button>`;
+      const ddItem = (o) => `<button type="button" class="dd__item ${cm === o.key ? 'is-active' : ''}" data-lv-comp-mode="${o.key}">${o.label.charAt(0)}</button>`;
+      const curShort = ((modeOpts.find(o => o.key === cm) || modeOpts[0]).label).charAt(0);
+      /* 데스크톱 — 세그먼트 토글 / 모바일(≤700) — 톱니바퀴 드롭다운(UI Kit .dd 재사용) 으로 주·월·연 선택 */
       const modeToggle = `
-        <div style="flex:1;display:flex;justify-content:center;">
-          <div class="tabs tabs--segmented" style="display:inline-flex;width:auto;">
-            <div class="tabs__nav">
-              ${segTab('week', '주간', cm === 'week') + segTab('month', '월간', cm === 'month') + segTab('year', '연간', cm === 'year')}
-            </div>
+        <div class="att-tb__mode" style="flex:1;display:flex;justify-content:center;">
+          <div class="tabs tabs--segmented att-tb__mode-seg" style="display:inline-flex;width:auto;">
+            <div class="tabs__nav">${modeOpts.map(segTab).join('')}</div>
+          </div>
+          <div class="dd att-tb__mode-dd dd--row">
+            <button type="button" class="btn btn--sm att-tb__mode-gear" data-lv-mode-menu aria-haspopup="true" title="기간 선택 (주·월·연)">${esc(curShort)} ${ICON_GEAR}</button>
+            <div class="dd__menu">${modeOpts.map(ddItem).join('')}</div>
           </div>
         </div>`;
       const periodCtrl = companyYear
-        ? `<span class="att-tb__title" style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">${STATE.year}년</span>`
+        ? `<span class="att-tb__title att-tb__title--year">${STATE.year}년</span>`
         : App.YmPicker.html({ name: 'comp', ym: STATE.compYm, todayYm: App.AttStatus.TODAY.slice(0, 7) });
       const navAria = companyYear ? ['이전 해', '다음 해'] : isWeek ? ['이전 주', '다음 주'] : ['이전 달', '다음 달'];
       let weekLabel = '';
@@ -298,6 +318,7 @@
       }
       return `
         <div class="att-tb">
+          ${expanderHTML}
           <div class="att-tb__left">
             ${periodCtrl}
             <div class="att-tb__nav">
@@ -322,6 +343,7 @@
       : `${monthNav}${viewsHTML}${chipHTML}`;   /* isDept */
     return `
       <div class="att-tb">
+        ${expanderHTML}
         <div class="att-tb__left">${leftHTML}</div>
       </div>
     `;
@@ -381,7 +403,7 @@
           </span>
         </button>
         <div style="padding:14px 16px;${open ? '' : 'display:none;'}">
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+          <div class="att-statgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
             ${items.map(it => kpiCard(it.label, it.value, it.color)).join('')}
           </div>
         </div>
@@ -481,7 +503,7 @@
     /* 월 이동 ‹오늘› + 연월 + 캘린더/대시보드 토글을 한 줄 좌측 정렬.
        월 이동은 두 뷰 모두 항상 노출 — 대시보드로 전환해도 조회 월(연월)은 유지된다. */
     const toggle = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div class="att-emptb" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span class="att-tb__nav">
           <button type="button" data-lv-emp-cal-prev aria-label="이전 달">‹</button>
           <button type="button" data-lv-emp-cal-today>오늘</button>
@@ -505,7 +527,7 @@
       { label: '잔여 연차',      value: `${me.remain}${_kpiUnit('일')}`,  color: 'var(--color-success)' },
     ];
     return toggle + `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="att-statgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
         ${cards.map(c => kpiCard(c.label, c.value, c.color)).join('')}
       </div>
       <div class="table-card">
@@ -625,7 +647,7 @@
   function ensureLvModal() {
     if (document.getElementById('lv-modal')) return;
     const html = `
-<div class="modal-backdrop" id="lv-modal" data-modal-id="lv-modal" style="z-index:1200;">
+<div class="modal-backdrop att-mopt" id="lv-modal" data-modal-id="lv-modal" style="z-index:1200;">
   <div class="modal modal--lg" style="width:90vw;max-width:880px;height:82vh;max-height:820px;display:flex;flex-direction:column;">
     <div class="modal__header">
       <div class="modal__title" data-lv-modal-title>직원별 연차 현황</div>
@@ -688,8 +710,8 @@
     STATE.modalCalYm = STATE.calYm || '2026-05';
     ensureLvModal();
     const modal = document.getElementById('lv-modal');
-    const meta = emp ? ` (${emp.name}·${emp.id}·${emp.dept}·${emp.rank || '-'}·${emp.position || '-'})` : '';
-    modal.querySelector('[data-lv-modal-title]').textContent = `직원별 연차 현황${meta}`;
+    const meta = emp ? `${esc(emp.name)} · ${esc(emp.id)} · ${esc(emp.dept)} · ${esc(emp.rank || '-')} · ${esc(emp.position || '-')}` : '';
+    modal.querySelector('[data-lv-modal-title]').innerHTML = `<span class="att-modal-title__main">직원별 연차 현황</span>${meta ? `<span class="att-modal-title__meta">${meta}</span>` : ''}`;
     modal.querySelector('[data-lv-modal-body]').innerHTML = renderEmpDetailContent();
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
@@ -961,7 +983,29 @@
         </div>
         <div class="att-cal__grid">${cells.join('')}</div>
       </div>
+      ${renderMobileLeaveList(ym, events)}
     `;
+  }
+
+  /* 모바일(≤768) 세로 리스트 — 캘린더 대체(.att-mopt @media 로 전환).
+     이벤트(연차/반차/출장/외근/교육) 있는 날만 세로 나열. 부서 스코프이므로 칩마다 임직원명 표기. */
+  function renderMobileLeaveList(ym, events) {
+    const days = daysInMonth(ym);
+    const rows = [];
+    for (let d = 1; d <= days; d++) {
+      const dateStr = `${ym}-${pad2(d)}`;
+      const evs = events[dateStr] || [];
+      if (!evs.length) continue;
+      const wd = dowOfDate(ym, d);
+      const wdCls = wd === 0 ? 'is-sun' : wd === 6 ? 'is-sat' : '';
+      const chips = evs.map(ev => `<span class="lv-cal__chip lv-cal__chip--${ev.cls}" title="${esc(ev.name + ' · ' + ev.label + (ev.reason ? ' · ' + ev.reason : ''))}"><span class="lv-cal__chip-name">${esc(ev.name)}</span> ${esc(ev.label)}</span>`).join('');
+      rows.push(`
+        <div class="att-mlist__row ${wdCls}">
+          <div class="att-mlist__date"><span class="att-mlist__day">${d}</span><span class="att-mlist__dow">${DOW_KO[wd]}</span></div>
+          <div class="att-mlist__main"><div class="att-mlist__chips">${chips}</div></div>
+        </div>`);
+    }
+    return `<div class="att-mlist">${rows.join('') || '<div class="att-mlist__empty">이 달 휴가·외근 내역이 없습니다.</div>'}</div>`;
   }
 
   /* 부서 선택 시 — 뷰 토글(캘린더/대시보드) + 본문. 팀원 권한은 캘린더형만.
@@ -998,10 +1042,15 @@
         <div data-lv-legend></div>
       </section>`;
     if (STATE.isManager) {
+      const collapsedCls = STATE.leftCollapsed ? ' is-left-collapsed' : '';
       return `
-        <div class="split" style="--split-left:240px;height:100%;">
+        <div class="split split--collapsible${collapsedCls}" id="att-leave-split" style="--split-left:240px;height:100%;">
           <aside class="split__left">
-            <div class="split__head"><h3>조직도</h3></div>
+            <div class="split__head">
+              <h3>조직도</h3>
+              <div style="flex:1"></div>
+              <button class="split__collapser" type="button" data-split-collapse="att-leave-split" title="조직도 접기">${ICON_CHEVRON_L}</button>
+            </div>
             <div class="split__body" style="padding:0;display:flex;flex-direction:column;min-height:0;">
               <ul class="tree tree--selectable" data-lv-tree style="flex:1;overflow:auto;padding:8px 10px;margin:0;"></ul>
             </div>
@@ -1037,6 +1086,25 @@
     });
   }
 
+  /* 좌측 조직도 상태를 폭에 맞춰 동기화 — 모바일: 접힘 / 데스크톱: 펼침 (임직원 현황과 동일).
+     layoutHTML 이 매 렌더마다 재생성되므로 STATE.leftCollapsed 를 진실원으로 삼는다. */
+  function applyMobileSplitState(pageEl) {
+    STATE.leftCollapsed = isMobileWidth();
+    const root = (pageEl || document).querySelector('#att-leave-split');
+    if (root) root.classList.toggle('is-left-collapsed', STATE.leftCollapsed);
+  }
+  /* 페이지 외부에서 한 번만 바인딩 — resize 시 모바일이면 접기 */
+  if (!window.__attLeaveResizeBound) {
+    window.__attLeaveResizeBound = true;
+    window.addEventListener('resize', () => {
+      const root = document.getElementById('att-leave-split');
+      if (!root) return;
+      if (isMobileWidth() && !root.classList.contains('is-left-collapsed')) {
+        root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true;
+      }
+    });
+  }
+
   function renderAll(pageEl) {
     const root = pageEl.querySelector('[data-lv-root]');
     if (root) root.innerHTML = layoutHTML();
@@ -1062,7 +1130,48 @@
       if (e.detail.name === 'comp') { setCompMonth(e.detail.ym); renderAll(pageEl); }
     });
 
+    /* 모바일 — 조직도 드로어가 열려있을 때 우측(카드) 클릭 시 자동 닫기 (임직원 현황과 동일). */
+    pageEl.addEventListener('click', (e) => {
+      if (!isMobileWidth()) return;
+      const root = pageEl.querySelector('#att-leave-split');
+      if (!root || root.classList.contains('is-left-collapsed')) return;
+      if (e.target.closest('[data-split-expand]')) return;
+      if (e.target.closest('.split__right')) {
+        root.classList.add('is-left-collapsed'); STATE.leftCollapsed = true;
+        e.stopPropagation();
+      }
+    }, true);
+
+    /* 기간 dots 메뉴 — 트리거·메뉴 밖 클릭 시 닫기 */
+    pageEl.addEventListener('click', (e) => {
+      if (e.target.closest('[data-lv-mode-menu]') || e.target.closest('.att-tb__mode-dd .dd__menu')) return;
+      const open = pageEl.querySelector('.att-tb__mode-dd.is-open');
+      if (open) open.classList.remove('is-open');
+    });
+
     pageEl.addEventListener('click', e => {
+      /* 조직도 패널 접기 / 펼치기 (임직원 현황과 동일). layoutHTML 재렌더는 STATE.leftCollapsed 를 참조. */
+      if (e.target.closest('[data-split-collapse]')) {
+        const root = pageEl.querySelector('#att-leave-split');
+        if (root) root.classList.add('is-left-collapsed');
+        STATE.leftCollapsed = true;
+        return;
+      }
+      if (e.target.closest('[data-split-expand]')) {
+        const root = pageEl.querySelector('#att-leave-split');
+        if (root) root.classList.remove('is-left-collapsed');
+        STATE.leftCollapsed = false;
+        return;
+      }
+
+      /* 기간(주/월/연) dots 메뉴 열고닫기 (모바일) */
+      const modeMenuBtn = e.target.closest('[data-lv-mode-menu]');
+      if (modeMenuBtn) {
+        const dd = modeMenuBtn.closest('.dd');
+        if (dd) dd.classList.toggle('is-open');
+        return;
+      }
+
       /* 권한 토글 (우측 하단 floating) */
       const perm = e.target.closest('[data-lv-perm]');
       if (perm) {
@@ -1136,6 +1245,7 @@
       if (treeNode) {
         STATE.selectedDeptId = treeNode.dataset.id;
         STATE.viewMode = 'cal';   /* 부서 선택 시 캘린더 기본 (전사는 대시보드 고정) */
+        if (isMobileWidth()) STATE.leftCollapsed = true;   /* 모바일 — 선택 후 조직도 드로어 자동 닫기 */
         renderAll(pageEl);
         return;
       }
@@ -1206,6 +1316,7 @@
         bind(pageEl);
         STATE.lastRefreshAt = nowHMS();
       }
+      applyMobileSplitState(pageEl);   /* 폭에 맞춰 조직도 접힘/펼침 (renderAll 이 STATE 참조) */
       renderAll(pageEl);
     };
   }

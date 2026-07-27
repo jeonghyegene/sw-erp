@@ -2028,6 +2028,67 @@ textarea.is-modified:focus {
 .stat-card--purple { --sc: #9333EA; --sc-soft: rgba(147, 51, 234, 0.1); }
 .stat-card--red    { --sc: #DC2626; --sc-soft: rgba(220, 38, 38, 0.1); }
 
+/* ==================== Detail Summary — 상세 화면 상단 요약 카드 ====================
+ * 용도: 상세(detail) view 헤더 — 좌측 식별자(제목 + 유형 pill + 부가 정보),
+ *       우측 핵심 지표 스트립(배정 수량 / 이용 인원 / 미사용 등).
+ * 예: 라이선스 상세, 자산 상세, 계약 상세 헤더 등.
+ * ================================================================== */
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+}
+.detail-summary__id { min-width: 0; }
+.detail-summary__title {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+.detail-summary__sub {
+  margin-top: 6px;
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+.detail-summary__metrics {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.detail-summary__metric {
+  min-width: 96px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  text-align: center;
+}
+.detail-summary__metric-label {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+.detail-summary__metric-value {
+  display: block;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+}
+.detail-summary__metric--accent .detail-summary__metric-value { color: var(--color-brand-primary); }
+.detail-summary__metric--warn   .detail-summary__metric-value { color: var(--color-warning); }
+@media (max-width: 900px) {
+  .detail-summary__metrics { margin-left: 0; width: 100%; }
+  .detail-summary__metric  { flex: 1; min-width: 76px; }
+}
+
 /* ==================== Card Showcase — 프리미엄 ====================
  * Design intent: 심플 · 고급 · 유려
  *  - Subtle multi-layer shadow (보더 대신 그림자로 평면감 제거)

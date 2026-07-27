@@ -432,7 +432,11 @@
       });
     }
     // 카드 클릭 → 인사카드 drawer (전화/메일 액션 영역 클릭은 제외)
+    //   ⚠️ 모바일(≤768px)에서는 카드 탭으로 상세를 열지 않는다 — 세로 스택 카드에서
+    //      전화/메일 버튼을 누르려다 카드 전체 탭으로 상세가 뜨는 오작동 방지.
+    //      전화/메일(tel:·mailto: 앵커)·즐겨찾기 토글은 별도 동작이라 그대로 유지된다.
     $('#hr-emp-strips', pageEl).addEventListener('click', (e) => {
+      if (isMobileWidth()) return;
       if (e.target.closest('[data-emp-action]')) return;
       if (e.target.closest('.hr-card__fav')) return;
       const card = e.target.closest('[data-emp-card]');
