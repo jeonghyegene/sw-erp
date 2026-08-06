@@ -2,8 +2,8 @@ import { defineConfig } from 'vitepress'
 
 /* 정책서 버전 — 원본 문서(성원애드피아_ERP_인사근태급여_통합정책서.md)와 동일하게 관리한다.
    원본 버전이 올라가면 이 값과 changelog.md 를 함께 갱신한다. */
-const VERSION = 'v1.3'
-const DOC_DATE = '2026-07-24'
+const VERSION = 'v1.8'
+const DOC_DATE = '2026-08-06'
 
 /* GitHub 호환 slugify — 한글 heading ID 를 원본 문서의 앵커(#임직원-관리 등)와 일치시킨다.
    소문자화 → 문자/숫자/공백/하이픈 외 제거(·, 괄호 등) → 공백을 하이픈으로. */
@@ -69,6 +69,7 @@ export default defineConfig({
           { text: '임직원 현황', link: '/hr#임직원-현황' },
           { text: '계약', link: '/hr#계약' },
           { text: '고용 및 인사 변경', link: '/hr#고용-및-인사-변경' },
+          { text: '직급·직위·직책', link: '/hr#직급직위직책' },
           { text: '인사정보카드', link: '/hr#인사정보카드' },
         ],
       },
@@ -82,6 +83,7 @@ export default defineConfig({
           { text: '근무정책', link: '/attendance#근무정책' },
           { text: '근무스케줄', link: '/attendance#근무스케줄' },
           { text: '근태 공통 정책', link: '/attendance#근태-공통-정책' },
+          { text: '사후신청 및 급여 반영', link: '/attendance#사후신청-및-급여-반영-기준' },
           { text: '연차', link: '/attendance#연차' },
           { text: '초과근무', link: '/attendance#초과근무' },
           { text: '시간외수당', link: '/attendance#시간외수당' },
