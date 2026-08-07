@@ -2,8 +2,8 @@ import { defineConfig } from 'vitepress'
 
 /* 정책서 버전 — 원본 문서(성원애드피아_ERP_인사근태급여_통합정책서.md)와 동일하게 관리한다.
    원본 버전이 올라가면 이 값과 changelog.md 를 함께 갱신한다. */
-const VERSION = 'v1.8'
-const DOC_DATE = '2026-08-06'
+const VERSION = 'v1.10'
+const DOC_DATE = '2026-08-07'
 
 /* GitHub 호환 slugify — 한글 heading ID 를 원본 문서의 앵커(#임직원-관리 등)와 일치시킨다.
    소문자화 → 문자/숫자/공백/하이픈 외 제거(·, 괄호 등) → 공백을 하이픈으로. */
@@ -50,6 +50,7 @@ export default defineConfig({
       { text: '근태', link: '/attendance' },
       { text: '급여', link: '/payroll' },
       { text: '기타', link: '/etc' },
+      { text: '백로그', link: '/backlog' },
       {
         text: VERSION,
         items: [
@@ -105,6 +106,15 @@ export default defineConfig({
         items: [
           { text: '경조사', link: '/etc#경조사' },
           { text: '사번', link: '/etc#사번' },
+        ],
+      },
+      {
+        text: '백로그',
+        link: '/backlog',
+        collapsed: false,
+        items: [
+          { text: '관리 규칙', link: '/backlog#관리-규칙' },
+          { text: '미결 항목 요약', link: '/backlog#요약' },
         ],
       },
       {

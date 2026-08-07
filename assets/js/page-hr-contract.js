@@ -492,17 +492,23 @@ ${wageClauses(v)}
      *   정책(정합성):
      *     · 최초 임직원 등록 시점(입사일)에 '근로계약서 1건 + 임금계약서 1건' 이 반드시 존재한다.
      *     · 임금 유형은 직원의 근로 유형(empType)으로 파생된다 (일용직=시급제 / 그 외=연봉제).
-     *     · 계약 기간은 고용형태에 맞춘다 — 정규직/수습=무기, 일용/계약=기간제(직원 마스터와 동일). */
+     *     · 근로계약 기간은 고용형태에 맞춘다 — 정규직=무기, 일용/계약=기간제(직원 마스터와 동일).
+     *     · 임금계약은 유형과 무관하게 항상 기간제다 (정책서 v1.9 §계약 체결 구조).
+     *       정규직·계약직은 3/1~2/28 1년 단위, 수습은 입사일~3개월, 일용/프리랜서는 계약 기간에 맞춘다.
+     *       첫 인상 기준일 = (입사일 + 1년) 이상인 첫 2/28 — 그래서 최초 임금계약은 1년을 넘을 수 있다(v1.9:218). */
     const cases = [
-      // 정규직 (emp:0) — 입사 2023-03-02. 최초 근로계약(무기) + 최초 임금계약(무기)
-      // 무기 임금계약은 시작일을 다르게 갱신 가능 → 이후(2025-03-02) 임금 인상 계약을 누적.
-      { id:'CTR-2023-1001', kind:'근로계약서', emp:0, status:'active', start:'2023-03-02', end:'', indefinite:true, created:'2023-02-27' },
-      { id:'CTR-2023-1002', kind:'임금계약서', emp:0, status:'active', start:'2023-03-02', end:'', indefinite:true, created:'2023-02-27', baseRaise:'5,420,000' },
-      { id:'CTR-2025-1009', kind:'임금계약서', emp:0, status:'active', start:'2025-03-02', end:'', indefinite:true, created:'2025-02-25', baseRaise:'5,700,000' },
+      // 정규직 (emp:0) — 입사 2023-03-02. 근로계약(무기) + 임금계약(1년 단위)
+      // 첫 인상 기준일 = 2024-03-02 이상인 첫 2/28 = 2025-02-28 → 최초 임금계약이 2년 가까이 됨.
+      // 이후 매년 2/28 갱신 → 만료 2건 + 현재 유효 1건 누적.
+      { id:'CTR-2023-1001', kind:'근로계약서', emp:0, status:'active',  start:'2023-03-02', end:'',           indefinite:true, created:'2023-02-27' },
+      { id:'CTR-2023-1002', kind:'임금계약서', emp:0, status:'expired', start:'2023-03-02', end:'2025-02-28', created:'2023-02-27', baseRaise:'5,420,000' },
+      { id:'CTR-2025-1009', kind:'임금계약서', emp:0, status:'expired', start:'2025-03-01', end:'2026-02-28', created:'2025-02-25', baseRaise:'5,700,000' },
+      { id:'CTR-2026-1010', kind:'임금계약서', emp:0, status:'active',  start:'2026-03-01', end:'2027-02-28', created:'2026-02-24', baseRaise:'6,000,000' },
 
-      // 정수습 (emp:1) — 입사 2026-05-04. 최초 근로계약(정규직·무기) + 최초 임금계약(무기)
-      { id:'CTR-2026-1003', kind:'근로계약서', emp:1, status:'active', start:'2026-05-04', end:'', indefinite:true, created:'2026-04-30' },
-      { id:'CTR-2026-1004', kind:'임금계약서', emp:1, status:'active', start:'2026-05-04', end:'', indefinite:true, created:'2026-04-30', baseRaise:'3,170,000' },
+      // 정수습 (emp:1) — 입사 2026-05-04. 수습 3개월 → 임금계약도 동일 기간(v1.9 ① 단계).
+      // 수습 기간(~2026-08-03)이 이미 종료됨 → '수습 해제 → 정규직 전환' 대상 데모 케이스.
+      { id:'CTR-2026-1003', kind:'근로계약서', emp:1, status:'active',  start:'2026-05-04', end:'',           indefinite:true, created:'2026-04-30' },
+      { id:'CTR-2026-1004', kind:'임금계약서', emp:1, status:'expired', start:'2026-05-04', end:'2026-08-03', created:'2026-04-30', baseRaise:'3,170,000' },
 
       // 정일용 (emp:2) — 입사 2026-06-01. 최초 근로계약(일용직·기간제) + 최초 임금계약(시급제)
       { id:'CTR-2026-1005', kind:'근로계약서', emp:2, status:'active', start:'2026-06-01', end:'2026-12-31', created:'2026-05-29' },
@@ -515,20 +521,24 @@ ${wageClauses(v)}
       // 김규직 (emp:5) — 입사 2026-07-20. 승인 전(정규직·무기). 온보딩 시 근로+임금 계약서를
       //   '임직원 등록 발송' 한 세트로 함께 발송 → 둘 다 서명대기. 세트 발송분이라 개별 취소 불가(canCancel=false).
       { id:'CTR-2026-1201', kind:'근로계약서', emp:5, status:'signing', start:'2026-07-20', end:'', indefinite:true, created:'2026-07-14', source:'임직원 등록 발송' },
-      { id:'CTR-2026-1202', kind:'임금계약서', emp:5, status:'signing', start:'2026-07-20', end:'', indefinite:true, created:'2026-07-14', baseRaise:'3,170,000', source:'임직원 등록 발송' },
+      //   임금계약 종료일 = 첫 인상 기준일 (2027-07-20 이상인 첫 2/28) = 2028-02-28
+      { id:'CTR-2026-1202', kind:'임금계약서', emp:5, status:'signing', start:'2026-07-20', end:'2028-02-28', created:'2026-07-14', baseRaise:'3,170,000', source:'임직원 등록 발송' },
       // 김수습 (emp:6) — 입사 2026-07-21. 승인 전(정규직·수습·무기). 근로+임금 세트 발송 → 둘 다 서명대기.
       { id:'CTR-2026-1203', kind:'근로계약서', emp:6, status:'signing', start:'2026-07-21', end:'', indefinite:true, created:'2026-07-13', source:'임직원 등록 발송' },
-      { id:'CTR-2026-1204', kind:'임금계약서', emp:6, status:'signing', start:'2026-07-21', end:'', indefinite:true, created:'2026-07-13', baseRaise:'3,170,000', source:'임직원 등록 발송' },
+      //   수습이므로 임금계약도 입사일~3개월 (v1.9 ① 단계)
+      { id:'CTR-2026-1204', kind:'임금계약서', emp:6, status:'signing', start:'2026-07-21', end:'2026-10-20', created:'2026-07-13', baseRaise:'3,170,000', source:'임직원 등록 발송' },
 
-      // 유프리 (emp:11) — 입사 2025-09-03. 프리랜서 근로계약(무기) + 임금계약(무기)
-      { id:'CTR-2025-1101', kind:'근로계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30' },
-      { id:'CTR-2025-1102', kind:'임금계약서', emp:11, status:'active', start:'2025-09-03', end:'', indefinite:true, created:'2025-08-30', baseRaise:'3,800,000' },
+      // 프리랜서 (emp:11~13) — v1.9:263 상 기간제. 근로+임금계약 모두 1년 단위 계약기간.
+      //   임금계약은 계약기간·총 계약금액 방식 (v1.9:187) — 총액 표기는 템플릿 대응 필요.
+      // 유프리 (emp:11) — 입사 2025-09-03
+      { id:'CTR-2025-1101', kind:'근로계약서', emp:11, status:'active', start:'2025-09-03', end:'2026-09-02', created:'2025-08-30' },
+      { id:'CTR-2025-1102', kind:'임금계약서', emp:11, status:'active', start:'2025-09-03', end:'2026-09-02', created:'2025-08-30', baseRaise:'3,800,000' },
       // 오프리 (emp:12) — 입사 2026-02-02
-      { id:'CTR-2026-1103', kind:'근로계약서', emp:12, status:'active', start:'2026-02-02', end:'', indefinite:true, created:'2026-01-29' },
-      { id:'CTR-2026-1104', kind:'임금계약서', emp:12, status:'active', start:'2026-02-02', end:'', indefinite:true, created:'2026-01-29', baseRaise:'5,000,000' },
+      { id:'CTR-2026-1103', kind:'근로계약서', emp:12, status:'active', start:'2026-02-02', end:'2027-02-01', created:'2026-01-29' },
+      { id:'CTR-2026-1104', kind:'임금계약서', emp:12, status:'active', start:'2026-02-02', end:'2027-02-01', created:'2026-01-29', baseRaise:'5,000,000' },
       // 서프리 (emp:13) — 입사 2025-11-03
-      { id:'CTR-2025-1105', kind:'근로계약서', emp:13, status:'active', start:'2025-11-03', end:'', indefinite:true, created:'2025-10-31' },
-      { id:'CTR-2025-1106', kind:'임금계약서', emp:13, status:'active', start:'2025-11-03', end:'', indefinite:true, created:'2025-10-31', baseRaise:'3,300,000' },
+      { id:'CTR-2025-1105', kind:'근로계약서', emp:13, status:'active', start:'2025-11-03', end:'2026-11-02', created:'2025-10-31' },
+      { id:'CTR-2025-1106', kind:'임금계약서', emp:13, status:'active', start:'2025-11-03', end:'2026-11-02', created:'2025-10-31', baseRaise:'3,300,000' },
     ];
 
     const hrUsers = ['정혜진', '윤민지', '정혜진', '정혜진', '윤민지'];

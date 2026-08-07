@@ -4,7 +4,7 @@ layout: home
 hero:
   name: 성원애드피아 ERP
   text: 인사·근태·급여 통합 정책 위키
-  tagline: 인사·근태·급여 운영 기준을 한곳에서 확인하세요. (정책서 v1.8 · 2026-08-06)
+  tagline: 인사·근태·급여 운영 기준을 한곳에서 확인하세요. (정책서 v1.10 · 2026-08-07)
   actions:
     - theme: brand
       text: 인사 정책 보기
@@ -26,4 +26,7 @@ features:
   - title: 기타
     details: 경조사, 사번 부여 규칙
     link: /etc
+  - title: 백로그
+    details: 정책 확정이 필요한 미결 항목 — 상태·담당·영향 범위 관리
+    link: /backlog
 ---
