@@ -413,7 +413,8 @@
     if (!emp || !emp._seedHistory || s._historySeeded) return;
     const tpl = templateOf(emp, s);
     const res = HISTORY_RESULT[emp._seedHistory] || 'pass';
-    const at = emp.probationEnd || TODAY;
+    /* 평가 완료일 — 수습 종료일. 미래 날짜는 완료일이 될 수 없으므로 오늘로 보정(시드 정합). */
+    const at = (emp.probationEnd && emp.probationEnd <= TODAY) ? emp.probationEnd : TODAY;
     (s.stages || []).forEach((st) => {
       (tpl.sections || []).forEach(sec => (sec.items || []).forEach(it => { st.responses[it.id] = 4; }));
       st.comment = '수습 기간 평가를 완료하였습니다. (데모 이력)';
@@ -1813,8 +1814,12 @@
    *  외부 API — 수습 평가 결과 조회용 (App.HRProbEval.getResult)
    * ========================================================= */
   App.HRProbEval = {
-    /* 제출된 결과만 반환 — 마지막 차수 기준. { result, score(=0~100 환산), submittedAt, evaluatorId } 또는 null */
+    /* 제출된 결과만 반환 — 마지막 차수 기준. { result, score(=0~100 환산), submittedAt, evaluatorId } 또는 null
+       ※ 세션은 수습평가 화면 렌더 시 생성되므로, 다른 화면(계약 관리 등)에서 먼저 조회할 수 있도록
+         여기서 지연 생성한다(ensureSession) — 화면 방문 여부와 무관하게 동일한 결과를 준다. */
     getResult(empId) {
+      const empForSeed = memberById(empId);
+      if (empForSeed && empForSeed.probation) ensureSession(empForSeed);
       const s = STATE.sessions[empId];
       if (!s || s.status !== 'submitted' || !isAllStagesSubmitted(s)) return null;
       const emp = memberById(empId);

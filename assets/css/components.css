@@ -18,6 +18,9 @@
   white-space: nowrap;
 }
 .btn:hover { background: var(--color-hover); border-color: var(--color-border-strong); }
+/* hidden 속성 우선 — .btn 의 display:inline-flex 가 브라우저 기본 [hidden] 규칙을 덮어써
+   JS 에서 btn.hidden = true 로 감춰도 계속 보이는 문제를 막는다. */
+.btn[hidden] { display: none; }
 .btn--primary {
   background: var(--color-brand-primary);
   border-color: var(--color-brand-primary);

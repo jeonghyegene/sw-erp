@@ -1328,6 +1328,9 @@ textarea.doc-editor__paper {
 .doc-paper__tbl--center th,
 .doc-paper__tbl--center td { text-align: center; }
 .doc-paper__tbl--center th { width: auto; }
+/* 당사자·인적사항 표 — 라벨/값 쌍이 한 행에 2~3벌 들어가는 표 (기본 th 폭 28% 고정 해제)
+   예: 용역계약서 위탁자/수탁자 표, 근로계약서 근로자 인적사항(성명·개인연락처·주민등록 No.) */
+.doc-paper__tbl--party th { width: auto; white-space: nowrap; }
 /* 임금 구성 표 — 항목 / 금액(우측) / 산정식, 합계행 강조 */
 .doc-paper__tbl--wage thead th { text-align: center; width: auto; background: #EEF1F6; }
 .doc-paper__tbl--wage tbody td:nth-child(2) { text-align: right; white-space: nowrap; }

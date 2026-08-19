@@ -1504,6 +1504,8 @@ textarea.is-modified:focus {
 .pill--teal   { background: #CCFBF1; color: #0F766E; }
 .pill--slate  { background: #E2E8F0; color: var(--color-text-sub); }
 .pill--brown  { background: #F5E8DC; color: #92400E; }
+/* 계약 상태 '서명 대기' 등 — 대기·요청 단계를 완료(녹)/진행(황) 과 구분하는 분홍 계열 */
+.pill--pink   { background: #FCE7F3; color: #BE185D; }
 
 /* Static stars */
 .stars { color: #F59E0B; letter-spacing: 1px; font-size: 15px; white-space: nowrap; line-height: 1; }
@@ -6022,6 +6024,97 @@ textarea.is-modified:focus {
 }
 .chip-choice__item:disabled { opacity: .5; cursor: not-allowed; }
 .chip-choice__item:disabled:hover { border-color: var(--color-border); color: var(--color-text-sub); }
+/* --sm : 폼 행 안에서 입력 필드와 함께 쓰는 축소 변형 (라벨·입력 사이 높이 균형 유지) */
+.chip-choice--sm { gap: 6px; }
+.chip-choice--sm .chip-choice__item { padding: 4px 11px; font-size: var(--fs-xs); }
+
+/* ==================== Cell Input (스프레드시트형 표 내 편집) ====================
+ *  표의 셀에서 값을 직접 수정하는 입력. 평상시엔 보더 없이 셀에 녹아 있고
+ *  hover/focus 시 경계가 드러나 "여기를 고칠 수 있다" 는 신호를 준다.
+ *  사용처: 계약 관리 > 계약서 작성 > 대상자별 입력(계약기간·금액)
+ *    <input class="cell-input" type="date">
+ *    <input class="cell-input cell-input--num" type="text" inputmode="numeric">
+ */
+.cell-input {
+  width: 100%; height: 32px; padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--fs-md);
+  color: var(--color-text);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.cell-input:hover  { border-color: var(--color-border-strong); }
+.cell-input:focus  {
+  outline: none;
+  border-color: var(--color-brand-primary);
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+.cell-input--num   { text-align: right; }
+.cell-input.is-invalid { border-color: var(--color-danger); background: var(--color-surface); }
+/* 단위 접미가 붙는 셀 입력 — 입력 + 고정 단위(%, 원, 시간)를 한 셀에 우측 정렬로 묶는다.
+ *  단위를 placeholder 나 헤더 텍스트로만 알리면 무슨 값을 넣는지 입력 시점에 확인이 안 되므로
+ *  입력 칸 바로 옆에 붙여 둔다. 사용처: 계약서 작성 > 대상자별 입력(연봉 인상률 %)
+ *    <div class="cell-unit"><input class="cell-input" ...><span class="cell-unit__unit">%</span></div>
+ */
+.cell-unit { display: flex; align-items: center; gap: 4px; }
+.cell-unit .cell-input { text-align: right; }
+.cell-unit__unit { flex: 0 0 auto; font-size: var(--fs-sm); color: var(--color-text-muted); }
+/* 셀 안에서 [요약 값] ↔ [설정 버튼] 을 양 끝으로 벌려 넓은 셀이 빈 칸으로 보이지 않게 한다 */
+.cell-split { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* ==================== Bulk Bar (선택 행 일괄 적용) ====================
+ *  그리드에서 「체크한 행에만」 값을 일괄 적용하는 컨트롤 묶음. 총 건수·엑셀·등록이 놓이는
+ *  .toolbar 와 역할이 달라 별도 바로 분리하고, 적용 대상 인원을 라벨에 명시한다.
+ *  체크된 행이 없으면 .is-idle + 컨트롤 disabled 로 "먼저 행을 체크" 신호를 준다.
+ *    <div class="bulkbar">
+ *      <span class="bulkbar__label">일괄 적용 <strong>4</strong>명</span>
+ *      <span class="bulkbar__sep"></span>
+ *      <span class="bulkbar__field"><span class="bulkbar__title">계약기간</span>…</span>
+ *      <span class="bulkbar__hint">체크한 행에만 적용됩니다.</span>
+ *    </div>
+ */
+.bulkbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+.bulkbar__label {
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--color-text);
+}
+.bulkbar__label strong { color: var(--color-brand-primary); font-weight: var(--fw-bold); }
+.bulkbar__field { display: inline-flex; align-items: center; gap: 6px; }
+.bulkbar__title { font-size: var(--fs-xs); color: var(--color-text-sub); white-space: nowrap; }
+.bulkbar__unit  { font-size: var(--fs-xs); color: var(--color-text-muted); white-space: nowrap; }
+.bulkbar__num {
+  width: 96px; height: 28px; padding: 0 8px; text-align: right;
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: var(--color-surface); font-size: var(--fs-sm); color: var(--color-text);
+}
+.bulkbar__num:focus {
+  outline: none; border-color: var(--color-brand-primary); box-shadow: 0 0 0 2px var(--color-focus);
+}
+.bulkbar__num:disabled { background: var(--color-surface-alt); color: var(--color-text-muted); }
+.bulkbar__num--sm { width: 58px; }
+.bulkbar__sep { width: 1px; height: 20px; background: var(--color-divider); }
+.bulkbar__hint { margin-left: auto; font-size: var(--fs-xs); color: var(--color-text-muted); }
+.bulkbar.is-idle { background: var(--color-surface); }
+.bulkbar.is-idle .bulkbar__label,
+.bulkbar.is-idle .bulkbar__field { opacity: .5; }
+
+/* --sticky : 표 헤더 고정 (데이터 행만 스크롤). 2단 헤더는 두 번째 행이
+   첫 행 높이(--tbl-h2, JS 로 실측 주입) 만큼 내려가 붙는다. */
+.tbl--sticky thead th { position: sticky; z-index: 2; background: var(--color-thead-bg); }
+.tbl--sticky thead tr:first-child th  { top: 0; }
+.tbl--sticky thead tr:nth-child(2) th { top: var(--tbl-h2, 35px); }
+/* --ellipsis : 고정 폭(table-layout:fixed) 표의 안전장치 — 셀 폭을 넘는 값은 옆 칸을 침범하지 않고 「…」 로 잘린다 */
+.tbl--ellipsis th, .tbl--ellipsis td { overflow: hidden; text-overflow: ellipsis; }
+/* --edge : 화면 폭을 가득 채우는 표 — 첫/마지막 셀 콘텐츠를 페이지 ±20px 라인에 맞춘다 */
+.tbl--edge th:first-child, .tbl--edge td:first-child { padding-left: 20px; }
+.tbl--edge th:last-child,  .tbl--edge td:last-child  { padding-right: 20px; }
 
 /* Form Card Actions Footer (재사용) */
 .fm-card-actions {
