@@ -264,6 +264,48 @@
   .doc__tbl--wage tbody td:nth-child(2){text-align:right;white-space:nowrap;}
   .doc__tbl--wage tr.is-total th,.doc__tbl--wage tr.is-total td{background:var(--surface-alt);font-weight:700;}
   .doc__signdate{text-align:right;margin:16px 0 0;font-size:13px;letter-spacing:.05em;}
+  .doc__sub{font-size:13px;font-weight:700;margin:14px 0 4px;color:var(--text);}
+
+  /* ── 항목별 동의 (동의함 / 동의하지 않음) ──
+     개인정보처리동의서는 항목마다 동의 여부를 따로 받아야 한다(선택 항목은 거부 가능).
+     '전체 동의' 체크 하나로 묶으면 선택 항목의 거부권이 사라진다.
+     좁은 폭에서도 깨지지 않도록 [제목·요약]과 [선택지]를 세로로 쌓는다. */
+  .optbar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    flex-wrap:wrap;margin-bottom:10px;}
+  .optbar__title{font-size:12px;font-weight:700;color:var(--text-sub);}
+  .optbar__count{font-size:12px;color:var(--text-muted);white-space:nowrap;}
+  .optbar__count b{color:var(--brand);font-weight:700;}
+  .optbar__count.is-done b{color:var(--success);}
+
+  .optrow{padding:12px 14px;border:1px solid var(--border);border-radius:var(--r-sm);
+    margin-bottom:8px;background:var(--surface);
+    transition:border-color var(--t,.15s),background var(--t,.15s);}
+  .optrow.is-invalid{border-color:var(--danger);background:#FEF2F2;}
+  .optrow.is-agreed{border-color:var(--brand);background:#F7FAFE;}
+  .optrow.is-refused{border-color:var(--border-strong);background:var(--surface-alt);}
+  .optrow__head{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;}
+  .optrow__title{font-size:13.5px;font-weight:600;color:var(--text);}
+  .optrow__desc{font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:9px;}
+  .optrow__opts{display:flex;gap:6px;}
+  /* 선택지를 반반으로 벌려 터치 타겟을 넓게 — 모바일에서 잘못 누르는 사고를 줄인다 */
+  .optrow__opt{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    font-size:12.5px;color:var(--text-sub);padding:9px 10px;border:1px solid var(--border);
+    border-radius:var(--r-sm);cursor:pointer;background:var(--surface);white-space:nowrap;}
+  .optrow__opt input{width:15px;height:15px;accent-color:var(--brand);margin:0;flex-shrink:0;}
+  .optrow__opt:has(input:checked){border-color:var(--brand);background:#EEF4FB;
+    color:var(--brand);font-weight:600;}
+  /* '동의하지 않음' 은 브랜드색으로 강조하지 않는다 — 거부가 권장 상태로 읽히면 안 된다 */
+  .optrow__opt--no:has(input:checked){border-color:var(--border-strong);
+    background:var(--surface-alt);color:var(--text-sub);}
+
+  /* ── 데모 전용 · 고용형태 전환 (프로토타입 검토용 · 실서비스에서는 입사자 데이터로 결정) ── */
+  .demosw{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;margin-bottom:14px;
+    border:1.5px dashed var(--border-strong);border-radius:var(--r-md);background:var(--surface-alt);}
+  .demosw__label{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);
+    background:#FFF3E0;color:var(--accent);white-space:nowrap;}
+  .demosw__opt{font-size:12.5px;padding:6px 11px;border:1px solid var(--border);border-radius:var(--r-pill);
+    background:var(--surface);color:var(--text-sub);cursor:pointer;}
+  .demosw__opt.is-on{border-color:var(--brand);background:var(--brand);color:#fff;font-weight:600;}
 
   @media (max-width:400px){
     .step__label{font-size:10px;}
@@ -361,51 +403,27 @@
   <!-- ═══════════ STEP 2 · 근로계약 · 임금계약 ═══════════ -->
   <section class="page" data-page="2">
     <div class="page__head">
-      <h2>근로계약 · 임금계약</h2>
-      <p>근로조건을 확인하고 전자서명으로 계약을 체결합니다.</p>
+      <h2 id="ctr-step-title">근로계약</h2>
+      <p id="ctr-step-desc">계약 조건을 확인하고 전자서명으로 계약을 체결합니다.</p>
     </div>
 
-    <!-- 근로계약 (근로조건) -->
-    <div class="card">
-      <div class="card__title">근로계약 · 근로조건</div>
-      <div class="card__body">
-        <dl class="terms">
-          <div class="terms__row"><dt>계약형태</dt><dd>정규직 <span style="color:var(--text-muted);">(기간의 정함 없는 근로계약)</span></dd></div>
-          <div class="terms__row"><dt>입사일</dt><dd>2026-07-14</dd></div>
-          <div class="terms__row"><dt>수습기간</dt><dd>3개월 (2026-07-14 ~ 2026-10-13)</dd></div>
-          <div class="terms__row"><dt>근무장소</dt><dd>성수동 (서울특별시 성동구 성수일로 80)</dd></div>
-          <div class="terms__row"><dt>담당업무</dt><dd>경영지원 / 사무직</dd></div>
-          <div class="terms__row"><dt>근무시간</dt><dd>09:00 ~ 18:00 <span style="color:var(--text-muted);">(휴게 12:00~13:00)</span></dd></div>
-          <div class="terms__row"><dt>근무일</dt><dd>주 5일 (월~금) · 소정근로 주 40시간</dd></div>
-        </dl>
-      </div>
+    <!-- 데모 전용 · 고용형태 전환 (실서비스에서는 입사자 데이터의 고용형태로 자동 결정) -->
+    <div class="demosw" id="demo-emptype">
+      <span class="demosw__label">데모</span>
+      <button class="demosw__opt" type="button" data-emptype="regular">정규직</button>
+      <button class="demosw__opt" type="button" data-emptype="contract">계약직</button>
+      <button class="demosw__opt" type="button" data-emptype="chotak">촉탁직</button>
+      <button class="demosw__opt" type="button" data-emptype="daily">일용직</button>
+      <button class="demosw__opt" type="button" data-emptype="freelancer">프리랜서</button>
     </div>
 
-    <!-- 임금계약 (임금 구성) -->
-    <div class="card">
-      <div class="card__title">임금계약 · 임금 구성</div>
-      <div class="card__body">
-        <dl class="terms">
-          <div class="terms__row"><dt>임금형태</dt><dd>월급제 (연봉제)</dd></div>
-          <div class="terms__row"><dt>총 연봉</dt><dd>연 <b>36,000,000원</b></dd></div>
-          <div class="terms__row"><dt>급여지급일</dt><dd>매월 10일 <span style="color:var(--text-muted);">(휴일인 경우 익 영업일)</span></dd></div>
-        </dl>
-        <table class="wtbl">
-          <thead><tr><th>항목</th><th style="text-align:right;">금액 (원)</th><th>산정식</th></tr></thead>
-          <tbody>
-            <tr><th>기본급</th><td class="amt">3,000,000</td><td style="color:var(--text-muted);"></td></tr>
-            <tr><th>연장근로수당</th><td class="amt">-</td><td style="color:var(--text-muted);">포괄임금</td></tr>
-            <tr><th>기타수당</th><td class="amt">-</td><td></td></tr>
-            <tr class="is-total"><th>월 임금 합계</th><td class="amt">3,000,000</td><td></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <!-- 계약 조건 · 보수 조건 (고용형태별 동적 렌더) -->
+    <div id="ctr-terms"></div>
 
     <!-- 계약서 전문 보기 -->
     <button class="btn btn--ghost btn--full" type="button" id="btn-view-doc" style="margin-bottom:14px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      근로 · 임금 계약서 전문 보기
+      <span id="btn-view-doc-label">계약서 전문 보기</span>
     </button>
 
     <!-- 계약 동의 및 전자서명 -->
@@ -415,7 +433,7 @@
         <!-- 계약 동의 -->
         <label class="agree" id="agree-box" style="margin-top:0;margin-bottom:16px;">
           <input type="checkbox" id="agree-chk">
-          <span><b>위 근로계약 및 임금계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
+          <span id="agree-text"><b>위 계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
         </label>
 
         <div class="sign__pad-wrap">
@@ -438,7 +456,7 @@
             <div class="party__stat is-done">✓ 인감 날인 완료</div>
           </div>
           <div class="party">
-            <div class="party__role">을 (근로자)</div>
+            <div class="party__role" id="party-el-role">을 (근로자)</div>
             <div class="party__name" id="party-el-name">홍길동</div>
             <div class="party__mark" id="party-el-mark"></div>
             <div class="party__stat is-wait" id="party-el-stat">서명 대기</div>
@@ -673,7 +691,7 @@
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h2>정보 입력이 완료되었습니다</h2>
-      <p>근로계약 체결과 서약서 서명이 완료되었습니다.<br>서명한 서류는 <b>내 서류 보관함</b>에 보관되며,<br>등록하신 정보는 인사팀 확인 후 인사정보카드에 반영됩니다.</p>
+      <p>계약 체결과 서약서 · 동의서 서명이 완료되었습니다.<br>서명한 서류는 <b>내 서류 보관함</b>에 보관되며,<br>등록하신 정보는 인사팀 확인 후 인사정보카드에 반영됩니다.</p>
       <div class="done__summary" id="summary"></div>
     </div>
   </section>
@@ -692,101 +710,12 @@
 <div class="modal-mask" id="doc-modal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="doc-modal-title">
     <div class="modal__head">
-      <h3 id="doc-modal-title">근로 · 임금 계약서</h3>
+      <h3 id="doc-modal-title">계약서</h3>
       <button class="modal__close" type="button" id="doc-modal-close" aria-label="닫기">✕</button>
     </div>
     <div class="modal__body">
 
-      <!-- ── 근로계약서 ── -->
-      <div class="doc__sec">
-        <h2 class="doc__title">정규직 근로계약서</h2>
-        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.</p>
-        <p class="doc__divider">■　　아　　래　　■</p>
-
-        <h3 class="doc__art">제1조 (근로계약기간)</h3>
-        <p class="doc__cl">① '을'의 근로계약기간은 2026-07-14 부터 <strong>기한의 정함이 없는 근로계약</strong>을 체결한 것으로 한다.</p>
-        <p class="doc__cl">② '을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
-        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
-
-        <h3 class="doc__art">제2조 (근무장소 및 직종)</h3>
-        <p class="doc__cl">① '을'의 근무장소 및 직종은 <strong>성수동 / 경영지원</strong> (으)로 한다.</p>
-        <p class="doc__cl">② '갑'은 업무상 필요에 따라 '을'의 근무장소 및 직종을 변경할 수 있으며, '을'은 정당한 이유없이 이를 거부할 수 없다.</p>
-
-        <h3 class="doc__art">제3조 (근로시간)</h3>
-        <p class="doc__cl">① 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.</p>
-        <p class="doc__cl">② '을'의 기본 근로시간 및 휴게시간은 다음과 같다.</p>
-        <table class="doc__tbl doc__tbl--center">
-          <thead><tr><th>교대조</th><th>시업시각</th><th>종업시각</th><th>휴게시간</th></tr></thead>
-          <tbody><tr><td>주간조</td><td>09:00</td><td>18:00</td><td>12:00 ~ 13:00</td></tr></tbody>
-        </table>
-        <p class="doc__cl">③ '갑'은 업무상 필요에 따라 근무시간을 조정할 수 있으며, '을'은 주 12시간 한도 내에서 시간외 근로를 할 수 있다.</p>
-
-        <h3 class="doc__art">제4조 (퇴직금)</h3>
-        <p class="doc__cl">① '을'의 계속근로연수가 1년 이상인 경우 퇴직시 계속근로연수 1년에 대하여 30일분의 평균임금을 퇴직금으로 지급한다.</p>
-        <p class="doc__cl">② '갑'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 '을'의 퇴직 후 14일 이내에 지급하도록 한다.</p>
-
-        <h3 class="doc__art">제5조 (휴일)</h3>
-        <p class="doc__cl">① 근로자의 날 및 주휴일을 유급휴일로 하며, 주휴일은 1주간 소정의 근로일을 개근한 경우 부여한다.</p>
-        <p class="doc__cl">② 매주 토요일은 무급휴일로 한다.</p>
-
-        <h3 class="doc__art">제6조 (연차휴가)</h3>
-        <p class="doc__cl">근로기준법이 정하는 바에 따라 연차유급휴가를 부여한다.</p>
-
-        <h3 class="doc__art">제7조 (근로계약의 해지)</h3>
-        <p class="doc__cl">① '갑'은 '을'이 업무수행능력이 현저히 부족하거나, 고의·중대한 과실로 회사에 손해를 입힌 때 등에는 근로계약기간 중이라도 해지할 수 있다.</p>
-        <p class="doc__cl">② '을'이 사직하고자 하는 경우 최소 30일 전에 사직의사를 '갑'에게 제출하여 업무 인수인계에 협조하여야 한다.</p>
-
-        <h3 class="doc__art">제8조 (준수사항)</h3>
-        <p class="doc__cl">'을'은 직무 중 지득한 '갑'의 영업 기밀 및 사업 관련 주요 정보를 제3자에게 누설하여서는 아니된다.</p>
-
-        <h3 class="doc__art">제9조 ~ 제11조 (계약의 변경 · 손해배상 · 기타)</h3>
-        <p class="doc__cl">본 계약에서 정하지 아니한 사항은 노동관계법령 및 취업규칙의 내용에 따른다. 본 계약서는 '갑'과 '을'이 날인한 후 각 1부씩 보관한다.</p>
-
-        <h3 class="doc__art">근로자 인적사항</h3>
-        <table class="doc__tbl">
-          <tr><th>성명</th><td>홍길동</td></tr>
-          <tr><th>소속</th><td>경영지원</td></tr>
-          <tr><th>직위 / 직책</th><td>사원 / 파트장</td></tr>
-        </table>
-        <p class="doc__signdate">작성일: 2026-07-14</p>
-      </div>
-
-      <!-- ── 임금계약서 ── -->
-      <div class="doc__sec">
-        <h2 class="doc__title">임 금 계 약 서</h2>
-        <p class="doc__intro">「성원애드피아」(이하 '갑'이라 한다)는 근로자 「홍길동」(이하 '을'이라 한다)과(와) 아래와 같은 내용으로 임금계약을 체결한다.</p>
-        <p class="doc__divider">■　　아　　래　　■</p>
-
-        <h3 class="doc__art">제1조 (근로자 정보)</h3>
-        <table class="doc__tbl">
-          <tr><th>성명</th><td>홍길동</td></tr>
-          <tr><th>소속 / 직책</th><td>경영지원 / 파트장</td></tr>
-          <tr><th>고용 구분</th><td>정규직</td></tr>
-        </table>
-
-        <h3 class="doc__art">제2조 (임금계약기간)</h3>
-        <p class="doc__cl">'을'의 임금계약기간은 2026-07-14 ~ <strong>기간의 정함 없음</strong> 로 한다.</p>
-        <p class="doc__note">※ 새로운 임금계약이 체결되기 전까지 자동 갱신된다.</p>
-
-        <h3 class="doc__art">제3조 (급여)</h3>
-        <p class="doc__cl">① '을'의 총연봉액은 <strong>36,000,000</strong> 원 이며, 이를 매월 지급한다.</p>
-        <p class="doc__cl">② '을'의 총월봉액은 <strong>3,000,000</strong> 원 이며, 월급여의 구성은 다음과 같다.</p>
-        <table class="doc__tbl doc__tbl--wage">
-          <thead><tr><th>항목</th><th>금액 (원)</th><th>산정식</th></tr></thead>
-          <tbody>
-            <tr><th>기본급</th><td>3,000,000</td><td></td></tr>
-            <tr><th>연장근로수당</th><td>-</td><td>포괄임금</td></tr>
-            <tr><th>기타수당</th><td>-</td><td></td></tr>
-            <tr class="is-total"><th>월임금합계</th><td>3,000,000</td><td></td></tr>
-          </tbody>
-        </table>
-        <p class="doc__cl">③ 급여는 매월 1일부터 말일까지를 산정기간으로 하여, 익월 10일(휴일인 경우 익일)에 '을' 본인명의의 계좌로 지급한다.</p>
-        <p class="doc__cl">④ 월 급여 지급시 근로소득세 및 건강보험료, 국민연금, 고용보험 등의 제세공과금을 원천징수한 후 지급한다.</p>
-
-        <h3 class="doc__art">제4조 (기타)</h3>
-        <p class="doc__cl">본 계약서에 명시되지 않은 사항은 근로계약서 및 회사의 임금 규정, 관계 법령에 따른다.</p>
-        <p class="doc__signdate">작성일: 2026-07-14</p>
-      </div>
+      <div id="doc-modal-body"></div>
 
     </div>
   </div>
@@ -819,11 +748,504 @@
   var TOTAL = 6, SUBMIT_STEP = 5, cur = 1;
   var idOK = false, phoneOK = false, emailOK = false, contractDone = false;
 
-  /* ── 입사자 정보 (직책에 따라 서약 서류 구성이 달라짐) ──
-     position(직책)이 '팀장' 또는 '파트장'이면 안전 준수 서약서가 추가로 노출됩니다. */
-  var EMP = { name: '홍길동', position: '파트장', dept: '경영지원', rank: '사원' };
+  /* ── 입사자 정보 ──
+     empType  : 고용형태 → STEP 2 계약서 서식 5종을 결정 (인사 > 계약 관리 서식과 1:1 동일)
+     position : 직책 → '팀장' / '파트장' 이면 STEP 3 에 안전 준수 서약서가 추가된다 */
+  var EMP = {
+    name: '홍길동', position: '파트장', dept: '경영지원', rank: '사원',
+    empType: 'regular',            // regular | contract | chotak | daily | freelancer
+    joinDate: '2026-07-14',
+    site: '성수사옥', job: '경영지원',
+    workTime: '09:00 ~ 18:00', breakTime: '12:00 ~ 13:00'
+  };
+  var COMPANY = '주식회사 성원애드피아';
+  var COMPANY_REPR = '윤성수';
+  var COMPANY_BIZNO = '201-81-86819';
+  var PAY_DAY = 10;
+
   var $ = function(s,c){return (c||document).querySelector(s);};
   var $$ = function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+
+  /* ── 날짜 · 금액 헬퍼 ── */
+  function ymd(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function addMonths(s, m){ var d=new Date(s); d.setMonth(d.getMonth()+m); return ymd(d); }
+  function addDays(s, n){ var d=new Date(s); d.setDate(d.getDate()+n); return ymd(d); }
+  /* 계약 종료일 = 시작일 + N개월 - 1일 (계약 관리와 동일 산식) */
+  function termEnd(start, months){ return addDays(addMonths(start, months), -1); }
+  function dateK(s){
+    var m = String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? (m[1]+'년 '+Number(m[2])+'월 '+Number(m[3])+'일') : '____년 __월 __일';
+  }
+  function won(n){ return Number(n||0).toLocaleString(); }
+
+  /* ═══════════ 계약서 서식 5종 ═══════════
+     인사 > 계약 관리(assets/js/page-hr-contract.js)의 서식을 이 화면의 .doc__* 클래스로 포팅.
+     원본: 「계약서 양식.xlsx」 수습계약서 / 근로계약서 / 촉탁직계약서 / 시급제계약서 시트,
+           「용역계약서(서식).docx」
+     신규 입사자는 임금 조건을 포함한 1부로 체결하므로(계약 관리 wageIncluded 정책)
+     급여 조항이 본문에 포함된다 — 임금계약서를 따로 두지 않는다.
+     계약 관리 서식의 조항 하단 '내용 확인 및 동의 (서명)' 확인란은
+     본 화면이 문서 말미 전자서명 1회로 갈음하므로 옮기지 않는다. */
+
+  function cl(t){ return '<p class="doc__cl">'+t+'</p>'; }
+  function note(t){ return '<p class="doc__note">※ '+t+'</p>'; }
+  function title(t){ return '<h2 class="doc__title">'+t+'</h2>'; }
+  function intro(t){ return '<p class="doc__intro">'+t+'</p>'; }
+  var DIVIDER = '<p class="doc__divider">■　　아　　래　　■</p>';
+  function signdate(){ return '<p class="doc__signdate">'+dateK(EMP.joinDate)+'</p>'; }
+  function artCounter(){
+    var i = 0;
+    return function(t){ return '<h3 class="doc__art">제'+(++i)+'조 ('+t+')</h3>'; };
+  }
+
+  /* 근로계약의 해지 — 해지 사유 5개 호 (근로계약서 4종 공통) */
+  var TERM_REASONS =
+    cl('&nbsp;&nbsp;1. 업무수행능력이 현저히 부족하거나 업무를 태만히 한 때(계약기간 중 \'갑\'은 \'을\'의 업무적격성을 평가한다)')+
+    cl('&nbsp;&nbsp;2. 고의 또는 중대한 과실로 회사에 손해를 입혔을 때')+
+    cl('&nbsp;&nbsp;3. 업무(량)의 변화, 사업의 종료 등의 사유로 계약의 해지가 불가피한 때')+
+    cl('&nbsp;&nbsp;4. 입사시 제출한 학력이나 경력이 허위인 것으로 밝혀졌을 때')+
+    cl('&nbsp;&nbsp;5. 기타 사회통념상 근로관계의 계속이 곤란한 사유가 있는 때')+
+    note('계속 5일 이상 또는 월 합계가 7일 이상 결근한 경우, 근로의사가 없는 것으로 간주 징계 절차없이 자동면직 한다.');
+
+  /* 준수사항 / 비밀유지의무 (근로계약서 4종 공통) */
+  var COMPLIANCE =
+    cl('\'을\'은 다음 각 호의 사항을 엄수하여야 하며, 이를 위반할 경우 계약기간 중에라도 해고될 수 있다.')+
+    cl('&nbsp;&nbsp;1. \'을\'은 직무 중 지득한 \'갑\'의 영업 기밀, 기타 사업과 관련된 주요 정보를 제3자에게 누설하여서는 아니된다.')+
+    cl('&nbsp;&nbsp;2. \'을\'은 자신의 연봉액에 대한 기밀을 유지하여야 하며, 타인의 연봉액을 알게 될 경우 회사의 승인없이 제3자에게 유출하여서는 아니된다.');
+
+  /* 계약의 변경 · 손해배상 · 기타의 근로조건 + 보관 문구 (근로계약서 4종 공통 말미) */
+  function closingArts(art){
+    return art('계약의 변경')+
+      cl('\'갑\'은 계약기간 중 계약 내용을 변경하여야 할 중대하고 명백한 사정이 있는 경우 \'을\'과의 협의로 근로계약의 내용을 변경할 수 있다.')+
+      art('손해배상')+
+      cl('\'을\'이 고의 또는 중대한 과실로 \'갑\'에게 손해를 끼친 경우 \'을\'은 이를 배상하여야 한다.')+
+      art('기타의 근로조건')+
+      cl('본 계약에서 정하지 아니한 사항에 대하여는 노동관계법령 및 취업규칙의 내용에 따른다.')+
+      cl('본 계약서는 근로자와 사용자가 날인한 후 \'갑\'과 \'을\'이 각 1부씩 보관한다.');
+  }
+
+  /* 근로시간·휴게시간 표 — withShift=true 는 교대조 컬럼 포함(수습계약서·근로계약서) */
+  function workTimeTable(withShift){
+    var p = EMP.workTime.split('~');
+    var st = (p[0]||'').trim(), et = (p[1]||'').trim(), brk = EMP.breakTime;
+    if(!withShift){
+      return '<table class="doc__tbl doc__tbl--center">'+
+        '<thead><tr><th>시업시각</th><th>종업시각</th><th>휴게시간</th></tr></thead>'+
+        '<tbody><tr><td>'+st+'</td><td>'+et+'</td><td>'+brk+'</td></tr></tbody></table>';
+    }
+    return '<table class="doc__tbl doc__tbl--center">'+
+      '<thead><tr><th>교대조</th><th>시업시각</th><th>종업시각</th><th>휴게시간</th></tr></thead>'+
+      '<tbody><tr><td>주간조</td><td>'+st+'</td><td>'+et+'</td><td>'+brk+'</td></tr></tbody></table>';
+  }
+
+  /* 급여 조 — 연봉제(정규직 수습·계약직·촉탁직) 공통.
+     opts.wagePeriod: 임금계약기간 항을 선두에 추가 (수습계약서·촉탁직계약서 양식) */
+  function wageClauses(w, start, end, opts){
+    var n = 0, C = ['①','②','③','④','⑤','⑥','⑦','⑧'];
+    function no(){ return C[n++]; }
+    var head = '';
+    if(opts && opts.wagePeriod) head += cl(no()+' \'을\'의 임금계약기간은 '+start+' ~ '+end+' 로 한다.');
+    head += cl(no()+' \'을\'의 총연봉액은 <strong>'+won(w.annual)+'</strong> 원 이며, 이를 매월 지급한다.');
+    head += cl(no()+' \'을\'의 총월봉액은 <strong>'+won(w.monthly)+'</strong> 원 이며, 월급여의 구성은 다음과 같다.');
+    return head+
+      '<table class="doc__tbl doc__tbl--wage">'+
+        '<thead><tr><th>항목</th><th>금액 (원)</th><th>산정식</th></tr></thead>'+
+        '<tbody>'+
+          '<tr><th>기본급</th><td>'+won(w.base)+'</td><td>시급 × 209</td></tr>'+
+          '<tr><th>연장근로수당</th><td>'+won(w.ot)+'</td><td>시급 × '+w.otHours+'h × 1.5</td></tr>'+
+          '<tr><th>기타수당</th><td>-</td><td></td></tr>'+
+          '<tr class="is-total"><th>월임금합계</th><td>'+won(w.monthly)+'</td><td></td></tr>'+
+        '</tbody>'+
+      '</table>'+
+      cl(no()+' 급여는 매월 1일부터 말일까지를 산정기간으로 하여, 익월 '+PAY_DAY+'일(휴일인 경우 익일)에 \'을\' 본인명의의 계좌로 지급한다.')+
+      cl(no()+' 월 급여 지급시 근로소득세 및 건강보험료, 국민연금, 고용보험 등의 제세공과금을 원천징수한 후 지급한다.')+
+      cl(no()+' 결근일 및 지각, 조퇴, 임의외출 등으로 근무하지 않은 시간에 대해서는 무급을 원칙으로 하며, 해당 시간 및 일에 대한 임금을 공제할 수 있다.')+
+      cl(no()+' 중도입사, 퇴사, 휴직, 복직 등으로 월급여 산정기간을 만근하지 못할 경우 전체 산정대상 기간 일수에 대한 근무일수를 일할계산하여 급여를 지급한다.');
+  }
+
+  /* 근로자 인적사항 표 — 양식 원문 구조(성명 / 개인연락처 / 주민등록 No. / 주소) */
+  function personTable(){
+    return '<table class="doc__tbl">'+
+      '<tr><th>성　명</th><td>'+EMP.name+'</td></tr>'+
+      '<tr><th>소　속</th><td>'+EMP.dept+' / '+EMP.rank+(EMP.position?' · '+EMP.position:'')+'</td></tr>'+
+      '<tr><th>개인연락처</th><td></td></tr>'+
+      '<tr><th>주민등록 No.</th><td></td></tr>'+
+      '<tr><th>주　소</th><td></td></tr>'+
+    '</table>';
+  }
+
+  /* 근무장소·직종 조 + 근로시간 조 앞부분 (수습·계약직 공통) */
+  function placeArt(art){
+    return art('근무장소 및 직종')+
+      cl('① \'을\'의 근무장소 및 직종은 <strong>'+EMP.site+' / '+EMP.dept+'</strong> (으)로 한다.')+
+      cl('② \'갑\'은 업무상 필요에 따라 \'을\'의 근무장소 및 직종을 변경할 수 있으며, \'을\'은 정당한 이유없이 이를 거부할 수 없다.');
+  }
+  /* 근로시간 조 ③④⑤ (4종 공통 — ①② 는 양식별로 다름) */
+  var WORKTIME_TAIL =
+    cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시간, 휴게시간, 단축 및 연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+
+    cl('④ 시간외 근로는 회사의 지시와 승인을 받은 시간만을 인정하며, 임의적인 시간외근로는 근로시간으로 인정하지 아니한다.')+
+    cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.');
+  /* 퇴직금 조 (수습·계약직 공통) */
+  function severanceArt(art){
+    return art('퇴직금')+
+      cl('① \'을\'의 계속근로연수가 1년 이상인 경우 \'을\'의 퇴직시에 계속근로연수 1년에 대하여 30일분의 평균임금을 퇴직금으로 지급한다.')+
+      cl('② 전항의 퇴직급여와 관련하여 근로자 퇴직급여보장법 상의 요건에 따라 퇴직연금제를 도입하여 운영할 수 있다.')+
+      cl('③ \'갑\'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 \'을\'의 퇴직 후 14일 이내에 지급하도록 한다.');
+  }
+  /* 휴일 조 — 관공서 공휴일 포함 (수습·계약직) */
+  function holidayArtFull(art){
+    return art('휴일')+
+      cl('① 근로자의 날 및 주휴일, 「관공서의 공휴일에 관한 규정」에 따른 공휴일 및 대체공휴일을 유급휴일로 하며, 주휴일은 1주간 소정의 근로일을 개근한 경우 부여한다.')+
+      cl('② 매주 토요일은 무급휴일로 한다.');
+  }
+  /* 휴일 조 — 주휴일(일요일) 기준 (촉탁직·일용직) */
+  function holidayArtSun(art){
+    return art('휴일')+
+      cl('① 근로자의 날 및 주휴일(일요일)을 유급휴일로 하며, 주휴일은 1주간 소정의 근로일을 개근한 경우 부여한다.')+
+      cl('② 매주 토요일은 무급휴무일로 한다.');
+  }
+  /* 연차휴가 조 — 근로기준법 제60조 2항 상세 (수습·계약직) */
+  function leaveArtFull(art){
+    return art('연차휴가')+
+      cl('1년 이내에 퇴직시 1개월 만근시 1일의 연차휴가를 산정(근로기준법 제60조 2항)하는 바, 이와 더불어 부여한 연차일수(회계년도기준 비례부여일수)는 총연차휴가일수에서 공제하며, 이미 초과 사용한 일수는 퇴직시 임금에서 공제한다.')+
+      note('1년 이상 근무의 경우도 퇴사시 입사일 기준으로 산정된 연차휴가보다 초과부여·사용시 동일 적용함.');
+  }
+  /* 근로계약의 해지 조 — noticeDays(예고일수) · goods(반납 물품) 만 양식별로 다르다 */
+  function terminationArt(art, noticeDays, goods, extraNotice){
+    return art('근로계약의 해지')+
+      cl('① \'갑\'은 \'을\'이 다음 각 호에 해당하는 때에는 근로계약기간 중이라도 중도에 해지할 수 있다.')+ TERM_REASONS+
+      cl('② \'갑\'이 \'을\'과의 근로계약을 중도에 해지하고자 하는 경우 '+noticeDays+'일 이전에 예고하여야 하며, 계약의 해지(해고)에 대해 그 사유와 시기를 명시하여 서면으로 통보하여야 한다.'+(extraNotice||''))+
+      cl('③ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 '+noticeDays+'일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+
+      cl('④ \'을\'은 퇴직 시 지급물품 및 비품('+goods+')을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.');
+  }
+
+  /* ── 정규직 수습 근로계약서 — 「수습계약서」 시트 ── */
+  function docProbation(c){
+    var art = artCounter(), s = c.start, e = c.end;
+    return '<div class="doc__sec">'+
+      title(c.docTitle)+
+      intro('「'+COMPANY+'」(이하 \'갑\'이라 한다)는 근로자 「'+EMP.name+'」(이하 \'을\'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.')+
+      DIVIDER+
+      art('근로계약기간')+
+      cl('① \'을\'의 근로계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('상기 기간은 수습기간이며, 수습기간 만료 시 평가 결과에 따라 기간의 정함이 없는 근로계약으로 전환된다.')+
+      cl('② \'을\'의 임금계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      placeArt(art)+
+      art('근로시간')+
+      cl('① 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.')+
+      cl('② \'을\'의 기본 근로시간 및 휴게시간은 다음과 같으며, 시차출퇴근제 적용자는 회사가 지정하는 범위에서 근로자가 시업시각과 종업시각을 선택할 수 있다. 이 경우에도 휴게시간은 원칙적으로 12~13시로 한다.')+
+      workTimeTable(true)+ WORKTIME_TAIL+
+      art('급여')+ wageClauses(c.wage, s, e, { wagePeriod:true })+
+      severanceArt(art)+ holidayArtFull(art)+ leaveArtFull(art)+
+      art('수습기간 및 근로계약의 해지')+
+      cl('① \'갑\'은 \'을\'이 다음 각 호에 해당하는 때에는 근로계약기간 중이라도 중도에 해지할 수 있다.')+ TERM_REASONS+
+      cl('② \'갑\'이 \'을\'과의 수습계약을 중도에 해지하고자 하는 경우 계약의 해지(해고)에 대해 그 사유와 시기를 명시하여 서면으로 통보한다.')+
+      cl('③ \'갑\'은 \'을\'의 직무적성과 업무수행능력 및 업무적격성을 판단하기 위하여 입사 후 <strong>'+c.months+'개월</strong>간의 수습기간을 두며, 회사가 필요하다고 인정하는 경우에는 기간을 단축·연장조정·면제 할 수 있다.')+
+      cl('④ 수습 계약 기간 동안 수습 평가를 통해 정규직 채용여부를 결정하여 \'을\'에게 고지한다. 수습평가는 1개월 단위로 평가를 진행하며, 평가점수에 따라 정직원 전환, 수습연장, 즉시 수습종료로 진행 될 수 있다.')+
+      '<table class="doc__tbl doc__tbl--center">'+
+        '<thead><tr><th>평가점수</th><th>처리</th></tr></thead>'+
+        '<tbody>'+
+          '<tr><td>70점 이상</td><td>정규직 전환</td></tr>'+
+          '<tr><td>60점 이상 70점 미만</td><td>수습연장 또는 종료</td></tr>'+
+          '<tr><td>60점 미만</td><td>수습 종료</td></tr>'+
+        '</tbody></table>'+
+      cl('⑤ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 30일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+
+      cl('⑥ \'을\'은 퇴직 시 지급물품 및 비품(출입카드, 법인카드, 사무용품 등)을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.')+
+      art('준수사항')+ COMPLIANCE+ closingArts(art)+
+      '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
+    '</div>';
+  }
+
+  /* ── 계약직 근로계약서 — 「근로계약서」 시트 ── */
+  function docWork(c){
+    var art = artCounter(), s = c.start, e = c.end;
+    return '<div class="doc__sec">'+
+      title(c.docTitle)+
+      intro('「'+COMPANY+'」(이하 \'갑\'이라 한다)는 근로자 「'+EMP.name+'」(이하 \'을\'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.')+
+      DIVIDER+
+      art('근로계약기간')+
+      cl('① \'을\'의 근로계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('계약직의 경우 별도의 계약 갱신이 이루어지지 않는 한 상기 근로계약기간의 만료로 근로관계가 자동 종료된다.')+
+      cl('② \'을\'의 임금계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('새로운 임금계약이 체결되기 전까지 자동 갱신된다.')+
+      placeArt(art)+
+      art('근로시간')+
+      cl('① 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.')+
+      cl('② \'을\'의 기본 근로시간 및 휴게시간은 다음과 같으며, 시차출퇴근제 적용자는 회사가 지정하는 범위에서 근로자가 시업시각과 종업시각을 선택할 수 있다. 이 경우에도 휴게시간은 원칙적으로 12~13시로 한다.')+
+      workTimeTable(true)+ WORKTIME_TAIL+
+      art('급여')+ wageClauses(c.wage, s, e)+
+      severanceArt(art)+ holidayArtFull(art)+ leaveArtFull(art)+
+      terminationArt(art, 30, '출입카드, 법인카드, 사무용품 등')+
+      art('준수사항')+ COMPLIANCE+ closingArts(art)+
+      '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
+    '</div>';
+  }
+
+  /* ── 촉탁직 근로계약서 — 「촉탁직계약서」 시트 ── */
+  function docChotak(c){
+    var art = artCounter(), s = c.start, e = c.end;
+    return '<div class="doc__sec">'+
+      title(c.docTitle)+
+      intro('촉탁직 임용 절차에 의하여 「'+COMPANY+'」(이하 \'갑\'이라 한다)는 촉탁직 근로자 「'+EMP.name+'」(이하 \'을\'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.')+
+      DIVIDER+
+      art('근로계약기간')+
+      cl('① \'을\'의 근로계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('별도의 계약 갱신이 이루어지지 않는 한 상기 근로계약기간의 만료로 근로관계가 자동 종료된다.')+
+      cl('② \'을\'의 임금계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('새로운 임금계약이 체결되기 전까지 자동 갱신된다.')+
+      placeArt(art)+
+      art('근로일 및 근로시간')+
+      cl('① 소정근로일은 월~금요일이며, 근로시간은 일 8시간, 주 40시간을 원칙으로 한다.')+
+      cl('② \'을\'의 기본 근로시간 및 휴게시간은 다음과 같으며, 시차출퇴근제 적용자는 회사가 지정하는 범위에서 근로자가 시업시각과 종업시각을 선택할 수 있다. 이 경우에도 휴게시간은 원칙적으로 12~13시로 한다.')+
+      workTimeTable(false)+ WORKTIME_TAIL+
+      art('급여')+ wageClauses(c.wage, s, e, { wagePeriod:true })+
+      art('퇴직연금')+
+      cl('① \'갑\'은 「근로자퇴직급여 보장법」에 따른 확정기여형 퇴직연금제도를 도입하여 운영한다.')+
+      cl('② \'을\'의 계속근로연수가 1년 이상인 경우, \'갑\'은 연간 임금총액의 12분의 1 이상의 확정기여형 퇴직연금 부담금을 \'을\'의 계좌에 납입한다.')+
+      cl('③ \'갑\'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 \'을\'의 퇴직 후 14일 이내에 지급하도록 한다.')+
+      holidayArtSun(art)+
+      art('연차휴가')+
+      cl('연차휴가는 근로기준법 규정에 따른다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+
+      terminationArt(art, 30, '출입카드, 법인카드, 사무용품 등')+
+      art('준수사항')+ COMPLIANCE+ closingArts(art)+
+      '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
+    '</div>';
+  }
+
+  /* ── 일용직 근로계약서 — 「시급제계약서」 시트 ── */
+  function docDaily(c){
+    var art = artCounter(), s = c.start, e = c.end, w = c.wage;
+    return '<div class="doc__sec">'+
+      title(c.docTitle)+
+      intro('「'+COMPANY+'」(이하 \'갑\'이라 한다)는 근로자 「'+EMP.name+'」(이하 \'을\'이라 한다)과(와) 아래와 같은 내용으로 근로계약을 체결한다.')+
+      DIVIDER+
+      art('근로계약기간')+
+      cl('① \'을\'의 근로계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('별도의 계약 갱신이 이루어지지 않는 한 상기 근로계약기간의 만료로 근로관계가 자동 종료된다.')+
+      cl('② \'을\'의 임금계약기간은 '+s+' ~ '+e+' 로 한다.')+
+      note('새로운 임금계약이 체결되기 전까지 자동 갱신된다.')+
+      placeArt(art)+
+      art('근로일 및 근로시간')+
+      cl('① 근로시간은 일 '+w.hoursPerDay+'시간, 주 '+(w.hoursPerDay*w.daysPerWeek)+'시간을 원칙으로 하며 스케줄 근무에 따른 휴일 및 근로일이 달라질 수 있다.')+
+      cl('② \'을\'의 기본 근로시간 및 휴게시간은 다음과 같다.')+
+      workTimeTable(false)+
+      cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시각 조정, 휴게시간 단축/연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+
+      cl('④ 시간외 근로는 회사의 지시와 승인을 받은 시간만을 인정하며, 임의적인 시간외근로는 근로시간으로 인정하지 아니한다.')+
+      cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.')+
+      art('급여')+
+      cl('① 시간(일, 월)급 : <strong>'+won(w.hourly)+'</strong> 원, 주휴수당 : <strong>'+won(w.holiday)+'</strong> 원')+
+      cl('② 상여금 : <strong>없음</strong>')+
+      cl('③ 기타급여(제수당 등) : <strong>없음</strong>')+
+      cl('④ 초과근로에 대한 가산임금률 : <strong>50%</strong>')+
+      cl('⑤ 급여는 매월 1일부터 말일까지를 산정기간으로 하여, 익월 '+PAY_DAY+'일(휴일인 경우 익일)에 \'을\' 본인명의의 계좌로 지급한다.')+
+      cl('⑥ 월 급여 지급시 근로소득세 및 건강보험료, 국민연금, 고용보험 등의 제세공과금을 원천징수한 후 지급한다.')+
+      cl('⑦ 결근일 및 지각, 조퇴, 임의외출 등으로 근무하지 않은 시간에 대해서는 무급을 원칙으로 하며, 해당 시간 및 일에 대한 임금을 공제할 수 있다.')+
+      cl('⑧ 중도입사, 퇴사, 휴직, 복직 등으로 월급여 산정기간을 만근하지 못할 경우 전체 산정대상 기간 일수에 대한 근무일수를 일할계산하여 급여를 지급한다.')+
+      art('퇴직급여 등')+
+      cl('① \'을\'의 계속근로연수가 1년 이상인 경우, \'갑\'은 연간 임금총액의 12분의 1 이상의 확정기여형 퇴직연금 부담금을 \'을\'의 계좌에 납입한다.')+
+      cl('② \'갑\'은 근로관계에서 발생한 일체의 금품을 \'을\'의 퇴직 후 14일 이내에 지급하도록 한다.')+
+      holidayArtSun(art)+
+      art('연차휴가')+
+      cl('연차휴가는 근로기준법 규정에 따라 부여한다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+
+      terminationArt(art, 10, '출입카드, 유니폼, 사무용품 등',
+        ' 다만, 근로기준법에 따라 해고예고 적용제외사유에 해당하는 경우에는 해고예고를 하지 아니한다.')+
+      art('비밀유지의무')+ COMPLIANCE+
+      art('준수사항')+
+      cl('\'을\'은 시업 시각부터 업무를 수행하여야 하며, 업무 시에는 유니폼 착용 및 단정한 용모 차림으로 정상적인 업무 수행에 차질이 없도록 하여야 한다.')+
+      closingArts(art)+
+      '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
+    '</div>';
+  }
+
+  /* ── 용역 위탁계약서 — 「용역계약서(서식).docx」 ── */
+  function docService(c){
+    var art = artCounter(), s = c.start, e = c.end, w = c.wage;
+    return '<div class="doc__sec">'+
+      title(c.docTitle)+
+      '<table class="doc__tbl">'+
+        '<tr><th>위탁자</th><td>'+COMPANY+'<br>대표자 '+COMPANY_REPR+' · 사업자번호 '+COMPANY_BIZNO+'</td></tr>'+
+        '<tr><th>수탁자</th><td>'+EMP.name+'<br><span style="color:var(--text-muted);">생년월일 · 주소는 서명 시 확인</span></td></tr>'+
+      '</table>'+
+      intro('위탁자와 수탁자는 다음과 같이 계약(이하 \'본 계약\'이라 함)을 체결한다.')+
+      art('목적')+
+      cl('본 계약의 목적은 위탁자가 수탁자에게 <strong>'+EMP.job+'</strong> 업무를 위탁함에 있어 상호간의 권리·의무 및 기타 제반 사항을 규정함에 있다.')+
+      art('기본원칙')+
+      cl('위탁자와 수탁자는 상호 대등한 입장에서 신의성실의 원칙에 따라 자신의 권리를 행사하며 의무를 이행한다.')+
+      art('위탁 업무 내용')+
+      cl('① 수탁자는 위탁자가 요청한 업무를 성실히 수행하여야 하며, 변경사항이 있을 경우 사전 협의를 통해 조정한다.')+
+      cl('② 수탁자는 위탁자가 요청하는 기일까지 보고서를 서면 또는 이메일로 제출하여야 한다.')+
+      cl('③ 위탁자는 필요 시 추가 자료 제출이나 구두 보고를 요청할 수 있다.')+
+      cl('④ 위탁자는 수탁자가 완성한 결과물의 검수 권한을 가지며, 그 결과가 위탁자의 요구나 계약 목적 또는 용역수행범위상의 품질·수준에 현저히 미달하거나, 수탁자가 정당한 사유 없이 보완요구에 응하지 않을 경우, 위탁자는 사전 서면 통지 후 계약을 해지할 수 있다.')+
+      art('계약조건')+
+      cl('① 계약내용')+
+      '<table class="doc__tbl">'+
+        '<thead><tr><th>구분</th><th>세부 내용</th></tr></thead>'+
+        '<tbody>'+
+          '<tr><th>용역비</th><td>월 '+won(w.monthly)+'원</td></tr>'+
+          '<tr><th>계약기간</th><td>'+dateK(s)+' ~ '+dateK(e)+' ('+c.months+'개월)</td></tr>'+
+          '<tr><th>지급일</th><td>익월 '+PAY_DAY+'일 (익월 '+PAY_DAY+'일이 공휴일인 경우, 그 후 영업일)</td></tr>'+
+          '<tr><th>기타</th><td>지급 시 「소득세법」에 따른 3.3%의 사업소득세(지방소득세 포함)를 원천징수 후 지급한다.</td></tr>'+
+        '</tbody></table>'+
+      cl('② 본 계약은 1개월 단위로 운영되며, 계약기간 종료 시 업무 수행평가 결과 특별한 문제가 없고, 상호 이견이 없는 경우 동일 조건으로 자동 연장된 것으로 본다.')+
+      art('근무형태 및 장소')+
+      cl('① 위탁자와 수탁자의 상호 협의 하에 근무 형태, 지정된 장소 및 시간에 근무를 한다.')+
+      cl('② 단, 위탁자의 요청이 있을 경우, 수탁자는 합리적인 범위 내에서 회의나 미팅에 참석할 수 있다.')+
+      cl('③ 수탁자는 독립 사업자로서 업무 수행에 필요한 장비나 장소를 스스로 마련한다.')+
+      art('권리·의무 관계')+
+      cl('① 수탁자는 선량한 관리자의 주의의무를 다하여 업무를 수행하여야 하며, 이를 위반하여 손해가 발생한 경우 위탁자는 수탁자에게 손해배상을 청구할 수 있다.')+
+      cl('② 업무 수행 중 수탁자의 과실로 물품 파손 등이 발생한 경우, 수탁자는 해당 가액을 위탁자에게 배상하며, 필요한 경우 월 용역비에서 공제할 수 있다.')+
+      art('비밀유지')+
+      cl('① 수탁자는 계약 수행 과정에서 알게 된 위탁자의 영업상, 기술상, 재무상, 인적 자원 관련 일체의 기밀정보를 제3자에게 누설하거나 본 계약 이외의 목적으로 사용해서는 안 된다.')+
+      cl('② 본 조의 비밀유지 의무는 계약 기간을 포함하여 계약 종료 후에도 3년간 유효하다.')+
+      cl('③ 이를 위반할 경우 위탁자는 수탁자에게 손해배상을 청구할 수 있다.')+
+      art('계약해지')+
+      cl('① 위탁자 또는 수탁자는 다음 각 호의 사유가 발생한 경우 서면 통지로 본 계약을 즉시 해지할 수 있다.')+
+      cl('&nbsp;&nbsp;1. 계약 조건을 중대하게 위반한 경우')+
+      cl('&nbsp;&nbsp;2. 업무를 성실히 수행하지 않거나 정당한 이유 없이 업무를 거부하는 경우')+
+      cl('&nbsp;&nbsp;3. 파산, 회생절차 개시 등 정상적인 계약 이행이 불가능하다고 판단되는 경우')+
+      cl('&nbsp;&nbsp;4. 수탁자의 용역결과가 위탁자의 요구나 계약목적 또는 용역수행범위상의 품질·수준에 현저히 미달하거나, 수탁자가 정당한 사유없이 보완 요구에 응하지 않을 경우')+
+      cl('&nbsp;&nbsp;5. 기타 본 계약을 계속 수행할 수 없는 상황이 발생한 경우')+
+      cl('&nbsp;&nbsp;6. 업무(량)의 변화, 프로젝트의 종료 등의 사유로 해지가 불가피한 때')+
+      cl('② 계약 종료를 원하는 경우 수탁자 또는 위탁자는 계약 종료 예정일 기준 7일 전까지 상대방에게 서면, 문자, 이메일 또는 메신저 등의 방법으로 종료 의사를 통보하여야 한다.')+
+      cl('③ 계약이 해지된 경우, 수탁자는 즉시 업무 수행을 중단하고 위탁자의 요구에 따라 관련 자료 및 기밀정보를 반환하여야 한다.')+
+      art('지식재산권')+
+      cl('① 수탁자가 본 계약의 수행 과정에서 작성·제작한 보고서, 문서, 데이터, 자료 및 산출물의 저작권 및 지식재산권은 별도의 서면 합의가 없는 한 위탁자에게 귀속된다.')+
+      cl('② 단, 수탁자가 본 계약 이전부터 보유하고 있던 고유한 노하우, 저작물, 지식재산권은 수탁자에게 귀속된다.')+
+      cl('③ 위탁자는 계약 목적 외의 용도로 수탁자의 고유한 지식재산을 사용할 수 없으며, 수탁자는 이에 대한 사용을 제한할 권리를 가진다.')+
+      art('손해배상 범위')+
+      cl('① 수탁자는 본 계약상의 의무를 고의 또는 중대한 과실로 위반하여 위탁자에게 손해를 발생시킨 경우에 한하여 그 손해를 배상한다.')+
+      cl('② 손해배상의 범위는 통상 손해에 한하며, 특별한 손해는 수탁자가 그 발생 가능성을 알았거나 알 수 있었던 경우에 한하여 배상책임을 부담한다.')+
+      art('기타')+
+      cl('① 본 계약은 노동관계법령에 따른 각종 임금, 휴게·휴일·휴가·휴직, 해고, 퇴직금, 재해보상, 4대보험 등이 발생하지 않는 프리랜서 용역계약임을 수탁자는 인지하고 있으며, 독립사업자 지위와 배치되는 권리를 위탁자 또는 제3자에게 주장하지 않을 것임을 확인하고 이에 동의한다.')+
+      cl('② 본 계약에 명시되지 않은 사항은 관련 법령 및 업계 관례에 따른다.')+
+      art('분쟁 해결')+
+      cl('① 본 계약에 관하여 분쟁이 발생할 경우, 위탁자와 수탁자는 우선적으로 상호 협의를 통해 원만히 해결하도록 노력한다.')+
+      cl('② 협의로 해결되지 않는 경우, 본 계약과 관련된 모든 분쟁은 대한민국 법령을 준거법으로 하고, 위탁자의 본사 소재지를 관할하는 법원을 제1심 관할법원으로 한다.')+
+      cl('본 계약을 증명하기 위하여 계약서 2통을 작성하여 쌍방이 서명 날인하고 각각 1통씩 보관한다.')+
+      signdate()+
+    '</div>';
+  }
+
+  /* ═══════════ 고용형태별 계약 조건 ═══════════ */
+  var EMP_TYPES = {
+    regular: {
+      label:'정규직', docTitle:'정규직 수습 근로계약서', months:3, build:docProbation,
+      desc:'수습 근로계약 조건을 확인하고 전자서명으로 계약을 체결합니다.',
+      termNote:'수습 3개월 · 평가 후 정규직 전환',
+      wage:{ annual:36000000, monthly:3000000, base:2500000, ot:500000, otHours:29 }
+    },
+    contract: {
+      label:'계약직', docTitle:'계약직 근로계약서', months:12, build:docWork,
+      desc:'근로계약 조건을 확인하고 전자서명으로 계약을 체결합니다.',
+      termNote:'기간제 12개월 · 갱신 없으면 만료로 자동 종료',
+      wage:{ annual:33000000, monthly:2750000, base:2300000, ot:450000, otHours:29 }
+    },
+    chotak: {
+      label:'촉탁직', docTitle:'촉탁직 근로계약서', months:12, build:docChotak,
+      desc:'촉탁직 근로계약 조건을 확인하고 전자서명으로 계약을 체결합니다.',
+      termNote:'촉탁 12개월 · 갱신 없으면 만료로 자동 종료',
+      wage:{ annual:30000000, monthly:2500000, base:2100000, ot:400000, otHours:29 }
+    },
+    daily: {
+      label:'일용직', docTitle:'일용직 근로계약서', months:1, build:docDaily, hourly:true,
+      desc:'시급제 근로 조건을 확인하고 전자서명으로 계약을 체결합니다.',
+      termNote:'시급제 1개월 · 스케줄 근무',
+      wage:{ hourly:10320, holiday:2064, contractHourly:12384, hoursPerDay:8, daysPerWeek:5 }
+    },
+    freelancer: {
+      label:'프리랜서', docTitle:'용역 위탁계약서', months:1, build:docService, service:true,
+      desc:'용역 위탁 조건을 확인하고 전자서명으로 계약을 체결합니다.',
+      termNote:'용역 위탁 1개월 · 이견 없으면 동일 조건 자동 연장',
+      wage:{ monthly:4583333 }
+    }
+  };
+
+  function ctrCfg(){
+    var t = EMP_TYPES[EMP.empType] || EMP_TYPES.regular;
+    return {
+      type: EMP.empType, label: t.label, docTitle: t.docTitle, months: t.months,
+      desc: t.desc, termNote: t.termNote, hourly: !!t.hourly, service: !!t.service,
+      wage: t.wage, build: t.build,
+      start: EMP.joinDate, end: termEnd(EMP.joinDate, t.months)
+    };
+  }
+
+  /* ── STEP 2 요약 카드 · 계약서 전문 렌더 ── */
+  function tRow(dt, dd){ return '<div class="terms__row"><dt>'+dt+'</dt><dd>'+dd+'</dd></div>'; }
+  function tCard(t, body){ return '<div class="card"><div class="card__title">'+t+'</div><div class="card__body">'+body+'</div></div>'; }
+  function wTbl(rows, total){
+    return '<table class="wtbl"><thead><tr><th>항목</th><th style="text-align:right;">금액 (원)</th><th>산정식</th></tr></thead><tbody>'+
+      rows.map(function(r){
+        return '<tr><th>'+r[0]+'</th><td class="amt">'+(r[1]?won(r[1]):'-')+'</td>'+
+               '<td style="color:var(--text-muted);">'+(r[2]||'')+'</td></tr>';
+      }).join('')+
+      '<tr class="is-total"><th>'+total[0]+'</th><td class="amt">'+won(total[1])+'</td><td>'+(total[2]||'')+'</td></tr>'+
+    '</tbody></table>';
+  }
+
+  function renderContractStep(){
+    var c = ctrCfg();
+    $('#ctr-step-title').textContent = c.service ? '용역 위탁계약' : '근로계약';
+    $('#ctr-step-desc').textContent  = c.desc;
+    $('#btn-view-doc-label').textContent = c.docTitle + ' 전문 보기';
+    $('#doc-modal-title').textContent   = c.docTitle;
+    $('#party-el-role').textContent = c.service ? '을 (수탁자)' : '을 (근로자)';
+    $('#agree-text').innerHTML = '<b>위 '+c.docTitle+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.';
+
+    /* 계약 조건 카드 */
+    var rows = tRow('계약형태', c.label + ' <span style="color:var(--text-muted);">('+c.termNote+')</span>')+
+      tRow(c.service ? '계약 시작일' : '입사일', c.start)+
+      tRow('계약기간', c.start + ' ~ ' + c.end)+
+      tRow(c.service ? '용역 장소' : '근무장소', EMP.site + ' (서울특별시 성동구 성수일로 80)')+
+      tRow(c.service ? '위탁 업무' : '담당업무', EMP.dept + ' / ' + EMP.job);
+    if(!c.service){
+      rows += tRow('근무시간', EMP.workTime + ' <span style="color:var(--text-muted);">(휴게 '+EMP.breakTime+')</span>');
+      rows += tRow('근무일', c.hourly
+        ? ('주 '+c.wage.daysPerWeek+'일 · 1일 '+c.wage.hoursPerDay+'시간 (스케줄 근무)')
+        : '주 5일 (월~금) · 소정근로 주 40시간');
+    }
+    var html = tCard(c.service ? '용역 위탁 · 계약조건' : '근로계약 · 근로조건', '<dl class="terms">'+rows+'</dl>');
+
+    /* 보수 조건 카드 */
+    var pay;
+    if(c.hourly){
+      pay = '<dl class="terms">'+
+        tRow('임금형태', '시급제')+
+        tRow('계약 시급', '<b>'+won(c.wage.contractHourly)+'원</b> <span style="color:var(--text-muted);">(주휴수당 포함)</span>')+
+        tRow('급여지급일', '매월 '+PAY_DAY+'일 <span style="color:var(--text-muted);">(휴일인 경우 익 영업일)</span>')+
+      '</dl>'+
+      wTbl([['시급', c.wage.hourly, '기본 시급'], ['주휴수당', c.wage.holiday, '시급 × 20%']],
+           ['계약 시급', c.wage.contractHourly, '주휴수당 포함']);
+    } else if(c.service){
+      pay = '<dl class="terms">'+
+        tRow('보수형태', '용역대금 (사업소득)')+
+        tRow('월 용역비', '<b>'+won(c.wage.monthly)+'원</b>')+
+        tRow('지급일', '익월 '+PAY_DAY+'일 <span style="color:var(--text-muted);">(공휴일인 경우 그 후 영업일)</span>')+
+        tRow('원천징수', '사업소득세 3.3% <span style="color:var(--text-muted);">(지방소득세 포함)</span>')+
+      '</dl>';
+    } else {
+      pay = '<dl class="terms">'+
+        tRow('임금형태', '연봉제')+
+        tRow('총 연봉', '연 <b>'+won(c.wage.annual)+'원</b>')+
+        tRow('급여지급일', '매월 '+PAY_DAY+'일 <span style="color:var(--text-muted);">(휴일인 경우 익 영업일)</span>')+
+      '</dl>'+
+      wTbl([['기본급', c.wage.base, '시급 × 209'],
+            ['연장근로수당', c.wage.ot, '시급 × '+c.wage.otHours+'h × 1.5'],
+            ['기타수당', 0, '']],
+           ['월 임금 합계', c.wage.monthly, '']);
+    }
+    html += tCard(c.service ? '용역대금' : '임금계약 · 임금 구성', pay);
+    $('#ctr-terms').innerHTML = html;
+
+    /* 계약서 전문 (모달 본문) */
+    $('#doc-modal-body').innerHTML = c.build(c);
+
+    $$('#demo-emptype [data-emptype]').forEach(function(b){
+      b.classList.toggle('is-on', b.getAttribute('data-emptype') === EMP.empType);
+    });
+  }
 
   /* ── Toast ── */
   function toast(msg, kind){
@@ -1085,70 +1507,228 @@
     $('#btn-sig-done').disabled = false; $('#btn-sig-clear').disabled = false;
   });
 
+  /* 데모 전용 · 고용형태 전환 — 실서비스에서는 입사자 데이터의 고용형태로 결정되므로
+     이 핸들러와 #demo-emptype 마크업만 제거하면 된다. */
+  $('#demo-emptype').addEventListener('click', function(e){
+    var b = e.target.closest('[data-emptype]');
+    if(!b) return;
+    EMP.empType = b.getAttribute('data-emptype');
+    if(contractDone) $('#btn-sig-reset').click();   /* 서식이 바뀌면 기존 서명은 무효 */
+    renderContractStep();
+    toast(EMP_TYPES[EMP.empType].docTitle + ' 로 전환했습니다.', 'success');
+  });
+
+  renderContractStep();
+
   /* ═══════════ STEP 3: 서약서 · 동의서 서명 ═══════════ */
 
-  /* ── 서약 서류 정의 (직책에 따라 대상 결정) ── */
+  /* ── 서약 서류 정의 ──
+     원본 대조:
+       서약서            ← 01.입사 동의서류_성원.xlsx 「서약서」 시트 (1~10 전 항)
+       개인정보 동의서    ← 동 파일 「개인정보처리동의서」 시트 (Ⅰ 수집·이용 / Ⅱ 제3자 제공, 항목별 동의 4쌍)
+       근무 보안 서약서   ← 근무보안서약서(사무직, 기술, 연구직 통합) 성원.pdf
+       안전 준수 서약서   ← 성원애드피아_안전준수서약서_팀장&파트장.pdf  · target:'leader' (팀장·파트장 전용)
+     target : 'common' = 전원 / 'leader' = 직책자(팀장·파트장)
+     consents : 서명과 별개로 항목별 동의를 따로 받아야 하는 서류 (개인정보 동의서)
+                — required:true 는 미동의 시 진행 불가, false 는 거부 가능(선택 항목) */
   var PLEDGE_DOCS = [
     {
-      key: 'consent', title: '입사 동의서류', target: 'common',
-      body:
+      key: 'pledge', title: '서약서', target: 'common',
+      body: function(){ return ''+
         '<h2 class="doc__title">서　약　서</h2>'+
-        '<p class="doc__intro">상기 본인은 (주)성원애드피아(이하 “회사”라 함)에 입사함에 있어 아래의 사항에 대하여 서약하며, 본인의 고의 또는 과실로 서약사항을 성실히 이행하지 못하여 발생하는 민·형사상의 모든 책임을 질 것을 서약합니다.</p>'+
-        '<p class="doc__divider">■　　아　　래　　■</p>'+
-        '<p class="doc__cl">1. 본인은 회사 방침 및 제규정을 성실히 준수하고 상사의 업무상 지시명령에 복종하며, 거래처 및 고객의 주문사항을 성실히 이행하고 직원으로서의 품위·질서 유지에 어긋남이 없도록 근면성실히 근무하겠으며, 이를 위반하였을 때에는 회사규정에 따른 조치를 감수하겠습니다.</p>'+
-        '<p class="doc__cl">2. 본인이 제출한 인사서류상 학력·경력 등 제반사항을 위조 또는 허위로 기재하였음이 발견되는 때에는 스스로 사직하고 어떠한 인사조치도 이의없이 따르겠습니다.</p>'+
-        '<p class="doc__cl">3. 회사 또는 거래처의 업무상 지득한 영업비밀·기술정보(지적재산권 포함), 제조공정 등에 대해서 재직 중은 물론 퇴사 후에도 절대로 외부에 누설하지 않겠습니다.</p>'+
-        '<p class="doc__cl">4. 고의 또는 중대한 과실로 회사의 인명과 재산에 손실을 끼친 때에는 지체없이 이를 배상하겠습니다.</p>'+
-        '<p class="doc__cl">5. 재직 중 회사의 허가 없이는 자신을 위한 다른 사업을 하거나 회사와 관련되는 영업을 하지 않겠으며, 다른 직업에 종사하지 않겠습니다.</p>'+
-        '<h2 class="doc__title" style="margin-top:22px;">개인정보 수집·이용 동의서</h2>'+
-        '<p class="doc__intro">상기 본인은 아래의 내용을 확인하고, ㈜성원애드피아(이하 “회사”)가 다음과 같이 본인의 개인(신용)정보를 처리(수집·이용·제공 등)하는 것에 동의합니다.</p>'+
-        '<h3 class="doc__art">Ⅰ. 개인정보의 수집 및 이용</h3>'+
-        '<p class="doc__cl"><strong>수집 항목</strong> : 성명·주소·연락처·이메일·생년월일, 병역·학력·자격·경력사항, 급여지급 계좌번호 등</p>'+
-        '<p class="doc__cl"><strong>수집·이용 목적</strong> : 근로자 명부 및 인사기록카드 작성, 교육·복리후생·급여관리·제증명 발급, 인사평가 등 제반 직원관리 업무</p>'+
-        '<p class="doc__cl"><strong>보유·이용 기간</strong> : 관계 법령에 별도 정함이 없는 한 수집·이용 목적을 달성할 때까지 보유·이용합니다.</p>'+
-        '<h3 class="doc__art">Ⅱ. 고유식별정보 및 민감정보</h3>'+
-        '<p class="doc__cl">주민등록번호, 건강검진결과 내역서 등에 대한 수집·이용에 동의합니다.</p>'+
-        '<p class="doc__cl">본인은 회사의 개인정보 수집·이용 및 제3자 제공에 관한 설명을 모두 이해하였고, 이에 동의합니다.</p>'+
-        '<p class="doc__signdate">본 서류에 전자서명함으로써 위 서약 및 동의 사항에 동의합니다.</p>'
+        '<table class="doc__tbl">'+
+          '<tr><th>성　명</th><td>'+EMP.name+'</td></tr>'+
+          '<tr><th>주민번호</th><td></td></tr>'+
+          '<tr><th>현 주 소</th><td></td></tr>'+
+        '</table>'+
+        intro('상기 본인은 '+COMPANY+'(이하 “회사”라 함)에 입사함에 있어 아래의 사항에 대하여 서약하며, 본인의 고의 또는 과실로 서약사항을 성실히 이행하지 못하여 발생하는 민·형사상의 모든 책임을 질 것을 서약합니다.')+
+        DIVIDER+
+        cl('1. 본인은 회사 방침 및 제규정을 성실히 준수하고 상사의 업무상 지시명령에 복종하며 거래처 및 고객의 주문사항을 성실히 이행하고 직원으로서의 품위유지와 질서유지에 어긋남이 없도록 근면성실히 근무하겠으며, 이를 위반하였을 때에는 회사규정에 따른 조치를 감수하겠습니다.')+
+        cl('2. 본인은 입사시 또는 근무중 본인이 제출한 인사서류상 학력, 경력 등 제반사항을 위조 또는 허위로 기재하였음이 발견되는 때에는 본인이 스스로 사직하고 어떠한 인사조치도 이의없이 따르겠습니다.')+
+        cl('3. 회사는 입사일로부터 1개월을 시용기간으로 하며, 회사가 본인의 업무적격성이 현저히 부족하다고 판단되어 본인과의 본계약 체결을 거부할 경우 어떠한 이의없이 회사의 처분에 따를 것입니다.')+
+        note('피복 지급 후 1년 이내 퇴사시 피복비 공제 실시')+
+        cl('4. 본인은 회사 또는 거래처의 업무상 지득한 영업비밀, 기술정보(당사의 지적재산권 포함), 제조공정 등에 대해서 재직중은 물론 퇴사후에도 절대로 외부에 누설하지 않겠습니다.')+
+        cl('5. 본인은 고의는 물론 중대한 과실로 인하여 회사의 인명과 재산에 손실을 끼친때에는 지체없이 이를 배상하겠습니다.')+
+        cl('6. 본인은 귀사에 재직중 회사의 허가 없이는 자신을 위한 다른 사업을 하거나 회사와 관련되는 영업을 하지 않겠음은 물론 다른 직업에 종사하지 않겠습니다.')+
+        cl('7. 나는 ‘회사’를 퇴직한 후에도 1년간은 ‘회사’에 영향을 미칠 직접 또는 간접적으로 동일 업종, 경쟁 업체에 입사하거나 돕는 일을 일체 하지 않겠습니다.')+
+        cl('8. 본인은 본인의 사정으로 퇴사하는 경우에 퇴사 1개월전에 미리 사직서를 제출하고 회사가 이를 수락하기 전까지 성실히 근무를 계속하겠으며, 후임자에게 업무인계를 철저히 하겠습니다.')+
+        cl('9. 회사 경영상의 이유로 본인의 부서 및 근무지, 직무전환, 파견근무 등의 인사명령에 충실히 따르겠으며 어떠한 이의도 제기하지 않겠습니다.')+
+        cl('10. 본인은 본 서약사항을 위반하여 회사에 발생케한 모든 피해와 손해에 대해 민형사상의 책임을 지겠으며 손해액에 대해서는 지체없이 변상하겠으며, 회사 조치에 응하겠습니다.')+
+        '<p class="doc__signdate">위 서약인 : '+EMP.name+'<br>'+COMPANY+' 대표이사 귀중</p>';
+      }
+    },
+    {
+      key: 'privacy', title: '개인정보 수집·이용 동의서', target: 'common',
+      /* 동의 방식
+         · 필수 항목 : 서류 하단 '동의합니다' 체크 하나에 묶어서 받는다 (agreeNote 로 무엇이 포함되는지 명시)
+         · 선택 항목 : consents 에 정의해 동의함 / 동의하지 않음을 따로 받는다 (거부해도 진행 가능)
+         선택 항목을 필수와 묶으면 거부권이 사라지므로 분리한다. */
+      agreeText: '위 개인정보 수집·이용 동의서 전문을 확인하였으며, <b>필수 항목</b>의 수집·이용 및 제3자 제공에 동의합니다.',
+      agreeNote: '필수 : 일반 개인정보 · 고유식별정보/민감정보 수집·이용, 고용지원센터·하랑노무법인 제3자 제공',
+      consents: [
+        { k:'c2', title:'보훈 · 장애 정보 수집·이용',
+          desc:'보훈대상 사항(여부·구분·번호·관계·관청), 장애 관련 정보 — 대상자 확인 및 처우 제공 목적' },
+        { k:'c5', title:'보훈 · 장애 정보 제3자 제공',
+          desc:'국가보훈청 · 장애인고용공단 — 성명, 학력, 경력, 직책, 장애등급' },
+        { k:'c7', title:'고유식별정보 제3자 제공',
+          desc:'국가보훈청 · 장애인고용공단 — 주민등록번호' }
+      ],
+      body: function(){ return ''+
+        '<h2 class="doc__title">개인정보 수집·이용에 대한 동의서</h2>'+
+        '<table class="doc__tbl"><tr><th>동의인 성명</th><td>'+EMP.name+'</td></tr></table>'+
+        intro('상기 본인은 아래의 내용을 확인하고, '+COMPANY+'(이하 “회사”라고 합니다)가 다음과 같이 본인의 개인(신용)정보를 처리(수집, 이용, 제공 등)하는 것에 동의합니다.')+
+
+        '<h3 class="doc__art">Ⅰ. 개인정보의 수집 및 이용에 대한 동의</h3>'+
+        '<p class="doc__sub">1. 일반 개인정보 수집 및 이용에 대한 동의</p>'+
+        '<p class="doc__sub">■ 필수적 수집 및 이용</p>'+
+        '<table class="doc__tbl">'+
+          '<tr><th>수집 항목</th><td>• 성명, 현주소, 전화번호, 휴대전화번호, 전자우편주소, 생년월일<br>• 병역사항<br>• 학력사항 (입학시기, 졸업시기, 학교명, 소재지, 졸업구분, 전공)<br>• 면허 및 자격사항 (면허 및 자격내용, 등급, 취득일, 유효일, 증서번호, 인가번호, 인가관청)<br>• 경력사항 (근무기간, 근무처, 근무부서, 직위, 소득사항, 담당업무, 연봉)<br>• 개인 급여지급 계좌번호<br>• 개인 신용보증서, 신용평가 내역</td></tr>'+
+          '<tr><th>수집이용 목적</th><td>근로자 명부, 인사기록카드 작성, 교육/복리후생/급여관리/제증명 발급, 인사평가 등 제반 직원관리 업무</td></tr>'+
+          '<tr><th>보유 및 이용기간</th><td>관계 법령의 규정에 따라 직원의 개인정보를 보존할 의무가 있는 경우가 아닌 한, 입사자의 개인정보는 수집 및 이용 목적을 달성할 때까지 보유 및 이용합니다.</td></tr>'+
+        '</table>'+
+        '<p class="doc__sub">■ 선택적 수집 및 이용</p>'+
+        '<table class="doc__tbl">'+
+          '<tr><th>수집 항목</th><td>• 보훈대상 사항 (여부, 보훈구분, 보훈번호, 보훈자 관계, 보훈관청)<br>• 장애 관련 정보</td></tr>'+
+          '<tr><th>수집이용 목적</th><td>• 보훈 대상자 확인 및 처우 제공<br>• 장애 대상자 확인 및 처우 제공</td></tr>'+
+          '<tr><th>보유 및 이용기간</th><td>관계 법령의 규정에 따라 직원의 개인정보를 보존할 의무가 있는 경우가 아닌 한, 입사자의 개인정보는 수집 및 이용 목적을 달성할 때까지 보유 및 이용합니다.</td></tr>'+
+        '</table>'+
+        '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
+        cl('입사자는 위와 같은 개인정보의 수집 및 이용을 거부할 수 있습니다. 다만, 이러한 개인(신용)정보 수집 및 이용에 동의하지 않을 경우 근로계약 관리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+
+        '<p class="doc__sub">2. 고유식별정보 및 민감정보 수집 및 이용에 대한 동의</p>'+
+        '<p class="doc__sub">■ 필수적 수집 및 이용</p>'+
+        '<table class="doc__tbl">'+
+          '<tr><th>수집 항목</th><td>• 주민등록번호, (외국인의 경우) 외국인등록번호<br>• 건강검진결과 내역서</td></tr>'+
+          '<tr><th>수집이용 목적</th><td>근로자 명부, 인사기록카드 작성, 교육/복리후생/급여관리/제증명 발급, 인사평가 등 제반 직원관리 업무</td></tr>'+
+          '<tr><th>보유 및 이용기간</th><td>관계 법령의 규정에 따라 직원의 개인정보를 보존할 의무가 있는 경우가 아닌 한, 입사자의 개인정보는 수집 및 이용 목적을 달성할 때까지 보유 및 이용합니다.</td></tr>'+
+        '</table>'+
+        '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
+        cl('입사자는 위와 같은 개인정보의 수집 및 이용을 거부할 수 있습니다. 다만, 이러한 개인(신용)정보 수집 및 이용에 동의하지 않을 경우 근로계약 관리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+
+        '<h3 class="doc__art">Ⅱ. 개인정보의 제3자 제공 동의</h3>'+
+        '<p class="doc__sub">1. 일반 개인정보의 제3자 제공에 대한 동의</p>'+
+        cl('회사는 입사자의 개인정보를 다음과 같이 제3자에게 제공합니다.')+
+        '<p class="doc__sub">■ 필수적 제공</p>'+
+        '<table class="doc__tbl doc__tbl--center">'+
+          '<thead><tr><th>제공받는 자</th><th>이용목적</th><th>제공 항목</th><th>보유/이용기간</th></tr></thead>'+
+          '<tbody>'+
+            '<tr><td>고용지원센터</td><td>사업주 지원금 수급</td><td>성명, 학·경력, 입사일, 직종, 급여</td><td rowspan="2">개인정보이용목적을<br>다할 때까지</td></tr>'+
+            '<tr><td>하랑노무법인</td><td>급여 컨설팅</td><td>성명, 입사일, 직종, 급여</td></tr>'+
+          '</tbody>'+
+        '</table>'+
+        '<p class="doc__sub">■ 선택적 제공</p>'+
+        '<table class="doc__tbl doc__tbl--center">'+
+          '<thead><tr><th>제공받는 자</th><th>이용목적</th><th>제공 항목</th><th>보유/이용기간</th></tr></thead>'+
+          '<tbody>'+
+            '<tr><td>국가보훈청</td><td>보훈인력 관련 보고서</td><td>성명, 학력, 경력, 직책</td><td rowspan="2">개인정보이용목적을<br>다할 때까지</td></tr>'+
+            '<tr><td>장애인고용공단</td><td>장애인 고용관련 보고서</td><td>성명, 학력, 경력, 직책, 장애등급</td></tr>'+
+          '</tbody>'+
+        '</table>'+
+        '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
+        cl('입사지원자는 개인정보의 제3자 제공을 거부할 수 있으며, 동의한 이후에도 언제든지 이를 철회할 수 있습니다. 다만, 이러한 개인정보 수집 및 이용에 동의하지 않을 경우 관련 행정처리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+
+        '<p class="doc__sub">2. 고유식별정보의 제3자 제공에 대한 동의</p>'+
+        cl('회사는 입사자의 고유식별정보를 다음과 같이 제3자에게 제공합니다.')+
+        '<p class="doc__sub">■ 필수적 제공</p>'+
+        '<table class="doc__tbl doc__tbl--center">'+
+          '<thead><tr><th>제공받는 자</th><th>이용목적</th><th>제공 항목</th><th>보유/이용기간</th></tr></thead>'+
+          '<tbody>'+
+            '<tr><td>고용지원센터</td><td>사업주 지원금 수급</td><td>주민등록번호</td><td rowspan="2">개인정보이용목적을<br>다할 때까지</td></tr>'+
+            '<tr><td>하랑노무법인</td><td>급여 컨설팅</td><td>주민등록번호</td></tr>'+
+          '</tbody>'+
+        '</table>'+
+        '<p class="doc__sub">■ 선택적 제공</p>'+
+        '<table class="doc__tbl doc__tbl--center">'+
+          '<thead><tr><th>제공받는 자</th><th>이용목적</th><th>제공 항목</th><th>보유/이용기간</th></tr></thead>'+
+          '<tbody>'+
+            '<tr><td>국가보훈청</td><td>보훈인력 관련 보고서</td><td>주민등록번호</td><td rowspan="2">개인정보이용목적을<br>다할 때까지</td></tr>'+
+            '<tr><td>장애인고용공단</td><td>장애인 고용관련 보고서</td><td>주민등록번호</td></tr>'+
+          '</tbody>'+
+        '</table>'+
+        '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
+        cl('입사지원자는 개인정보의 제3자 제공을 거부할 수 있으며, 동의한 이후에도 언제든지 이를 철회할 수 있습니다. 다만, 개인정보 수집 및 이용에 동의하지 않을 경우 관련 행정처리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+        '<p class="doc__signdate">'+COMPANY+' 대표이사 귀중</p>';
+      }
     },
     {
       key: 'security', title: '근무 보안 서약서', target: 'common',
-      body:
+      body: function(){ return ''+
         '<h2 class="doc__title">기밀 준수 및 경업금지 서약서</h2>'+
-        '<p class="doc__intro">본인은 ㈜성원애드피아(이하 “회사”)와 근로계약을 체결한 후 회사의 임직원으로 근무하고 있는바, 회사의 영업비밀을 준수하고 경업금지를 하는 데 있어 본인의 자유로운 의사로써 다음과 같이 서약합니다. 아울러 본 서약서가 근무기간뿐 아니라 퇴직 후에도 일정기간 적용될 수 있음을 인식하고 서약합니다.</p>'+
+        intro('본인은 '+COMPANY+'(이하 “회사”)와 근로계약을 체결한 후 회사의 임직원으로 근무하고 있는바, 회사의 영업비밀을 준수하고 경업금지를 하는 데 있어 본인의 자유로운 의사로써 다음과 같이 서약합니다. 아울러 본 서약서가 근무기간뿐 아니라 퇴직 후에도 일정기간 적용될 수 있음을 인식하고 서약합니다.')+
+        '<table class="doc__tbl">'+
+          '<tr><th>소속 부서</th><td>'+EMP.dept+'</td></tr>'+
+          '<tr><th>직위(직급)</th><td>'+EMP.rank+(EMP.position?' · '+EMP.position:'')+'</td></tr>'+
+          '<tr><th>성　명</th><td>'+EMP.name+'</td></tr>'+
+          '<tr><th>입사일자</th><td>'+dateK(EMP.joinDate)+'</td></tr>'+
+        '</table>'+
+
         '<h3 class="doc__art">1. 영업비밀의 준수</h3>'+
-        '<p class="doc__cl">① 본인이 회사에 재직 중 업무수행상 또는 업무와 관계없이 취득한, 비밀로 관리된 회사의 정보 및 영업활동에 유용한 기술상·경영상의 정보를 회사의 사전 서면 동의 없이는 은닉·사용하거나 제3자에게 누설·공개하지 않겠습니다.</p>'+
-        '<p class="doc__cl">② 재직 중 영업비밀과 관련하여 발명·개발·고안한 산출물에 관한 일체의 권리는 회사에 있음을 인정하며, 퇴직 이후에도 사전 서면 동의 없이는 이를 이용·누설·공개하지 않겠습니다.</p>'+
-        '<p class="doc__cl">③ 회사로부터 제공받은 정보자산(서류·전자파일·저장매체·전산장비 등)을 무단 보관·복사·훼손하지 않고 안전하게 관리하며, 업무 종료 시 지체없이 반환하겠습니다.</p>'+
-        '<p class="doc__cl">④ 본인에게 할당된 사용자 ID·패스워드·출입증을 타인과 공동사용하거나 제3자에게 누설하지 않겠습니다.</p>'+
-        '<p class="doc__cl">⑤ 재직 중은 물론 퇴사 후에도 회사의 영업비밀보호규정을 비롯한 보안정책 관련 지침과 직무상의 명령을 준수하겠습니다.</p>'+
+        cl('(1) 본인은 본인이 회사에 재직 중에 업무수행상 또는 업무와 관계없이 취득한 아래와 같은 사항, 기타 독립된 경제적 가치를 가지는 것으로서 비밀로 관리된 회사의 정보 및 영업활동에 유용한 기술상 또는 경영상의 정보를, 회사의 사전 서면 동의 없이는 본인이 은닉·사용하거나 또는 제3자에게 누설·공개하거나 사용하게 하지 않음에 동의합니다.')+
+        cl('&nbsp;&nbsp;- 생산방법, 생산조건, 장치 등을 포함하는 기술상의 정보')+
+        cl('&nbsp;&nbsp;- 원재료 구입가격, 구입선 및 생산제품의 원가 등에 관한 정보')+
+        cl('&nbsp;&nbsp;- 제품 및 생산공정 등의 연구개발(R&amp;D) 계획, 작업보고서 및 일지의 내용, 실험 데이터, 연구성과 분석자료 등 연구개발에 관한 정보')+
+        cl('&nbsp;&nbsp;- 제품의 생산방법, 설계방법, 설계도면, 제조공정, 제조장치 및 이와 관련된 컴퓨터 프로그램 등 기술상의 정보')+
+        cl('&nbsp;&nbsp;- 판매가격 결정 및 그 방법, 판매방법, 고객명부 및 마케팅 대상을 포함한 판매 및 영업·홍보 관련 정보로서 대외적으로 공개되지 않은 정보(이와 관련된 컴퓨터 프로그램 등 기술상의 정보 포함)')+
+        cl('&nbsp;&nbsp;- 회사에서 구매한 응용프로그램 및 회사에서 기획·설계·연구 중이거나 개발한 프로그램')+
+        cl('&nbsp;&nbsp;- 홈페이지 등 게시물 관련 컴퓨터 프로그램 등 경영·기술상의 정보')+
+        cl('&nbsp;&nbsp;- 인사·조직 및 노무, 재무관리 비법 등 경영상의 정보')+
+        cl('&nbsp;&nbsp;- 기타 회사에서 영업비밀로 취급·관리하는 사항')+
+        cl('(2) 본인은 재직 중에 위 영업비밀과 관련하여 본인 또는 다른 사람과 공동으로 발명·발견·개발·설계·고안한 기술과 정보 및 기타 이에 준하는 산출물에 관한 소유·사용·처분 등의 일체의 권리는 회사에 있음을 인정하며, 퇴직 이후에 회사의 사전 서면 동의 없이는 본인 또는 제3자의 이익을 위하여 이를 이용·누설·공개하지 않겠습니다.')+
+        cl('(3) 본인은 회사로부터 제공받은 정보자산(서류, 사진, 전자파일, 저장매체, 전산장비 등)을 무단 보관·변조·복사·훼손·분실하지 않고 안전하게 관리하겠으며, 업무수행상 필요에 의해 이러한 자료를 취득하거나 사용 허락받은 경우라도 그 업무가 종료된 경우 지체없이 회사에 반환하겠습니다.')+
+        cl('(4) 본인은 명백히 허가받지 않은 회사의 정보나 시설에 접근하지 않으며, 회사 관련 업무를 수행할 때만 사내 데이터 처리시설을 이용하고 이 시설 내에 사적 정보를 보관치 않겠습니다.')+
+        cl('(5) 본인은 회사로부터 승인받지 않은 프로그램, 정보저장매체(Zip Drive, CD ROM, 외장 HDD 등)를 회사 내에서 사용치 않겠습니다.')+
+        cl('(6) 본인은 회사 소유 영업비밀 및 정보자산을 외부로 발신 시 회사의 통제절차를 준수할 것이며, 회사가 영업비밀 및 정보자산을 보호하기 위해 회사 통신망을 통해 수·발신되는 전자문서를 회사 통신망 내에서 점검할 수 있음에 동의합니다.')+
+        cl('(7) 본인은 본인에게 할당된 사용자 ID, 패스워드, 출입증을 타인과 공동 사용하거나 제3자에게 누설하지 않겠습니다.')+
+        cl('(8) 본인은 재직 중은 물론 퇴사 후에도 회사의 영업비밀보호규정을 비롯한 회사의 보안정책 관련 지침과 직무상의 명령을 준수하겠습니다.')+
+        cl('(9) 본인은 회사의 영업비밀을 해당 업무와 관련이 없는 회사의 직원을 포함하여 어떠한 회사 내·외의 사람에게도 공개하거나 유포하거나 누설(회사의 영업비밀을 이메일 본문 및 첨부자료로 송부하는 행위, 회사의 영업비밀이 담긴 서류나 저장장치를 전달하는 행위 등)하지 않겠으며, 관련 자료의 분실 등 본인의 과실로 회사의 영업비밀이 공개되거나 유포되거나 누설되지 않도록 최대한 주의하겠습니다.')+
+        cl('(10) 본인은 회사의 영업비밀이 공개되거나 제3자에게 유출된 사실을 발견한 경우(본인의 고의·과실로 유출된 경우 포함) 즉시 회사에게 이를 고지할 것이며, 회사가 위와 같은 영업비밀의 공개나 제3자 유출로 인한 피해를 방지하기 위하여 조치를 취함에 있어 필요한 모든 협조를 다하겠습니다.')+
+
         '<h3 class="doc__art">2. 타사 영업비밀 침해 금지</h3>'+
-        '<p class="doc__cl">재직 중 다른 회사의 영업비밀을 부정한 방법으로 취득하지 않으며, 이전 직장의 영업비밀을 회사에 공개하거나 회사 업무에 사용하지 않겠습니다.</p>'+
-        '<h3 class="doc__art">3. 경업금지</h3>'+
-        '<p class="doc__cl">회사의 영업비밀 보호를 위하여, 적어도 퇴직일로부터 1년 동안 회사의 사전 서면 동의 없이는 회사와 동일·유사한 제품을 생산하는 업체를 창업하거나 그러한 업체에 취업하지 않겠습니다.</p>'+
-        '<h3 class="doc__art">4. 서약서의 효력</h3>'+
-        '<p class="doc__cl">본 서약서는 본인이 서명함과 동시에 효력을 발생하며 퇴직 후에도 효력을 유지합니다. 상기 사항을 모두 확인·숙지하고 이를 성실히 준수할 것을 서약합니다.</p>'+
-        '<p class="doc__signdate">주식회사 성원애드피아 귀중</p>'
+        cl('본인은 재직 중 다른 회사의 영업비밀을 포함한 주요 정보를 부정한 방법으로 취득하지 않고, 만약 어떠한 경위로든 다른 회사의 주요 정보를 알게 되었다면 이를 절대 사용·공개하지 않고 즉시 폐기한 후 그 경위를 회사에 보고하겠습니다. 또한 본인은 이전 직장의 영업비밀을 회사에 공개하거나 회사의 업무에 관하여 사용하지 않겠으며, 이를 다짐하기 위해 ‘전직장 정보 비밀침해 서약서’를 작성하겠습니다.')+
+
+        '<h3 class="doc__art">3. 위반 시 책임</h3>'+
+        cl('본인은 회사의 영업비밀 보호 및 타사 영업비밀 침해 방지를 위한 노력에 적극적으로 협조할 뿐 아니라 그에 따른 법적·도덕적 의무를 성실히 이행하겠으며, 위 서약사항을 위반하는 경우 민법, 형법, 「부정경쟁방지 및 영업비밀보호에 관한 법률」, 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 등 관련 법규에 따른 일체의 법적 책임을 지겠으며, 징계조치 등 어떠한 불이익도 감수할 것이며 회사에 끼친 손해에 대해 지체없이 변상·복구할 것을 약속합니다.')+
+
+        '<h3 class="doc__art">4. 경업금지 등</h3>'+
+        cl('(1) 본인은 본인의 업무가 회사의 영업비밀과 밀접한 관련이 있음을 감안, 회사의 영업비밀 보호를 위하여 적어도 퇴직일로부터 1년 동안 회사의 사전 서면 동의 없이는 현재 회사가 생산하고 있는 제품과 동일하거나 유사한 제품을 생산하는 업체 또는 영업비밀이 사용될 수 있는 업체를 스스로 창업하거나, 이와 같은 업체에 취업하지 않겠습니다.')+
+        cl('(2) 본인이 회사를 퇴사하는 경우, 본인의 퇴직 전까지 회사로부터 입수하여 본인이 보관하고 있는 영업비밀을 포함한 주요 정보 및 이것이 담긴 모든 저장매체, 정보자산을 회사에 즉시 반환하고, 반환이 불가능하거나 곤란한 경우 파일 원본 및 사본은 모두 복구할 수 없는 수준으로 삭제하거나 폐기하겠습니다.')+
+        cl('(3) 본인이 회사를 퇴사하는 경우, 회사가 영업비밀 및 정보자산을 보호하기 위해 회사 통신망 등을 통해 영업비밀 및 정보자산의 외부 유출 여부 등을 점검할 수 있음에 동의합니다.')+
+        cl('(4) 본인은 본인이 회사를 퇴사한 후, 회사의 영업비밀 및 정보자산을 지득하고 있는 회사의 현직 및 전직 임직원 또는 고객 등을 유인하지 않겠습니다.')+
+
+        '<h3 class="doc__art">5. 서약서의 효력</h3>'+
+        cl('(1) 본 서약서는 본인이 서명함과 동시에 효력을 발생하며, 퇴직 후에도 효력을 유지합니다.')+
+        cl('(2) 본 서약서는 회사의 법정대리인, 관리인, 영업양수인, 합병된 경우의 신설 또는 존속회사 등 일체의 승계인에 대하여도 효력이 있음을 인정합니다.')+
+        cl('상기 사항을 모두 확인·숙지하고 이를 성실히 준수할 것을 서약합니다.')+
+        '<p class="doc__signdate">위 서약인 : '+EMP.name+'<br>'+COMPANY+' 귀중</p>';
+      }
     },
     {
       key: 'safety', title: '안전 준수 서약서', target: 'leader',
-      body:
+      body: function(){ return ''+
         '<h2 class="doc__title">안전 준수 서약서</h2>'+
-        '<p class="doc__intro">본인은 ㈜성원애드피아(이하 “회사”)에서 회사의 팀장·파트장으로서 업무를 수행하는 사람으로서 아래의 사항을 성실히 준수할 것을 서약합니다.</p>'+
-        '<p class="doc__divider">[ 아　래 ]</p>'+
-        '<p class="doc__cl">1. 작업 중 장비 운영 및 작업자에 대한 안전관리를 철저히 하겠습니다.</p>'+
-        '<p class="doc__cl">2. 작업 중 작업자가 안전관리 규정을 철저히 준수하도록 감독하고, 작업장 내 안전사고 발생을 사전에 방지하도록 안전에 필요한 교육도 하겠습니다.</p>'+
-        '<p class="doc__cl">3. 기계의 작동 중 정비·수리 및 청소를 하지 않으며, 반드시 작동을 멈춘 후 작업하도록 하겠습니다.</p>'+
-        '<p class="doc__cl">나는 상기 사항을 숙지하고 성실히 준수할 것을 서약하며, 위반하였을 경우 회사 규정에 따른 징계조치 등 어떠한 합당한 처벌도 감수할 것을 서약합니다. 또한, 소속 작업자의 재해 발생 시 관리소홀에 대한 연대책임도 지겠습니다.</p>'+
-        '<p class="doc__signdate">㈜성원애드피아 대표이사 귀하</p>'
+        intro('본인 '+EMP.name+'은(는) '+COMPANY+'(이하 ‘회사’)에서 회사의 <strong>'+(EMP.position||'____')+'</strong>으로써 업무를 수행하는 사람으로서 아래의 사항을 성실히 준수할 것을 서약합니다.')+
+        '<p class="doc__divider">[ 아　　래 ]</p>'+
+        cl('1. 작업 중 장비 운영 및 작업자에 대한 안전관리를 철저히 하겠습니다.')+
+        cl('2. 작업 중 작업자가 안전관리 규정을 철저히 준수하도록 감독하고, 작업장 내 안전사고 발생을 사전에 방지하도록 안전에 필요한 교육도 하겠습니다.')+
+        cl('3. 기계의 작동 중 정비, 수리 및 청소를 하지 않으며, 반드시 작동을 멈춘 후 작업하도록 하겠습니다.')+
+        cl('나는 상기 사항을 숙지하고 성실히 준수할 것을 서약하며, 상기 서약을 위반하였을 경우, 회사 규정에 따른 징계조치 등 어떠한 합당한 처벌도 감수할 것을 서약합니다. 또한, 소속 작업자의 재해발생 시 관리소홀에 대한 연대책임도 지겠습니다.')+
+        '<table class="doc__tbl">'+
+          '<tr><th>소　속</th><td>'+EMP.dept+'</td></tr>'+
+          '<tr><th>직　급</th><td>'+EMP.rank+(EMP.position?' · '+EMP.position:'')+'</td></tr>'+
+          '<tr><th>작성자 성명</th><td>'+EMP.name+'</td></tr>'+
+        '</table>'+
+        '<p class="doc__signdate">작성일자 : '+dateK(EMP.joinDate)+'<br>'+COMPANY+' 대표이사 귀하</p>';
+      }
     }
   ];
 
-  /* 직책에 따라 노출할 서류 필터 */
+  /* 직책에 따라 노출할 서류 필터 — 안전 준수 서약서는 팀장·파트장 전용 */
   function applicableDocs(){
     var isLeader = (EMP.position === '팀장' || EMP.position === '파트장');
     return PLEDGE_DOCS.filter(function(d){ return d.target === 'common' || (d.target === 'leader' && isLeader); });
   }
+  /* 서류 본문 — body 는 EMP 값을 반영해야 하므로 함수로 두고 호출 시점에 렌더한다 */
+  function pledgeBody(d){ return typeof d.body === 'function' ? d.body() : d.body; }
 
   /* ── 재사용 서명 패드 팩토리 ── */
   function createSigner(canvas, phEl){
@@ -1193,6 +1773,82 @@
   var CHK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var FILE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
 
+  /* ── 항목별 동의 (선택 항목 전용) ──
+     필수 항목은 서류 하단 '동의합니다' 체크 하나에 묶어 받고, 선택 항목만 여기서 따로 받는다.
+     선택 항목을 필수와 묶어 일괄 동의받으면 거부권이 사라지므로 반드시 분리한다.
+     · consents 에는 선택 항목만 넣는다(required:true 도 지원하지만 현재 구성에는 없다).
+     · 미선택 항목이 있으면 서명할 수 없다 — 거부도 명시적 선택이어야 기록으로 남는다. */
+  function consentHTML(d){
+    var cs = d.consents;
+    if(!cs || !cs.length) return '';
+    return '<div data-consent-block="'+d.key+'" style="margin-bottom:14px;">'+
+      '<div class="optbar">'+
+        '<span class="optbar__title">선택 항목 동의</span>'+
+        '<span class="optbar__count" data-consent-count="'+d.key+'"><b>0</b>/'+cs.length+' 선택</span>'+
+      '</div>'+
+      cs.map(function(c){
+        var nm = d.key+'-'+c.k;
+        return '<div class="optrow" data-optrow="'+nm+'" data-req="'+(c.required?'1':'0')+'">'+
+          '<div class="optrow__head">'+
+            '<span class="tag '+(c.required?'tag--req':'tag--opt')+'">'+(c.required?'필수':'선택')+'</span>'+
+            '<span class="optrow__title">'+c.title+'</span>'+
+          '</div>'+
+          '<div class="optrow__desc">'+c.desc+'</div>'+
+          '<div class="optrow__opts">'+
+            '<label class="optrow__opt"><input type="radio" name="'+nm+'" value="y" data-consent="'+d.key+'" data-ckey="'+c.k+'">동의함</label>'+
+            '<label class="optrow__opt optrow__opt--no"><input type="radio" name="'+nm+'" value="n" data-consent="'+d.key+'" data-ckey="'+c.k+'">동의하지 않음</label>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '<div class="optrow__desc" style="margin:2px 0 0;">위 항목은 동의하지 않아도 입사 절차를 진행할 수 있으며, 동의 후에도 언제든지 철회할 수 있습니다.</div>'+
+    '</div>';
+  }
+
+  /* 선택 상태 → 행 색상 · 진행 카운터 갱신 (선택할 때마다 즉시 반영) */
+  function syncConsents(d, card){
+    if(!d || !d.consents || !d.consents.length || !card) return;
+    var picked = 0;
+    d.consents.forEach(function(c){
+      var nm = d.key+'-'+c.k;
+      var row = card.querySelector('[data-optrow="'+nm+'"]');
+      var sel = card.querySelector('input[name="'+nm+'"]:checked');
+      if(row){
+        row.classList.toggle('is-agreed',  !!sel && sel.value === 'y');
+        row.classList.toggle('is-refused', !!sel && sel.value === 'n');
+        if(sel) row.classList.remove('is-invalid');
+      }
+      if(sel) picked++;
+    });
+    var el = card.querySelector('[data-consent-count="'+d.key+'"]');
+    if(el){
+      el.innerHTML = '<b>'+picked+'</b>/'+d.consents.length+' 선택';
+      el.classList.toggle('is-done', picked === d.consents.length);
+    }
+  }
+
+  /* 항목별 동의 검증 — 미선택(또는 필수 항목 거부) 을 표시하고 사유를 돌려준다 */
+  function checkConsents(d, card){
+    if(!d.consents || !d.consents.length) return null;
+    var unset = 0, refusedReq = 0, first = null;
+    d.consents.forEach(function(c){
+      var nm = d.key+'-'+c.k;
+      var row = card.querySelector('[data-optrow="'+nm+'"]');
+      var sel = card.querySelector('input[name="'+nm+'"]:checked');
+      var bad = false;
+      if(!sel) { unset++; bad = true; }
+      else if(c.required && sel.value === 'n') { refusedReq++; bad = true; }
+      if(row) row.classList.toggle('is-invalid', bad);
+      if(bad && !first) first = row;
+    });
+    if(!unset && !refusedReq) return null;
+    return {
+      el: first,
+      msg: refusedReq
+        ? '필수 동의 항목에 동의하지 않으면 입사 절차를 진행할 수 없습니다.'
+        : '선택 항목 ' + unset + '건의 동의 여부를 선택해 주세요. 동의하지 않음도 선택할 수 있습니다.'
+    };
+  }
+
   function renderPledges(){
     var list = $('#pledge-list');
     var docs = applicableDocs();
@@ -1204,9 +1860,12 @@
         '<div class="card__title">'+d.title+' <span class="tag '+tagCls+'">'+tagTxt+'</span></div>'+
         '<div class="card__body">'+
           '<button class="btn btn--ghost btn--full" type="button" data-pview="'+d.key+'" style="margin-bottom:14px;">'+FILE_ICON+' '+d.title+' 전문 보기</button>'+
+          consentHTML(d)+
           '<label class="agree" data-pagree="'+d.key+'" style="margin-top:0;margin-bottom:16px;">'+
             '<input type="checkbox" data-pchk="'+d.key+'">'+
-            '<span><b>위 '+d.title+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>'+
+            '<span>'+(d.agreeText || ('<b>위 '+d.title+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.'))+
+              (d.agreeNote ? '<br><span style="font-size:12px;color:var(--text-muted);">'+d.agreeNote+'</span>' : '')+
+            '</span>'+
           '</label>'+
           '<div class="sign__pad-wrap">'+
             '<canvas class="sign__pad" data-ppad="'+d.key+'"></canvas>'+
@@ -1232,6 +1891,7 @@
       var ph = list.querySelector('[data-pph="'+d.key+'"]');
       SIGNERS[d.key] = createSigner(canvas, ph);
       pdocSigned[d.key] = false;
+      syncConsents(d, list.querySelector('[data-pdoc="'+d.key+'"]'));
     });
   }
 
@@ -1244,7 +1904,7 @@
   function openPledge(key){
     var d = pledgeDoc(key); if(!d) return;
     $('#pledge-modal-title').textContent = d.title;
-    $('#pledge-modal-body').innerHTML = '<div class="doc__sec">'+d.body+'</div>';
+    $('#pledge-modal-body').innerHTML = '<div class="doc__sec">'+pledgeBody(d)+'</div>';
     $('#pledge-modal-body').scrollTop = 0;
     pledgeModal.classList.add('is-open'); document.body.style.overflow='hidden';
   }
@@ -1268,6 +1928,12 @@
     if(reset){ resetPledge(reset.getAttribute('data-preset')); return; }
   });
   $('#pledge-list').addEventListener('change', function(e){
+    var opt = e.target.closest('[data-consent]');
+    if(opt){
+      var dk = opt.getAttribute('data-consent');
+      syncConsents(pledgeDoc(dk), $('#pledge-list').querySelector('[data-pdoc="'+dk+'"]'));
+      return;
+    }
     var chk = e.target.closest('[data-pchk]');
     if(chk){
       var box = chk.closest('[data-pagree]');
@@ -1280,6 +1946,12 @@
     var card = $('#pledge-list').querySelector('[data-pdoc="'+key+'"]');
     var chk = card.querySelector('[data-pchk]');
     var box = card.querySelector('[data-pagree]');
+    var bad = checkConsents(pledgeDoc(key), card);
+    if(bad){
+      toast(bad.msg, 'danger');
+      if(bad.el) bad.el.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
     if(!chk.checked){
       box.classList.add('is-invalid');
       toast('먼저 서류 내용에 동의해 주세요.', 'danger');
@@ -1293,6 +1965,7 @@
     card.querySelector('[data-pdone]').disabled = true;
     card.querySelector('[data-pclear]').disabled = true;
     chk.disabled = true;
+    $$('[data-consent]', card).forEach(function(r){ r.disabled = true; });
     toast('‘'+pledgeDoc(key).title+'’ 서명이 완료되었습니다.', 'success');
   }
 
@@ -1305,6 +1978,7 @@
     card.querySelector('[data-pdone]').disabled = false;
     card.querySelector('[data-pclear]').disabled = false;
     card.querySelector('[data-pchk]').disabled = false;
+    $$('[data-consent]', card).forEach(function(r){ r.disabled = false; });
   }
 
   function pledgesAllSigned(){
