@@ -166,16 +166,19 @@
      API 미로드 시 로컬 EVAL_TYPES mock 으로 폴백. */
   function globalStagesProc() {
     const cfg = (window.App && App.HREvalConfig && App.HREvalConfig.get) ? App.HREvalConfig.get() : null;
-    const st = cfg ? cfg.stages : { self: { on: true, weight: 5 }, first: { role: 'team_lead', weight: 20 }, second: { role: 'hq_lead', weight: 25 }, ceo: { weight: 50 } };
+    const st = cfg ? cfg.stages : {
+      self: { on: true, weight: 5 },
+      mid: [{ role: 'team_lead', weight: 20, on: true }, { role: 'hq_lead', weight: 25, on: true }],
+      ceo: { weight: 50 },
+    };
+    /* 사람 배정이 필요한 단계 = 「사용」 상태인 평가자 단계만 (본인·대표이사 제외).
+       미사용/삭제된 단계는 회차에 내려오지 않는다. key 는 순서대로 역량_0, 역량_1, … */
+    const mid = (st.mid || []).filter(m => m.on !== false).map(m => ({ role: m.role, weight: m.weight }));
     return {
       '역량': {
         selfEval: !!(st.self && st.self.on),
         selfWeight: st.self ? st.self.weight : 0,
-        /* 사람 배정이 필요한 단계 = 1차/2차 (본인·대표이사 제외). key 는 evaluatorAssignments 호환. */
-        stages: [
-          { role: st.first.role, weight: st.first.weight },
-          { role: st.second.role, weight: st.second.weight },
-        ],
+        stages: mid,
         ceoWeight: st.ceo ? st.ceo.weight : 0,
       },
     };
@@ -240,20 +243,28 @@
 
   /* ============ 평가자 역할 (단계·등급 설정 App.HREvalConfig 와 일치 — 직책 기준) ============ */
   const EVALUATOR_ROLES = [
-    { key: 'part_lead',     label: '파트장' },
-    { key: 'team_lead',     label: '팀장' },
-    { key: 'office_lead',   label: '실장' },
+    { key: 'exec',          label: '임원' },
     { key: 'hq_lead',       label: '본부장' },
+    { key: 'team_lead',     label: '팀장' },
+    { key: 'site_lead',     label: '소장' },
+    { key: 'part_lead',     label: '파트장' },
+    { key: 'member',        label: '팀원' },
+    { key: 'other',         label: '기타' },
     { key: 'direct_assign', label: '직접 지정' },
   ];
   /* 구 역할 라벨 (레거시 mock/데이터 방어용) */
-  const LEGACY_ROLE_LABEL = { direct_sup: '직속 상급자', next_sup: '차상위 상급자', dept_head: '부서장', hr: 'HR 담당자', ceo: '대표이사', self: '본인' };
+  const LEGACY_ROLE_LABEL = { office_lead: '실장', direct_sup: '직속 상급자', next_sup: '차상위 상급자', dept_head: '부서장', hr: 'HR 담당자', ceo: '대표이사', self: '본인' };
+  /* 대상자별로 평가자를 직접 지정해야 하는 role (직책 기준 자동 배정 대상이 아님) */
+  function isManualRole(role) { return role === 'direct_assign'; }
   function roleLabel(k) {
     const r = EVALUATOR_ROLES.find(x => x.key === k);
     return r ? r.label : (LEGACY_ROLE_LABEL[k] || '-');
   }
   /* 직책 기준 role → 조직 직책 라벨 (자동 배정 해석용) */
-  const ROLE_POSITION = { part_lead: '파트장', team_lead: '팀장', office_lead: '실장', hq_lead: '본부장' };
+  const ROLE_POSITION = {
+    exec: '임원', hq_lead: '본부장', team_lead: '팀장', site_lead: '소장',
+    part_lead: '파트장', member: '팀원', other: '기타', office_lead: '실장',
+  };
 
   /* 평가유형의 process 에서 direct_assign 단계만 추출. 회차 등록 시 대상자별 평가자 지정에 사용.
    *   반환: [{ el: '역량', stageIdx: 1, key: '역량_1' }, ...] (stageIdx 는 0-based)
@@ -264,7 +275,7 @@
     Object.keys(type.process).forEach(el => {
       const stages = (type.process[el] && type.process[el].stages) || [];
       stages.forEach((s, i) => {
-        if (s.role === 'direct_assign') out.push({ el, stageIdx: i, key: `${el}_${i}` });
+        if (isManualRole(s.role)) out.push({ el, stageIdx: i, key: `${el}_${i}` });
       });
     });
     return out;
@@ -311,39 +322,64 @@
     list.sort((a, b) => posRank(a.position) - posRank(b.position));
     return list[0] || null;
   }
-  /* 직속 상급자 후보 — 반드시 같은 부서의 상위 직책자 중 랜덤. 부서를 벗어나지 않는다. */
-  function randomSuperiorOf(target, cands) {
-    const tRank = posRank(target.position);
-    const pool = cands.filter(e => e.id !== target.id && e.dept === target.dept && posRank(e.position) < tRank);
-    if (!pool.length) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
+  /* 배정 후보 제외 셋 (자기 자신 + 이미 다른 단계에 배정된 평가자) */
+  function notExcluded(e, target, exclude) {
+    if (!e || e.id === target.id) return false;
+    return !(exclude && exclude.has && exclude.has(e.id));
+  }
+  /* 결정적 정렬 — 직책 서열(상위 우선) → 사번 오름차순.
+     ⚠ 랜덤 배정 금지: 같은 조건이면 항상 같은 사람이 뽑혀야 「왜 이 평가자인가」를 설명할 수 있다. */
+  function byRankThenId(a, b) {
+    return (posRank(a.position) - posRank(b.position)) || String(a.id || '').localeCompare(String(b.id || ''));
   }
 
-  /* 직책 기준 평가자 — 반드시 같은 부서에서 해당 직책자(자기 제외)만. 타 부서로 넘기지 않는다. */
-  function positionEvaluatorOf(target, posLabel, cands) {
-    const inDept = cands.filter(e => e.id !== target.id && e.dept === target.dept && e.position === posLabel);
+  /* 직속 상급자 — 같은 부서에서 대상자보다 상위 직책자 중 「가장 가까운 상위」(동순위면 사번 순). */
+  function superiorOf(target, cands, exclude) {
+    const tRank = posRank(target.position);
+    const pool = cands.filter(e => notExcluded(e, target, exclude) && e.dept === target.dept && posRank(e.position) < tRank);
+    if (!pool.length) return null;
+    /* 가까운 상위부터 — posRank 가 큰(=아래쪽) 상위 직책 우선 */
+    pool.sort((a, b) => (posRank(b.position) - posRank(a.position)) || String(a.id || '').localeCompare(String(b.id || '')));
+    return pool[0];
+  }
+
+  /* 직책 기준 평가자 — 반드시 같은 부서에서 해당 직책자(자기·기배정자 제외)만. 타 부서로 넘기지 않는다. */
+  function positionEvaluatorOf(target, posLabel, cands, exclude) {
+    const inDept = cands.filter(e => notExcluded(e, target, exclude) && e.dept === target.dept && e.position === posLabel);
     if (!inDept.length) return null;
-    inDept.sort((a, b) => posRank(a.position) - posRank(b.position));
+    inDept.sort(byRankThenId);
     return inDept[0];
   }
 
-  /* role → 평가자 1명 해석. id '' 이면 수동 지정 필요. */
-  function resolveStageEvaluator(target, role, cands) {
-    if (role === 'direct_assign') return { id: '', via: '수동 지정' };
-    /* 직책 기준 role (파트장/팀장/실장/본부장) — 단계·등급 설정에서 지정된 직책자를 배정.
-       ⚠ 같은 부서 안에서만 해석한다. 해당 직책자가 없으면 같은 부서 상위 리더로 대행하고,
-          그마저 없으면 수동 지정으로 남긴다. (타 부서 직책자를 임의로 끌어오지 않는다 — 부서 교차 배정 방지.) */
+  /* 지정 직책자가 없을 때 — 같은 부서에서 「그 직책보다 상위」인 사람 중 가장 가까운 상위(동순위면 사번 순).
+     예) 팀장 지정 → 팀장 없음 → 소장 → 없으면 본부장 → 없으면 임원 → 그래도 없으면 수동 지정.
+     ⚠ 부서를 벗어나지 않는다. 같은 부서에 상위자가 없으면 자동 배정을 포기하고 수동으로 남긴다. */
+  function superiorAbovePosition(target, posLabel, cands, exclude) {
+    const limit = posRank(posLabel);
+    const pool = cands.filter(e => notExcluded(e, target, exclude) && e.dept === target.dept && posRank(e.position) < limit);
+    if (!pool.length) return null;
+    pool.sort((a, b) => (posRank(b.position) - posRank(a.position)) || String(a.id || '').localeCompare(String(b.id || '')));
+    return pool[0];
+  }
+
+  /* role → 평가자 1명 해석. id '' 이면 수동 지정 필요.
+   *   exclude: 이미 다른 단계에 배정된 평가자 Set — 1차·2차가 같은 사람이 되는 것을 막는다. */
+  function resolveStageEvaluator(target, role, cands, exclude) {
+    if (isManualRole(role)) return { id: '', via: '수동 지정' };
+    /* 직책 기준 role — 단계·등급 설정에서 지정된 직책자를 배정.
+       ① 같은 부서의 해당 직책자 → ② 같은 부서에서 그 직책보다 상위인 사람(가까운 상위부터)
+       → 없으면 수동 지정. ②에서 끊고 부서를 벗어나지 않는다 (부서 교차 배정 방지). */
     if (ROLE_POSITION[role]) {
       const posLabel = ROLE_POSITION[role];
-      const r = positionEvaluatorOf(target, posLabel, cands);
+      const r = positionEvaluatorOf(target, posLabel, cands, exclude);
       if (r) return { id: r.id, via: posLabel };
-      const lead = deptLeaderOf(target, cands);   // 같은 부서 리더(본부장/소장/팀장)만
-      if (lead) return { id: lead.id, via: `${posLabel} (상위자 대행)` };
+      const up = superiorAbovePosition(target, posLabel, cands, exclude);
+      if (up) return { id: up.id, via: `${posLabel} 부재 · ${up.position} 대행` };
       return { id: '', via: '수동 지정' };
     }
     if (role === 'direct_sup') {
-      const r = randomSuperiorOf(target, cands);          // 같은 부서 상위 직책 랜덤
-      if (r) return { id: r.id, via: '직속 상급자 (자동배정)' };
+      const r = superiorOf(target, cands, exclude);       // 같은 부서 상위 직책 (결정적)
+      if (r) return { id: r.id, via: '직속 상급자' };
       /* 같은 부서에 상위 직책자가 없음(부서 최상위) → 같은 부서 부서장 → 본부장 순 에스컬레이션 */
       const up = deptLeaderOf(target, cands) || divisionHeadOf(target, cands);
       if (up) return { id: up.id, via: '직속 상급자 (상위자 대행)' };
@@ -370,15 +406,18 @@
   /* 저장된 평가자 id 의 배정 경위 라벨 (랜덤 재계산 없이 결정적으로 산출) */
   function assignmentViaLabel(target, role, id, cands) {
     if (!id) return '수동 지정 필요';
-    if (role === 'direct_assign') return '직접 지정';
+    if (isManualRole(role)) return '직접 지정';
     if (ROLE_POSITION[role]) {
       const posLabel = ROLE_POSITION[role];
       const p = cands.find(e => e.id === id);
-      return (p && p.position === posLabel) ? posLabel : `${posLabel} (상위자 대행)`;
+      if (!p) return posLabel;
+      if (p.position === posLabel) return posLabel;
+      if (posRank(p.position) < posRank(posLabel)) return `${posLabel} 부재 · ${p.position} 대행`;
+      return '직접 지정';                   // 직책 기준으로 설명되지 않는 배정 = 사용자가 직접 고른 사람
     }
     if (role === 'direct_sup') {
       const p = cands.find(e => e.id === id);
-      return (p && p.dept === target.dept) ? '직속 상급자 (자동배정)' : '직속 상급자 (상위자 대행)';
+      return (p && p.dept === target.dept) ? '직속 상급자' : '직속 상급자 (상위자 대행)';
     }
     if (role === 'next_sup')      return '차상위 상급자';
     if (role === 'hr')            return 'HR 담당자';
@@ -407,11 +446,13 @@
     if (!f.evaluatorAssignments) f.evaluatorAssignments = {};
     targets.forEach(t => {
       const a = f.evaluatorAssignments[t.id] || (f.evaluatorAssignments[t.id] = {});
+      /* 같은 대상자에게 한 사람이 두 단계를 평가하지 않도록 기배정자를 제외 후보로 누적 */
+      const used = new Set(Object.keys(a).map(k => a[k]).filter(Boolean));
       stages.forEach(s => {
-        if (a[s.key]) return;                       // 이미 지정 → 유지(랜덤 고정/수동값 보존)
-        if (s.role === 'direct_assign') return;     // 수동 단계는 비워둠
-        const res = resolveStageEvaluator(t, s.role, cands);
-        if (res.id) a[s.key] = res.id;              // 자동 해석 성공만 저장
+        if (a[s.key]) { used.add(a[s.key]); return; }  // 이미 지정 → 유지(수동값 보존)
+        if (isManualRole(s.role)) return;              // 직접 지정 단계는 비워둠
+        const res = resolveStageEvaluator(t, s.role, cands, used);
+        if (res.id) { a[s.key] = res.id; used.add(res.id); }   // 자동 해석 성공만 저장
       });
     });
   }
@@ -1548,8 +1589,6 @@
     if (STATE.view === 'create' || f.status === 'registered') ensureAutoAssignments(f);
 
     const allEmps = (window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : [];
-    const empById = {};
-    allEmps.forEach(e => { empById[e.id] = e; });
     const matched = listEmployeesMatchingFilter(f.targetFilter);
     const idSet = f.targetEmpIds
       ? (f.targetEmpIds instanceof Set ? f.targetEmpIds : new Set(f.targetEmpIds))
@@ -1582,35 +1621,29 @@
       `<th style="min-width:200px;">${s.stageIdx + 1}차 평가자 <span class="t-muted" style="font-weight:var(--fw-regular);">(${esc(roleLabel(s.role))})</span></th>`
     ).join('');
 
-    /* 한 셀 렌더 — 자동 배정은 읽기전용 표시, 직접지정/부재는 수동 select */
+    /* 한 셀 렌더 — 모든 셀을 select 로 통일. 자동 배정된 평가자도 그 자리에서 바꿀 수 있다.
+       셀 상단 pill 이 「어떻게 배정된 값인지」(자동 근거 / 직접 지정 / 수동 지정 필요) 를 알려준다. */
+    const cellTag = (t, s, cur) => {
+      if (!cur) {
+        return isManualRole(s.role)
+          ? `<span class="pill">직접 지정</span>`
+          : `<span class="pill pill--soft-warning">수동 지정 필요</span>`;
+      }
+      if (isManualRole(s.role)) return `<span class="pill">직접 지정</span>`;
+      const via = assignmentViaLabel(t, s.role, cur, cands);
+      return via === '직접 지정'
+        ? `<span class="pill">직접 지정</span>`
+        : `<span class="pill pill--soft-blue">${esc(via)}</span>`;
+    };
     const renderCell = (t, s, a) => {
       const cur = a[s.key] || '';
-      const isManual = (s.role === 'direct_assign') || !cur;   // 직접지정 단계이거나 자동 해석 실패 → 수동
-      if (!isManual) {
-        const p = empById[cur];
-        const via = assignmentViaLabel(t, s.role, cur, cands);
-        const nm = p ? `${esc(p.name)} <span class="t-muted">(${esc(p.id)})</span>` : `<span class="t-muted">${esc(cur)}</span>`;
-        const dept = p ? esc(p.dept || '-') : '';
-        return `
-          <td>
-            <div style="font-weight:var(--fw-medium);">${nm}</div>
-            <div style="margin-top:2px;font-size:var(--fs-xs);">
-              <span class="pill pill--soft-blue">${esc(via)}</span>
-              ${dept ? `<span class="t-muted" style="margin-left:6px;">${dept}</span>` : ''}
-            </div>
-          </td>`;
-      }
-      /* 수동 select — 자기 자신 제외 */
       const opts = candidates
         .filter(c => c.id !== t.id)
         .map(c => `<option value="${esc(c.id)}" ${c.id === cur ? 'selected' : ''}>${esc(c.name)} (${esc(c.id)}) — ${esc(c.dept || '-')}</option>`)
         .join('');
-      const manualTag = s.role === 'direct_assign'
-        ? `<span class="pill" style="margin-bottom:4px;display:inline-block;">직접 지정</span>`
-        : `<span class="pill pill--soft-warning" style="margin-bottom:4px;display:inline-block;">상급자 부재 · 수동</span>`;
       return `
         <td>
-          <div>${manualTag}</div>
+          <div data-evr-asg-via="${esc(t.id)}|${esc(s.key)}" style="margin-bottom:4px;font-size:var(--fs-xs);">${cellTag(t, s, cur)}</div>
           <select class="select select--sm" data-evr-asg="${esc(t.id)}|${esc(s.key)}" style="width:100%;min-width:190px;${cur ? '' : 'border-color:var(--color-warning);'}">
             <option value="">선택하세요</option>
             ${opts}
@@ -1660,8 +1693,10 @@
         </table>
       </div>
       <div style="margin-top:6px;color:var(--color-text-muted);font-size:var(--fs-xs);">
-        1·2차 평가자는 단계·등급 설정의 직책 기준으로 자동 배정되며, 해당 직책자가 없거나 「직접 지정」인 경우만 수동 선택합니다.
-        본인·대표이사 단계는 자동 확정되어 배정이 필요 없습니다. 미지정 상태로는 회차를 시작할 수 없습니다.
+        1·2차 평가자는 단계·등급 설정의 직책 기준으로 자동 배정됩니다 — ① 같은 부서의 해당 직책자 → ② 같은 부서의 상위 직책자(대행).
+        같은 부서에 상위자가 없으면 <strong>수동 지정 필요</strong>로 남으며, <strong>자동 배정된 평가자도 목록에서 직접 변경</strong>할 수 있습니다.
+        한 사람이 같은 대상자의 1차·2차를 겸하지 않도록 자동 배정합니다. 본인·대표이사 단계는 자동 확정되어 배정이 필요 없습니다.
+        미지정 상태로는 회차를 시작할 수 없습니다.
       </div>
     `;
 
@@ -1895,10 +1930,34 @@
           delete f.evaluatorAssignments[empId][stageKey];
           sel.style.borderColor = 'var(--color-warning)';
         }
+        /* 배정 근거 pill 즉시 갱신 — 자동 배정을 사람이 바꾸면 「직접 지정」으로 표시 */
+        updateAssignmentVia(pageEl, empId, stageKey, sel.value);
         /* 헤더의 미지정 카운트만 가볍게 업데이트 — 전체 재렌더는 select focus 손실 */
         updateAssignmentCounter(pageEl);
       });
     });
+  }
+
+  /* 셀 상단 배정 근거 pill 갱신 (전체 재렌더 없이) */
+  function updateAssignmentVia(pageEl, empId, stageKey, valueId) {
+    const box = pageEl.querySelector(`[data-evr-asg-via="${empId}|${stageKey}"]`);
+    if (!box) return;
+    const f = STATE.form;
+    const type = findEvalType(f && f.typeKey);
+    const stage = type ? listAllStages(type).find(x => x.key === stageKey) : null;
+    const cands = activeCandidates((window.App && App.HRMembers && App.HRMembers.list) ? App.HRMembers.list() : []);
+    const target = cands.find(e => e.id === empId) || { id: empId };
+    if (!valueId) {
+      box.innerHTML = (stage && isManualRole(stage.role))
+        ? '<span class="pill">직접 지정</span>'
+        : '<span class="pill pill--soft-warning">수동 지정 필요</span>';
+      return;
+    }
+    if (!stage || isManualRole(stage.role)) { box.innerHTML = '<span class="pill">직접 지정</span>'; return; }
+    const via = assignmentViaLabel(target, stage.role, valueId, cands);
+    box.innerHTML = via === '직접 지정'
+      ? '<span class="pill">직접 지정</span>'
+      : `<span class="pill pill--soft-blue">${esc(via)}</span>`;
   }
 
   function updateAssignmentCounter(pageEl) {
@@ -3053,7 +3112,7 @@
     const ov = (round.evaluatorOverrides || {})[target.id];
     if (ov && step.key != null && ov[step.key]) return ov[step.key];
     const all = progActiveMembers();
-    if (step.role === 'direct_assign') {
+    if (isManualRole(step.role)) {
       const a = (round.evaluatorAssignments || {})[target.id] || {};
       const id = a[`${step.el}_${step.stageIdx}`];
       return all.find(e => e.id === id) || null;

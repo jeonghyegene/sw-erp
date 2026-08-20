@@ -866,7 +866,9 @@
       dateLabel: '조회기간',
       /* 조회기간 기준 선택 — 입사일(일자) / 최종 납입월(월) */
       dateColumns: [{ key: 'joinDate', label: '입사일' }, { key: 'lastPaidMonth', label: '최종 납입월' }],
-      quick: [],
+      /* 기간 빠른칩 — 인사·근태 도메인 표준 6종 (오늘/1주일/1개월/3개월/6개월/1년).
+         최종 납입월 기준(월 input)일 때는 App.Search 가 YYYY-MM 로 채워준다. */
+      quick: ['today','week','m1','m3','m6','y1'],
       conditions: [{ value: 'name', label: '성명' }, { value: 'empId', label: '사번' }],
       placeholder: '직원명 또는 사번 검색',
       cols: 2,
@@ -1714,6 +1716,8 @@
         el.value = '';
         el.classList.toggle('input--date', !isMonth);
       });
+      /* 기간이 비워지므로 빠른칩 활성 표시도 해제 */
+      searchRoot.querySelectorAll('[data-quick]').forEach(b => b.classList.remove('is-active'));
     };
     applyMode();
     if (colEl) colEl.addEventListener('change', () => {

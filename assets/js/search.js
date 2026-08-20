@@ -37,8 +37,11 @@
     if (!fromEl) return;   // year/month 모드 — 일자 input 미존재 시 no-op
     const [back] = QUICK_RANGES[key]();
     const today = new Date();
-    fromEl.value = fmt(addDays(today, -back));
-    root.querySelector('[data-to]').value = fmt(today);
+    const toEl = root.querySelector('[data-to]');
+    // 기간 input 이 월(type="month") 단위인 화면(예: 퇴직연금 「최종 납입월」 기준)은 YYYY-MM 로 채운다.
+    const cut = (fromEl.type === 'month') ? 7 : 10;
+    fromEl.value = fmt(addDays(today, -back)).slice(0, cut);
+    if (toEl) toEl.value = fmt(today).slice(0, cut);
     root.querySelectorAll('[data-quick]').forEach(btn => {
       btn.classList.toggle('is-active', btn.dataset.quick === key);
     });
@@ -132,6 +135,8 @@
         else el.value = '';
       });
       if (opts.defaultQuick !== null) applyQuick(root, opts.defaultQuick || 'm1');
+      // 초기 퀵 미적용 화면 — 기간이 비워졌으므로 칩 활성 표시도 함께 해제
+      else root.querySelectorAll('[data-quick]').forEach(b => b.classList.remove('is-active'));
       // 년/월 모드 — 당해 년월 디폴트 복원 (기간 기본값과 동일한 의미)
       const yearEl  = root.querySelector('[data-year]');
       const monthEl = root.querySelector('[data-month]');

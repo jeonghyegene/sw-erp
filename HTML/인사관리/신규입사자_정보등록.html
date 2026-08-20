@@ -158,6 +158,18 @@
   .agree span{font-size:14px;color:var(--text-sub);line-height:1.5;}
   .agree b{color:var(--text);font-weight:600;}
 
+  /* ── Agreement row (동의 체크 + 전문 보기 나란히) ── */
+  /* 동의 체크 + 그 아래 전문 보기 버튼 — 폭에 상관없이 항상 같은 배치 */
+  .agree-row{margin-bottom:8px;}
+  .agree-row .agree{margin:0 0 8px;}
+  .agree-row__doc{width:100%;gap:6px;font-size:13px;padding:10px 12px;}
+  /* 섹션 서명 진행 안내 — 동의 행 바로 아래 */
+  .agree-note{display:none;font-size:12px;line-height:1.6;margin:0 0 14px;color:var(--text-muted);}
+  .agree-note.is-show{display:block;}
+  .agree-note.is-warn{color:var(--danger);}
+  .agree-note.is-done{color:var(--brand);}
+  .agree-note b{font-weight:700;}
+
   /* ── Signature pad ── */
   .sign__pad-wrap{position:relative;border:1.5px dashed var(--border-strong);border-radius:var(--r-sm);
     background:var(--surface-alt);overflow:hidden;}
@@ -167,29 +179,15 @@
   .sign__tools{display:flex;gap:8px;margin-top:10px;}
   .sign__tools .btn{flex:1;}
 
-  /* ── Contract parties (갑/을) ── */
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
-  .party{border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 10px;text-align:center;background:var(--surface);}
-  .party__role{font-size:12px;font-weight:700;color:var(--text-muted);}
-  .party__name{font-size:15px;font-weight:700;margin:2px 0 10px;}
-  .party__mark{height:86px;display:flex;align-items:center;justify-content:center;}
-  .party__stat{font-size:12px;font-weight:700;margin-top:8px;}
-  .party__stat.is-done{color:var(--success);}
-  .party__stat.is-wait{color:var(--text-muted);}
-  .party__sign-img{max-height:82px;max-width:100%;}
-
-  /* ── Company seal ── */
-  .seal{width:74px;height:74px;border-radius:50%;border:2.5px solid var(--danger);color:var(--danger);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-    font-weight:800;font-size:12px;line-height:1.2;transform:rotate(-8deg);opacity:.88;letter-spacing:.3px;}
-
   /* ── Contract concluded banner ── */
-  .contract-done{display:none;align-items:center;gap:10px;padding:14px;margin-top:14px;
-    background:#E7F6EC;border:1px solid #BBE5C7;border-radius:var(--r-sm);color:var(--success);font-weight:700;font-size:14px;}
+  .contract-done{display:none;align-items:center;gap:8px;padding:10px 12px;
+    background:#E7F6EC;border:1px solid #BBE5C7;border-radius:var(--r-sm);color:var(--success);
+    font-weight:700;font-size:13.5px;line-height:1.35;}
   .contract-done.is-show{display:flex;}
   .contract-done svg{flex-shrink:0;}
-  .link-reset{display:inline-block;margin-top:10px;font-size:13px;color:var(--brand);font-weight:600;
-    background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;}
+  .contract-done__txt{flex:1;min-width:0;}
+  .link-reset{flex-shrink:0;margin:0;padding:0;font-family:inherit;font-size:12.5px;line-height:1.35;
+    color:var(--brand);font-weight:600;background:none;border:none;cursor:pointer;text-decoration:underline;}
 
   /* ── "준비 중" placeholder box ── */
   .prep{display:flex;align-items:center;gap:10px;padding:14px;border:1.5px dashed var(--border-strong);
@@ -242,7 +240,8 @@
   .modal__head h3{font-size:16px;font-weight:700;}
   .modal__close{border:none;background:transparent;font-size:20px;line-height:1;
     color:var(--text-muted);cursor:pointer;padding:4px 6px;}
-  .modal__body{overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
+  .modal__body{flex:1 1 auto;min-height:0;overflow:auto;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
 
   /* ── Contract document (근로/임금 계약서 전문) ── */
   .doc__sec{color:var(--text);}
@@ -265,6 +264,54 @@
   .doc__tbl--wage tr.is-total th,.doc__tbl--wage tr.is-total td{background:var(--surface-alt);font-weight:700;}
   .doc__signdate{text-align:right;margin:16px 0 0;font-size:13px;letter-spacing:.05em;}
   .doc__sub{font-size:13px;font-weight:700;margin:14px 0 4px;color:var(--text);}
+
+  /* ── 전문 내 '내용 확인 및 동의 (서명)' 확인란 ──
+     원본 서식에 확인란이 인쇄된 위치(특정 항 뒤)에만 놓인다. 조문 바로 아래에 붙는
+     우측 정렬 라인으로, 별도 박스를 두지 않아 조문과 떨어져 보이지 않게 한다. */
+  .docsign{display:flex;align-items:center;justify-content:flex-end;gap:8px;
+    margin:0 0 8px;scroll-margin-top:80px;transition:.15s;}
+  .docsign__label{font-size:12px;font-weight:600;color:var(--text-sub);line-height:1.4;}
+  .docsign__btn{flex:0 0 auto;width:118px;height:46px;padding:0;border-radius:var(--r-sm);cursor:pointer;
+    border:1.5px dashed var(--border-strong);background:var(--surface);color:var(--brand);
+    font-family:inherit;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  .docsign__btn img{max-height:40px;max-width:110px;}
+  .docsign__redo{border:none;background:none;padding:2px;cursor:pointer;font-family:inherit;
+    font-size:11.5px;color:var(--text-muted);text-decoration:underline;}
+  .docsign.is-done .docsign__label{color:var(--success);}
+  .docsign.is-done .docsign__btn{border-style:solid;border-color:#BBE5C7;background:#F2FBF5;}
+  .docsign.is-target .docsign__btn{border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,52,125,.10);}
+
+  /* 전문 상단 서명 진행 바 — 모달 헤더 바로 아래 고정 (본문 스크롤과 무관) */
+  .docprog{flex-shrink:0;background:var(--surface);
+    padding:12px 16px;border-bottom:1px solid var(--border);}
+  .docprog__txt{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    font-size:12.5px;font-weight:600;color:var(--text-sub);}
+  .docprog__txt b{color:var(--brand);font-size:14px;}
+  .docprog__msg{font-weight:500;color:var(--text-muted);}
+  .docprog__bar{height:6px;margin-top:8px;border-radius:var(--r-pill);background:var(--divider);overflow:hidden;}
+  .docprog__bar i{display:block;height:100%;width:0;border-radius:var(--r-pill);background:var(--brand);transition:width .25s;}
+  .docprog.is-done .docprog__bar i{background:var(--success);}
+  .docprog.is-done .docprog__msg{color:var(--success);font-weight:700;}
+
+  /* 모달 하단 고정 액션 */
+  .modal__foot{display:flex;gap:8px;flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));}
+  .modal__foot .btn{flex:1;}
+
+  /* ── 섹션 서명 입력 시트 (전문 모달 위에 올라온다) ── */
+  .sigsheet-mask{position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:1200;
+    display:none;align-items:flex-end;justify-content:center;}
+  .sigsheet-mask.is-open{display:flex;}
+  .sigsheet{background:var(--surface);width:100%;max-width:560px;animation:slideup .28s ease;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));}
+  .sigsheet__head{display:flex;align-items:center;justify-content:space-between;}
+  .sigsheet__head h3{font-size:15px;font-weight:700;}
+  .sigsheet__sub{font-size:12.5px;color:var(--text-muted);margin:2px 0 12px;line-height:1.5;}
+  .sigsheet__note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;}
+  .sigsheet__note b{color:var(--text-sub);font-weight:700;}
+  .sigsheet__err{display:none;font-size:12px;font-weight:600;color:var(--danger);margin-top:8px;}
+  .sigsheet__err.is-show{display:block;}
+  .sign__pad--sm{height:150px;}
 
   /* ── 항목별 동의 (동의함 / 동의하지 않음) ──
      개인정보처리동의서는 항목마다 동의 여부를 따로 받아야 한다(선택 항목은 거부 가능).
@@ -420,63 +467,32 @@
     <!-- 계약 조건 · 보수 조건 (고용형태별 동적 렌더) -->
     <div id="ctr-terms"></div>
 
-    <!-- 계약서 전문 보기 -->
-    <button class="btn btn--ghost btn--full" type="button" id="btn-view-doc" style="margin-bottom:14px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      <span id="btn-view-doc-label">계약서 전문 보기</span>
-    </button>
-
     <!-- 계약 동의 및 전자서명 -->
     <div class="card">
       <div class="card__title">계약 동의 및 전자서명</div>
       <div class="card__body">
-        <!-- 계약 동의 -->
-        <label class="agree" id="agree-box" style="margin-top:0;margin-bottom:16px;">
-          <input type="checkbox" id="agree-chk">
-          <span id="agree-text"><b>위 계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
-        </label>
-
-        <div class="sign__pad-wrap">
-          <canvas class="sign__pad" id="sig-pad"></canvas>
-          <div class="sign__ph" id="sig-ph">아래 영역에 손가락 또는 마우스로<br>직접 서명해 주세요.</div>
+        <!-- 계약 동의 — 체크하면 전문이 열리고, 전문 내 확인란 서명을 모두 마쳐야 동의가 확정된다 -->
+        <div class="agree-row">
+          <label class="agree" id="agree-box">
+            <input type="checkbox" id="agree-chk">
+            <span id="agree-text"><b>계약 내용을 모두 확인</b>하였으며, 이에 동의합니다.</span>
+          </label>
+          <button class="btn btn--ghost agree-row__doc" type="button" id="btn-view-doc" title="계약서 전문 보기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            전문 보기
+          </button>
         </div>
-        <div class="sign__tools">
-          <button class="btn btn--ghost btn--sm" type="button" id="btn-sig-clear">지우기</button>
-          <button class="btn btn--primary btn--sm" type="button" id="btn-sig-done">서명 완료 · 계약 체결</button>
-        </div>
+        <p class="agree-note" id="agree-note"></p>
 
-        <!-- 계약 당사자 -->
-        <div class="parties" style="margin-top:16px;">
-          <div class="party">
-            <div class="party__role">갑 (회사)</div>
-            <div class="party__name">성원애드피아</div>
-            <div class="party__mark">
-              <div class="seal"><span>성원</span><span>애드피아</span><span>代表印</span></div>
-            </div>
-            <div class="party__stat is-done">✓ 인감 날인 완료</div>
-          </div>
-          <div class="party">
-            <div class="party__role" id="party-el-role">을 (근로자)</div>
-            <div class="party__name" id="party-el-name">홍길동</div>
-            <div class="party__mark" id="party-el-mark"></div>
-            <div class="party__stat is-wait" id="party-el-stat">서명 대기</div>
-          </div>
-        </div>
-
-        <!-- 체결 완료 배너 -->
+        <!-- 서명 등록 완료 배너 (서약 서류 카드와 동일 구성) -->
         <div class="contract-done" id="contract-done">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <div>근로계약이 체결되었습니다.
-            <button class="link-reset" type="button" id="btn-sig-reset" style="margin-top:2px;">다시 서명하기</button>
-          </div>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span class="contract-done__txt" id="contract-done-text">서명이 등록되었습니다.</span>
+          <button class="link-reset" type="button" id="btn-sig-reset">다시 서명하기</button>
         </div>
       </div>
     </div>
 
-    <div class="callout">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      <div>회사 인감은 <b>이미 날인 완료</b>되어 있습니다. 근로자 서명이 등록되면 <b>즉시 양측 서명이 완료되어 계약이 체결</b>됩니다.</div>
-    </div>
   </section>
 
   <!-- ═══════════ STEP 3 · 서약서 · 동의서 서명 ═══════════ -->
@@ -488,7 +504,7 @@
 
     <div class="callout">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      <div>각 서류의 <b>전문을 확인</b>하고 동의 후 서명해 주세요. 서명한 서류는 완료 시 <b>내 서류 보관함에 자동 보관</b>됩니다.</div>
+      <div>각 서류는 <b>전문의 확인란마다 서명</b>하면 동의가 완료됩니다. 서명한 서류는 완료 시 <b>내 서류 보관함에 자동 보관</b>됩니다.</div>
     </div>
 
     <!-- 서약 서류 카드 목록 (직책에 따라 동적 구성) -->
@@ -713,10 +729,20 @@
       <h3 id="doc-modal-title">계약서</h3>
       <button class="modal__close" type="button" id="doc-modal-close" aria-label="닫기">✕</button>
     </div>
+    <!-- 확인란 서명 진행 상황 — 헤더 바로 아래 고정 -->
+    <div class="docprog" id="doc-prog">
+      <div class="docprog__txt">
+        <span>확인 서명 <b id="doc-prog-now">0</b> / <span id="doc-prog-total">0</span></span>
+        <span class="docprog__msg" id="doc-prog-msg">확인란마다 서명이 필요합니다</span>
+      </div>
+      <div class="docprog__bar"><i id="doc-prog-fill"></i></div>
+    </div>
     <div class="modal__body">
-
       <div id="doc-modal-body"></div>
-
+    </div>
+    <div class="modal__foot">
+      <button class="btn btn--ghost" type="button" id="doc-modal-next">서명할 곳으로</button>
+      <button class="btn btn--primary" type="button" id="doc-modal-ok" disabled>동의 완료</button>
     </div>
   </div>
 </div>
@@ -728,7 +754,39 @@
       <h3 id="pledge-modal-title">서약서</h3>
       <button class="modal__close" type="button" id="pledge-modal-close" aria-label="닫기">✕</button>
     </div>
+    <div class="docprog" id="pledge-prog">
+      <div class="docprog__txt">
+        <span>확인 서명 <b id="pledge-prog-now">0</b> / <span id="pledge-prog-total">0</span></span>
+        <span class="docprog__msg" id="pledge-prog-msg">확인란마다 서명이 필요합니다</span>
+      </div>
+      <div class="docprog__bar"><i id="pledge-prog-fill"></i></div>
+    </div>
     <div class="modal__body" id="pledge-modal-body"></div>
+    <div class="modal__foot">
+      <button class="btn btn--ghost" type="button" id="pledge-modal-next">서명할 곳으로</button>
+      <button class="btn btn--primary" type="button" id="pledge-modal-ok" disabled>동의 완료</button>
+    </div>
+  </div>
+</div>
+
+<!-- 섹션 서명 입력 시트 (계약서 전문 내부 확인란 서명) -->
+<div class="sigsheet-mask" id="sig-sheet">
+  <div class="sigsheet" role="dialog" aria-modal="true" aria-labelledby="sig-sheet-title">
+    <div class="sigsheet__head">
+      <h3 id="sig-sheet-title">내용 확인 및 동의 서명</h3>
+      <button class="modal__close" type="button" id="sig-sheet-close" aria-label="닫기">✕</button>
+    </div>
+    <p class="sigsheet__sub" id="sig-sheet-sub"></p>
+    <div class="sign__pad-wrap">
+      <canvas class="sign__pad sign__pad--sm" id="sec-sig-pad"></canvas>
+      <div class="sign__ph" id="sec-sig-ph">이 영역에 손가락 또는 마우스로<br>직접 서명해 주세요.</div>
+    </div>
+    <p class="sigsheet__err" id="sig-sheet-err">서명을 입력해 주세요.</p>
+    <p class="sigsheet__note">한 번 입력한 서명은 이후 확인란에서 <b>탭 한 번</b>으로 적용됩니다.</p>
+    <div class="sign__tools">
+      <button class="btn btn--ghost" type="button" id="btn-sec-sig-clear">지우기</button>
+      <button class="btn btn--primary" type="button" id="btn-sec-sig-ok">서명 적용</button>
+    </div>
   </div>
 </div>
 
@@ -786,14 +844,23 @@
            「용역계약서(서식).docx」
      신규 입사자는 임금 조건을 포함한 1부로 체결하므로(계약 관리 wageIncluded 정책)
      급여 조항이 본문에 포함된다 — 임금계약서를 따로 두지 않는다.
-     계약 관리 서식의 조항 하단 '내용 확인 및 동의 (서명)' 확인란은
-     본 화면이 문서 말미 전자서명 1회로 갈음하므로 옮기지 않는다. */
+     조항 하단 '내용 확인 및 동의 (서명)' 확인란은 원본 서식과 동일한 위치에 그대로 두고
+     각 확인란에서 서명을 받는다 (CONFIRM 상수 / buildDocSigns 참고). */
 
   function cl(t){ return '<p class="doc__cl">'+t+'</p>'; }
   function note(t){ return '<p class="doc__note">※ '+t+'</p>'; }
   function title(t){ return '<h2 class="doc__title">'+t+'</h2>'; }
   function intro(t){ return '<p class="doc__intro">'+t+'</p>'; }
   var DIVIDER = '<p class="doc__divider">■　　아　　래　　■</p>';
+  /* 내용 확인 및 동의 (서명) — 원본 서식(「계약서 양식.xlsx」 각 시트 / 「용역계약서(서식).docx」)에
+     확인란이 인쇄된 위치에만 넣는다. 조 단위가 아니라 특정 항 뒤에 붙는다.
+       근로계약서 : 3조③ · 3조⑤ · 7조 · 8조③ · 8조④
+       수습계약서 : 3조③ · 3조⑤ · 7조 · 8조⑤ · 8조⑥
+       촉탁직     : 3조③ · 3조⑤ · 7조 · 8조③ · 8조④
+       시급제     : 3조③ · 3조⑤ · 7조 · 8조③ · 8조④
+       용역계약서 : 11조①(*동의 : 이름 (서명))
+     서명 UI(버튼·서명 이미지)는 렌더 후 buildDocSigns() 가 주입한다. */
+  var CONFIRM = '<div class="docsign" data-docsign-slot></div>';
   function signdate(){ return '<p class="doc__signdate">'+dateK(EMP.joinDate)+'</p>'; }
   function artCounter(){
     var i = 0;
@@ -865,15 +932,39 @@
       cl(no()+' 중도입사, 퇴사, 휴직, 복직 등으로 월급여 산정기간을 만근하지 못할 경우 전체 산정대상 기간 일수에 대한 근무일수를 일할계산하여 급여를 지급한다.');
   }
 
-  /* 근로자 인적사항 표 — 양식 원문 구조(성명 / 개인연락처 / 주민등록 No. / 주소) */
+  /* 근로자 인적사항 표 — 양식 원문 구조(성명 / 개인연락처 / 주민등록 No. / 주소)
+     개인연락처·주민등록 No. 는 STEP 1 입력값을 그대로 쓰고, 주소는 STEP 4(입사 정보)에서 받는다.
+     전문은 서식 전환 시에만 다시 렌더되므로 값은 data-emp 자리표시자 + syncEmpInfo() 로 채운다. */
   function personTable(){
     return '<table class="doc__tbl">'+
       '<tr><th>성　명</th><td>'+EMP.name+'</td></tr>'+
       '<tr><th>소　속</th><td>'+EMP.dept+' / '+EMP.rank+(EMP.position?' · '+EMP.position:'')+'</td></tr>'+
-      '<tr><th>개인연락처</th><td></td></tr>'+
-      '<tr><th>주민등록 No.</th><td></td></tr>'+
-      '<tr><th>주　소</th><td></td></tr>'+
+      '<tr><th>개인연락처</th><td data-emp="phone">-</td></tr>'+
+      '<tr><th>주민등록 No.</th><td data-emp="rrn">-</td></tr>'+
+      '<tr><th>주　소</th><td data-emp="addr">-</td></tr>'+
     '</table>';
+  }
+
+  /* STEP 1 입력값 → 문서 표기 */
+  function empPhone(){
+    var v = onlyDigits($('#in-phone') ? $('#in-phone').value : '');
+    if(v.length === 11) return v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    if(v.length === 10) return v.slice(0,3)+'-'+v.slice(3,6)+'-'+v.slice(6);
+    return v || '-';
+  }
+  /* 주민등록번호 — 뒤 7자리 마스킹 (앞 6자리만 표기) */
+  function empRrn(){
+    var a = onlyDigits($('#in-rrn1') ? $('#in-rrn1').value : '');
+    return a.length === 6 ? (a + '-*******') : '-';
+  }
+  var ADDR_LATER = '<span style="color:var(--text-muted);">입사정보 입력 시 기입</span>';
+
+  /* 문서 안 인적사항 칸을 현재 입력값으로 동기화 (전문을 열 때마다 호출) */
+  function syncEmpInfo(root){
+    $$('[data-emp]', root || document).forEach(function(td){
+      var k = td.getAttribute('data-emp');
+      td.innerHTML = k === 'phone' ? empPhone() : (k === 'rrn' ? empRrn() : ADDR_LATER);
+    });
   }
 
   /* 근무장소·직종 조 + 근로시간 조 앞부분 (수습·계약직 공통) */
@@ -884,9 +975,9 @@
   }
   /* 근로시간 조 ③④⑤ (4종 공통 — ①② 는 양식별로 다름) */
   var WORKTIME_TAIL =
-    cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시간, 휴게시간, 단축 및 연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+
+    cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시간, 휴게시간, 단축 및 연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+ CONFIRM+
     cl('④ 시간외 근로는 회사의 지시와 승인을 받은 시간만을 인정하며, 임의적인 시간외근로는 근로시간으로 인정하지 아니한다.')+
-    cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.');
+    cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.')+ CONFIRM;
   /* 퇴직금 조 (수습·계약직 공통) */
   function severanceArt(art){
     return art('퇴직금')+
@@ -910,15 +1001,15 @@
   function leaveArtFull(art){
     return art('연차휴가')+
       cl('1년 이내에 퇴직시 1개월 만근시 1일의 연차휴가를 산정(근로기준법 제60조 2항)하는 바, 이와 더불어 부여한 연차일수(회계년도기준 비례부여일수)는 총연차휴가일수에서 공제하며, 이미 초과 사용한 일수는 퇴직시 임금에서 공제한다.')+
-      note('1년 이상 근무의 경우도 퇴사시 입사일 기준으로 산정된 연차휴가보다 초과부여·사용시 동일 적용함.');
+      note('1년 이상 근무의 경우도 퇴사시 입사일 기준으로 산정된 연차휴가보다 초과부여·사용시 동일 적용함.')+ CONFIRM;
   }
   /* 근로계약의 해지 조 — noticeDays(예고일수) · goods(반납 물품) 만 양식별로 다르다 */
   function terminationArt(art, noticeDays, goods, extraNotice){
     return art('근로계약의 해지')+
       cl('① \'갑\'은 \'을\'이 다음 각 호에 해당하는 때에는 근로계약기간 중이라도 중도에 해지할 수 있다.')+ TERM_REASONS+
       cl('② \'갑\'이 \'을\'과의 근로계약을 중도에 해지하고자 하는 경우 '+noticeDays+'일 이전에 예고하여야 하며, 계약의 해지(해고)에 대해 그 사유와 시기를 명시하여 서면으로 통보하여야 한다.'+(extraNotice||''))+
-      cl('③ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 '+noticeDays+'일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+
-      cl('④ \'을\'은 퇴직 시 지급물품 및 비품('+goods+')을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.');
+      cl('③ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 '+noticeDays+'일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+ CONFIRM+
+      cl('④ \'을\'은 퇴직 시 지급물품 및 비품('+goods+')을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.')+ CONFIRM;
   }
 
   /* ── 정규직 수습 근로계약서 — 「수습계약서」 시트 ── */
@@ -951,8 +1042,8 @@
           '<tr><td>60점 이상 70점 미만</td><td>수습연장 또는 종료</td></tr>'+
           '<tr><td>60점 미만</td><td>수습 종료</td></tr>'+
         '</tbody></table>'+
-      cl('⑤ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 30일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+
-      cl('⑥ \'을\'은 퇴직 시 지급물품 및 비품(출입카드, 법인카드, 사무용품 등)을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.')+
+      cl('⑤ \'을\'이 계약기간 도중 사직하고자 하는 경우 최소 30일 전에 근로계약의 해지의사(사직원)를 \'갑\'에게 제출하여 승인을 받도록 하며, 업무인수인계에 지장이 없도록 협조하여야 하며, 이로 인해 손해가 발생한 경우 이를 배상하여야 한다.')+ CONFIRM+
+      cl('⑥ \'을\'은 퇴직 시 지급물품 및 비품(출입카드, 법인카드, 사무용품 등)을 퇴직 당일 회사에 반납하여야 하며, 기타 \'을\'의 일방적인 계약 해지로 \'갑\'에게 손해가 발생한 경우 이를 배상하여야 한다.')+ CONFIRM+
       art('준수사항')+ COMPLIANCE+ closingArts(art)+
       '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
     '</div>';
@@ -1007,7 +1098,7 @@
       cl('③ \'갑\'은 퇴직금 등 근로관계에서 발생한 일체의 금품을 \'을\'의 퇴직 후 14일 이내에 지급하도록 한다.')+
       holidayArtSun(art)+
       art('연차휴가')+
-      cl('연차휴가는 근로기준법 규정에 따른다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+
+      cl('연차휴가는 근로기준법 규정에 따른다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+ CONFIRM+
       terminationArt(art, 30, '출입카드, 법인카드, 사무용품 등')+
       art('준수사항')+ COMPLIANCE+ closingArts(art)+
       '<h3 class="doc__art">근로자 인적사항</h3>'+ personTable()+ signdate()+
@@ -1031,9 +1122,9 @@
       cl('① 근로시간은 일 '+w.hoursPerDay+'시간, 주 '+(w.hoursPerDay*w.daysPerWeek)+'시간을 원칙으로 하며 스케줄 근무에 따른 휴일 및 근로일이 달라질 수 있다.')+
       cl('② \'을\'의 기본 근로시간 및 휴게시간은 다음과 같다.')+
       workTimeTable(false)+
-      cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시각 조정, 휴게시간 단축/연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+
+      cl('③ \'갑\'은 업무상 스케줄 필요에 따라 근무시간을 조정(시업 및 종업시각 조정, 휴게시간 단축/연장)할 수 있으며, \'을\'은 주 12시간 한도 내에서 시간외 근로를 요구할 수 있다.')+ CONFIRM+
       cl('④ 시간외 근로는 회사의 지시와 승인을 받은 시간만을 인정하며, 임의적인 시간외근로는 근로시간으로 인정하지 아니한다.')+
-      cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.')+
+      cl('⑤ 승인없이 소정근무일에 휴무를 하는 경우 사유불문하고 무단 결근으로 처리되며, 무단결근 3회 누적시 징계처리 될 수 있다.')+ CONFIRM+
       art('급여')+
       cl('① 시간(일, 월)급 : <strong>'+won(w.hourly)+'</strong> 원, 주휴수당 : <strong>'+won(w.holiday)+'</strong> 원')+
       cl('② 상여금 : <strong>없음</strong>')+
@@ -1048,7 +1139,7 @@
       cl('② \'갑\'은 근로관계에서 발생한 일체의 금품을 \'을\'의 퇴직 후 14일 이내에 지급하도록 한다.')+
       holidayArtSun(art)+
       art('연차휴가')+
-      cl('연차휴가는 근로기준법 규정에 따라 부여한다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+
+      cl('연차휴가는 근로기준법 규정에 따라 부여한다. 다만, 회계연도기준으로 부여하고, 퇴사시에는 입사일 기준으로 재정산한다.')+ CONFIRM+
       terminationArt(art, 10, '출입카드, 유니폼, 사무용품 등',
         ' 다만, 근로기준법에 따라 해고예고 적용제외사유에 해당하는 경우에는 해고예고를 하지 아니한다.')+
       art('비밀유지의무')+ COMPLIANCE+
@@ -1118,7 +1209,7 @@
       cl('① 수탁자는 본 계약상의 의무를 고의 또는 중대한 과실로 위반하여 위탁자에게 손해를 발생시킨 경우에 한하여 그 손해를 배상한다.')+
       cl('② 손해배상의 범위는 통상 손해에 한하며, 특별한 손해는 수탁자가 그 발생 가능성을 알았거나 알 수 있었던 경우에 한하여 배상책임을 부담한다.')+
       art('기타')+
-      cl('① 본 계약은 노동관계법령에 따른 각종 임금, 휴게·휴일·휴가·휴직, 해고, 퇴직금, 재해보상, 4대보험 등이 발생하지 않는 프리랜서 용역계약임을 수탁자는 인지하고 있으며, 독립사업자 지위와 배치되는 권리를 위탁자 또는 제3자에게 주장하지 않을 것임을 확인하고 이에 동의한다.')+
+      cl('① 본 계약은 노동관계법령에 따른 각종 임금, 휴게·휴일·휴가·휴직, 해고, 퇴직금, 재해보상, 4대보험 등이 발생하지 않는 프리랜서 용역계약임을 수탁자는 인지하고 있으며, 독립사업자 지위와 배치되는 권리를 위탁자 또는 제3자에게 주장하지 않을 것임을 확인하고 이에 동의한다.')+ CONFIRM+
       cl('② 본 계약에 명시되지 않은 사항은 관련 법령 및 업계 관례에 따른다.')+
       art('분쟁 해결')+
       cl('① 본 계약에 관하여 분쟁이 발생할 경우, 위탁자와 수탁자는 우선적으로 상호 협의를 통해 원만히 해결하도록 노력한다.')+
@@ -1189,10 +1280,9 @@
     var c = ctrCfg();
     $('#ctr-step-title').textContent = c.service ? '용역 위탁계약' : '근로계약';
     $('#ctr-step-desc').textContent  = c.desc;
-    $('#btn-view-doc-label').textContent = c.docTitle + ' 전문 보기';
+    $('#btn-view-doc').title            = c.docTitle + ' 전문 보기';
     $('#doc-modal-title').textContent   = c.docTitle;
-    $('#party-el-role').textContent = c.service ? '을 (수탁자)' : '을 (근로자)';
-    $('#agree-text').innerHTML = '<b>위 '+c.docTitle+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.';
+    $('#agree-text').innerHTML = '<b>'+c.docTitle+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.';
 
     /* 계약 조건 카드 */
     var rows = tRow('계약형태', c.label + ' <span style="color:var(--text-muted);">('+c.termNote+')</span>')+
@@ -1239,8 +1329,11 @@
     html += tCard(c.service ? '용역대금' : '임금계약 · 임금 구성', pay);
     $('#ctr-terms').innerHTML = html;
 
-    /* 계약서 전문 (모달 본문) */
+    /* 계약서 전문 (모달 본문) — 조 단위 섹션 + 섹션별 서명 확인란 구성 */
     $('#doc-modal-body').innerHTML = c.build(c);
+    buildDocSigns();
+    syncEmpInfo($('#doc-modal-body'));
+    resetDocSigns();          /* 서식이 바뀌면 확인란 서명·동의는 무효 */
 
     $$('#demo-emptype [data-emptype]').forEach(function(b){
       b.classList.toggle('is-on', b.getAttribute('data-emptype') === EMP.empType);
@@ -1423,88 +1516,212 @@
     }
   });
 
-  /* ── STEP 2: 계약서 전문 모달 ── */
-  var docModal = $('#doc-modal');
-  function openDoc(){ docModal.classList.add('is-open'); document.body.style.overflow='hidden'; }
-  function closeDoc(){ docModal.classList.remove('is-open'); document.body.style.overflow=''; }
+  /* ── 전문 내 확인란 서명 엔진 (계약서 · 서약서 · 동의서 공통) ──
+     '동의' 체크 → 전문 오픈 → 원본 서식의 '내용 확인 및 동의 (서명)' 확인란마다 서명 →
+     모든 확인란 서명 후 [동의 완료] 로 동의가 확정된다(체크는 그 시점에 켜진다).
+     한 번 입력한 서명은 savedSigData 로 재사용되어 이후 확인란은 탭 한 번으로 적용된다. */
+  var docModal = $('#doc-modal'), sigSheet = $('#sig-sheet');
+  var savedSigData = null;     // 재사용 서명 이미지 (dataURL)
+  var secSigner = null;        // 서명 시트 패드
+  var sheetTarget = null;      // {sign, idx} — 시트가 서명할 대상
+
+  function createDocSign(cfg){
+    /* cfg: bodyEl · progEl · nowEl · totalEl · msgEl · fillEl · okBtn · nextBtn · onChange(n,t,done) */
+    var slots = [], api;
+
+    function count(){ var n = 0; slots.forEach(function(x){ if(x.signed) n++; }); return n; }
+    function isFull(){ return slots.length > 0 && count() === slots.length; }
+    function nextIdx(){ for(var i=0;i<slots.length;i++){ if(!slots[i].signed) return i; } return -1; }
+    function markTarget(){
+      var i = nextIdx();
+      slots.forEach(function(x){ x.row.classList.remove('is-target'); });
+      if(i>=0) slots[i].row.classList.add('is-target');
+      return i;
+    }
+    function scrollNext(){
+      var i = markTarget();
+      if(i>=0) slots[i].row.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+    /* 확인란이 속한 조·항 제목 — 슬롯 앞쪽에서 가장 가까운 제목을 찾는다 */
+    function title(i){
+      var n = slots[i] && slots[i].row;
+      while(n){
+        if(n.classList && (n.classList.contains('doc__art') || n.classList.contains('doc__title'))) return n.textContent.trim();
+        n = n.previousElementSibling;
+      }
+      return '';
+    }
+    function refresh(){
+      var n = count(), t = slots.length, done = isFull();
+      if(cfg.nowEl)   cfg.nowEl.textContent   = n;
+      if(cfg.totalEl) cfg.totalEl.textContent = t;
+      if(cfg.fillEl)  cfg.fillEl.style.width  = t ? (n / t * 100) + '%' : '0';
+      if(cfg.msgEl)   cfg.msgEl.textContent   = done ? '모든 확인란 서명 완료' : '확인란마다 서명이 필요합니다';
+      if(cfg.progEl)  cfg.progEl.classList.toggle('is-done', done);
+      if(cfg.okBtn)   cfg.okBtn.disabled   = !done;
+      if(cfg.nextBtn) cfg.nextBtn.disabled = done;
+      if(cfg.onChange) cfg.onChange(n, t, done);
+    }
+    function stamp(i, data, quiet){
+      var x = slots[i]; if(!x) return;
+      x.signed = true; x.data = data;
+      x.row.classList.add('is-done');
+      x.row.querySelector('.docsign__label').textContent = '✓ 내용 확인 및 동의';
+      x.row.querySelector('[data-docsign]').innerHTML = '<img src="'+data+'" alt="서명">';
+      if(!x.row.querySelector('.docsign__redo')){
+        var redo = document.createElement('button');
+        redo.type = 'button'; redo.className = 'docsign__redo';
+        redo.setAttribute('data-docredo', i); redo.textContent = '다시 서명';
+        x.row.insertBefore(redo, x.row.querySelector('[data-docsign]'));
+      }
+      if(!quiet){ markTarget(); refresh(); }
+    }
+    /* 전문 렌더 후 호출 — 확인란 슬롯을 찾아 서명 UI 를 주입하고, 저장된 서명이 있으면 복원 */
+    function build(saved){
+      slots = [];
+      $$('[data-docsign-slot]', cfg.bodyEl).forEach(function(row, i){
+        row.innerHTML = '<span class="docsign__label">내용 확인 및 동의 (서명)</span>'+
+          '<button class="docsign__btn" type="button" data-docsign="'+i+'">서명하기</button>';
+        slots.push({ row:row, signed:false, data:null });
+      });
+      (saved || []).forEach(function(d, i){ if(d && slots[i]) stamp(i, d, true); });
+      markTarget(); refresh();
+    }
+
+    cfg.bodyEl.addEventListener('click', function(e){
+      var redo = e.target.closest('[data-docredo]');
+      if(redo){ openSigSheet(api, +redo.getAttribute('data-docredo')); return; }
+      var btn = e.target.closest('[data-docsign]');
+      if(!btn) return;
+      var i = +btn.getAttribute('data-docsign');
+      if(slots[i] && slots[i].signed){ openSigSheet(api, i); return; }
+      if(savedSigData){ stamp(i, savedSigData); scrollNext(); return; }   /* 두 번째부터는 탭 한 번 */
+      openSigSheet(api, i);
+    });
+
+    api = {
+      build: build, stamp: stamp, refresh: refresh, title: title,
+      count: count, total: function(){ return slots.length; },
+      isFull: isFull, markTarget: markTarget, scrollNext: scrollNext,
+      data: function(){ return slots.map(function(x){ return x.data; }) }
+    };
+    return api;
+  }
+
+  /* ── 서명 입력 시트 (모든 문서의 확인란이 공유) ── */
+  function openSigSheet(sign, i){
+    sheetTarget = { sign:sign, idx:i };
+    var t = sign.title(i);
+    $('#sig-sheet-sub').textContent = (t ? t + ' ' : '') + '내용을 확인하고 서명해 주세요.';
+    $('#sig-sheet-err').classList.remove('is-show');
+    sigSheet.classList.add('is-open');
+    if(!secSigner) secSigner = createSigner($('#sec-sig-pad'), $('#sec-sig-ph'));
+    requestAnimationFrame(function(){ secSigner.resize(); secSigner.clear(); });
+  }
+  function closeSigSheet(){ sigSheet.classList.remove('is-open'); sheetTarget = null; }
+  $('#sig-sheet-close').addEventListener('click', closeSigSheet);
+  sigSheet.addEventListener('click', function(e){ if(e.target===sigSheet) closeSigSheet(); });
+  $('#btn-sec-sig-clear').addEventListener('click', function(){
+    if(secSigner) secSigner.clear();
+    $('#sig-sheet-err').classList.remove('is-show');
+  });
+  $('#btn-sec-sig-ok').addEventListener('click', function(){
+    if(!secSigner || !secSigner.isDrawn()){ $('#sig-sheet-err').classList.add('is-show'); return; }
+    var tgt = sheetTarget; if(!tgt) return;
+    savedSigData = secSigner.toDataURL();
+    closeSigSheet();
+    tgt.sign.stamp(tgt.idx, savedSigData);
+    tgt.sign.scrollNext();
+  });
+  window.addEventListener('resize', function(){
+    if(secSigner && sigSheet.classList.contains('is-open')) secSigner.resize();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    if(sigSheet.classList.contains('is-open')){ closeSigSheet(); return; }
+    if(docModal.classList.contains('is-open')){ closeDoc(); return; }
+    if(pledgeModal.classList.contains('is-open')) closePledge();
+  });
+
+  /* ── STEP 2: 계약서 전문 · 계약 동의 ── */
+  var agreeChk = $('#agree-chk'), agreeBox = $('#agree-box');
+
+  function setAgreeChecked(v){
+    agreeChk.checked = !!v;
+    agreeBox.classList.toggle('is-checked', !!v);
+    if(v) agreeBox.classList.remove('is-invalid');
+  }
+
+  var ctrSign = createDocSign({
+    bodyEl:  $('#doc-modal-body'),
+    progEl:  $('#doc-prog'),      nowEl:   $('#doc-prog-now'),
+    totalEl: $('#doc-prog-total'), msgEl:  $('#doc-prog-msg'),
+    fillEl:  $('#doc-prog-fill'),
+    okBtn:   $('#doc-modal-ok'),  nextBtn: $('#doc-modal-next'),
+    onChange: function(n, t, done){
+      if(!done) setAgreeChecked(false);        /* 확인란이 하나라도 비면 동의는 미확정 */
+      noteText($('#agree-note'), n, t, done, '계약 내용');
+    }
+  });
+  function buildDocSigns(){ ctrSign.build(); }
+  function resetDocSigns(){ savedSigData = null; setAgreeChecked(false); }
+
+  /* 동의 행 아래 인라인 안내 — 남은 확인란 수를 알려준다(토스트로 대체하지 않는다) */
+  function noteText(note, n, t, done, what){
+    if(!note) return;
+    note.classList.remove('is-warn','is-done');
+    if(!t){ note.classList.remove('is-show'); note.innerHTML = ''; return; }
+    note.classList.add('is-show');
+    if(done){
+      note.classList.add('is-done');
+      note.innerHTML = '전문 확인란 <b>'+t+'곳</b> 서명 완료 · '+what+' 동의가 확정되었습니다.';
+    } else if(n > 0){
+      note.classList.add('is-warn');
+      note.innerHTML = '확인 서명 <b>'+n+' / '+t+'</b> · 남은 <b>'+(t-n)+'곳</b>에 서명해야 동의가 완료됩니다.';
+    } else {
+      note.innerHTML = '동의에 체크하면 전문이 열립니다. 전문의 <b>확인란 '+t+'곳</b>에 각각 서명해야 동의가 완료됩니다.';
+    }
+  }
+
+  /* ── 계약서 전문 모달 ── */
+  function openDoc(){
+    syncEmpInfo($('#doc-modal-body'));        /* 인적사항을 현재 입력값으로 갱신 */
+    docModal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    if(ctrSign.count() > 0) requestAnimationFrame(ctrSign.scrollNext);
+    else ctrSign.markTarget();
+  }
+  function closeDoc(){ docModal.classList.remove('is-open'); document.body.style.overflow = ''; }
   $('#btn-view-doc').addEventListener('click', openDoc);
   $('#doc-modal-close').addEventListener('click', closeDoc);
   docModal.addEventListener('click', function(e){ if(e.target===docModal) closeDoc(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && docModal.classList.contains('is-open')) closeDoc(); });
+  $('#doc-modal-next').addEventListener('click', function(){ ctrSign.scrollNext(); });
 
-  /* ── STEP 2: 계약 동의 + 전자서명 ── */
-  var agreeChk = $('#agree-chk'), agreeBox = $('#agree-box');
+  $('#doc-modal-ok').addEventListener('click', function(){
+    if(!ctrSign.isFull()) return;
+    setAgreeChecked(true);
+    closeDoc();
+    contractDone = true;
+    $('#contract-done').classList.add('is-show');
+    toast('전문 확인란 '+ctrSign.total()+'곳 서명 완료 · 서명이 등록되었습니다.', 'success');
+  });
+
+  /* 동의 체크 = 전문 열기 (확인란 서명 완료 전에는 체크가 확정되지 않는다) */
   agreeChk.addEventListener('change', function(){
-    agreeBox.classList.toggle('is-checked', this.checked);
-    if(this.checked) agreeBox.classList.remove('is-invalid');
-  });
-
-  var sigCanvas = $('#sig-pad'), sigCtx = sigCanvas.getContext('2d');
-  var sigDrawn = false, drawing = false, lastPt = null;
-
-  function resizeSignature(){
-    if(!sigCanvas.clientWidth) return;               // hidden page → skip
-    var ratio = window.devicePixelRatio || 1;
-    var w = sigCanvas.clientWidth, h = sigCanvas.clientHeight;
-    sigCanvas.width = w * ratio; sigCanvas.height = h * ratio;
-    sigCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    sigCtx.lineCap = 'round'; sigCtx.lineJoin = 'round';
-    sigCtx.strokeStyle = '#111827'; sigCtx.lineWidth = 2.2;
-  }
-  function clearSignature(){
-    sigCtx.save();
-    sigCtx.setTransform(1, 0, 0, 1, 0, 0);
-    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
-    sigCtx.restore();
-    sigDrawn = false; $('#sig-ph').style.display = '';
-  }
-  function ptOf(e){ var r = sigCanvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
-  sigCanvas.addEventListener('pointerdown', function(e){
-    if(contractDone) return;
-    drawing = true; lastPt = ptOf(e); $('#sig-ph').style.display='none';
-    try{ sigCanvas.setPointerCapture(e.pointerId); }catch(err){}
-    e.preventDefault();
-  });
-  sigCanvas.addEventListener('pointermove', function(e){
-    if(!drawing) return;
-    var p = ptOf(e);
-    sigCtx.beginPath(); sigCtx.moveTo(lastPt.x, lastPt.y); sigCtx.lineTo(p.x, p.y); sigCtx.stroke();
-    lastPt = p; sigDrawn = true; e.preventDefault();
-  });
-  window.addEventListener('pointerup', function(){ drawing = false; });
-
-  $('#btn-sig-clear').addEventListener('click', function(){
-    if(contractDone) return;
-    clearSignature();
-  });
-
-  function concludeContract(){
-    if(!agreeChk.checked){
-      agreeBox.classList.add('is-invalid');
-      toast('먼저 근로조건에 동의해 주세요.', 'danger');
-      agreeBox.scrollIntoView({behavior:'smooth', block:'center'});
+    if(this.checked && !ctrSign.isFull()){
+      setAgreeChecked(false);
+      openDoc();
       return;
     }
-    if(!sigDrawn){ toast('서명을 입력해 주세요.', 'danger'); return; }
-    var data = sigCanvas.toDataURL('image/png');
-    $('#party-el-mark').innerHTML = '<img class="party__sign-img" src="'+data+'" alt="근로자 서명">';
-    var stat = $('#party-el-stat'); stat.textContent = '✓ 서명 완료';
-    stat.classList.remove('is-wait'); stat.classList.add('is-done');
-    $('#contract-done').classList.add('is-show');
-    $('#btn-sig-done').disabled = true; $('#btn-sig-clear').disabled = true;
-    contractDone = true;
-    toast('근로계약이 체결되었습니다.', 'success');
-  }
-  $('#btn-sig-done').addEventListener('click', concludeContract);
+    setAgreeChecked(this.checked);
+  });
 
+  /* 다시 서명하기 — 전문 확인란 서명·동의를 모두 되돌린다 (서약 서류 resetPledge 와 동일) */
   $('#btn-sig-reset').addEventListener('click', function(){
     contractDone = false;
-    clearSignature();
-    $('#party-el-mark').innerHTML = '';
-    var stat = $('#party-el-stat'); stat.textContent = '서명 대기';
-    stat.classList.remove('is-done'); stat.classList.add('is-wait');
     $('#contract-done').classList.remove('is-show');
-    $('#btn-sig-done').disabled = false; $('#btn-sig-clear').disabled = false;
+    ctrSign.build();                  /* 확인란 서명 초기화 */
+    setAgreeChecked(false);
   });
 
   /* 데모 전용 · 고용형태 전환 — 실서비스에서는 입사자 데이터의 고용형태로 결정되므로
@@ -1513,7 +1730,10 @@
     var b = e.target.closest('[data-emptype]');
     if(!b) return;
     EMP.empType = b.getAttribute('data-emptype');
-    if(contractDone) $('#btn-sig-reset').click();   /* 서식이 바뀌면 기존 서명은 무효 */
+    if(contractDone){                               /* 서식이 바뀌면 기존 서명은 무효 */
+      contractDone = false;
+      $('#contract-done').classList.remove('is-show');
+    }
     renderContractStep();
     toast(EMP_TYPES[EMP.empType].docTitle + ' 로 전환했습니다.', 'success');
   });
@@ -1538,8 +1758,8 @@
         '<h2 class="doc__title">서　약　서</h2>'+
         '<table class="doc__tbl">'+
           '<tr><th>성　명</th><td>'+EMP.name+'</td></tr>'+
-          '<tr><th>주민번호</th><td></td></tr>'+
-          '<tr><th>현 주 소</th><td></td></tr>'+
+          '<tr><th>주민번호</th><td data-emp="rrn">-</td></tr>'+
+          '<tr><th>현 주 소</th><td data-emp="addr">-</td></tr>'+
         '</table>'+
         intro('상기 본인은 '+COMPANY+'(이하 “회사”라 함)에 입사함에 있어 아래의 사항에 대하여 서약하며, 본인의 고의 또는 과실로 서약사항을 성실히 이행하지 못하여 발생하는 민·형사상의 모든 책임을 질 것을 서약합니다.')+
         DIVIDER+
@@ -1554,6 +1774,7 @@
         cl('8. 본인은 본인의 사정으로 퇴사하는 경우에 퇴사 1개월전에 미리 사직서를 제출하고 회사가 이를 수락하기 전까지 성실히 근무를 계속하겠으며, 후임자에게 업무인계를 철저히 하겠습니다.')+
         cl('9. 회사 경영상의 이유로 본인의 부서 및 근무지, 직무전환, 파견근무 등의 인사명령에 충실히 따르겠으며 어떠한 이의도 제기하지 않겠습니다.')+
         cl('10. 본인은 본 서약사항을 위반하여 회사에 발생케한 모든 피해와 손해에 대해 민형사상의 책임을 지겠으며 손해액에 대해서는 지체없이 변상하겠으며, 회사 조치에 응하겠습니다.')+
+        CONFIRM+
         '<p class="doc__signdate">위 서약인 : '+EMP.name+'<br>'+COMPANY+' 대표이사 귀중</p>';
       }
     },
@@ -1575,7 +1796,8 @@
       ],
       body: function(){ return ''+
         '<h2 class="doc__title">개인정보 수집·이용에 대한 동의서</h2>'+
-        '<table class="doc__tbl"><tr><th>동의인 성명</th><td>'+EMP.name+'</td></tr></table>'+
+        '<table class="doc__tbl"><tr><th>동의인 성명</th><td>'+EMP.name+' <span style="color:var(--text-muted);">(서명 또는 날인)</span></td></tr></table>'+
+        CONFIRM+
         intro('상기 본인은 아래의 내용을 확인하고, '+COMPANY+'(이하 “회사”라고 합니다)가 다음과 같이 본인의 개인(신용)정보를 처리(수집, 이용, 제공 등)하는 것에 동의합니다.')+
 
         '<h3 class="doc__art">Ⅰ. 개인정보의 수집 및 이용에 대한 동의</h3>'+
@@ -1594,6 +1816,7 @@
         '</table>'+
         '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
         cl('입사자는 위와 같은 개인정보의 수집 및 이용을 거부할 수 있습니다. 다만, 이러한 개인(신용)정보 수집 및 이용에 동의하지 않을 경우 근로계약 관리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+        cl('본인은 회사의 개인정보 수집 및 이용에 관한 설명을 모두 이해하였고, 이에 동의합니다.')+ CONFIRM+
 
         '<p class="doc__sub">2. 고유식별정보 및 민감정보 수집 및 이용에 대한 동의</p>'+
         '<p class="doc__sub">■ 필수적 수집 및 이용</p>'+
@@ -1604,6 +1827,7 @@
         '</table>'+
         '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
         cl('입사자는 위와 같은 개인정보의 수집 및 이용을 거부할 수 있습니다. 다만, 이러한 개인(신용)정보 수집 및 이용에 동의하지 않을 경우 근로계약 관리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+        cl('본인은 회사의 고유식별정보 및 민감정보 수집 및 이용에 관한 설명을 모두 이해하였고, 이에 동의합니다.')+ CONFIRM+
 
         '<h3 class="doc__art">Ⅱ. 개인정보의 제3자 제공 동의</h3>'+
         '<p class="doc__sub">1. 일반 개인정보의 제3자 제공에 대한 동의</p>'+
@@ -1626,6 +1850,7 @@
         '</table>'+
         '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
         cl('입사지원자는 개인정보의 제3자 제공을 거부할 수 있으며, 동의한 이후에도 언제든지 이를 철회할 수 있습니다. 다만, 이러한 개인정보 수집 및 이용에 동의하지 않을 경우 관련 행정처리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+        cl('본인은 회사의 개인정보 제3자 제공에 관한 설명을 모두 이해하였고, 이에 동의합니다.')+ CONFIRM+
 
         '<p class="doc__sub">2. 고유식별정보의 제3자 제공에 대한 동의</p>'+
         cl('회사는 입사자의 고유식별정보를 다음과 같이 제3자에게 제공합니다.')+
@@ -1647,6 +1872,7 @@
         '</table>'+
         '<p class="doc__sub">■ 동의 거부권 및 불이익의 내용</p>'+
         cl('입사지원자는 개인정보의 제3자 제공을 거부할 수 있으며, 동의한 이후에도 언제든지 이를 철회할 수 있습니다. 다만, 개인정보 수집 및 이용에 동의하지 않을 경우 관련 행정처리 및 직원혜택 지급이 원활하지 않을 수 있습니다.')+
+        cl('본인은 회사의 고유식별정보 제3자 제공에 관한 설명을 모두 이해하였고, 이에 동의합니다.')+ CONFIRM+
         '<p class="doc__signdate">'+COMPANY+' 대표이사 귀중</p>';
       }
     },
@@ -1699,6 +1925,7 @@
         cl('(1) 본 서약서는 본인이 서명함과 동시에 효력을 발생하며, 퇴직 후에도 효력을 유지합니다.')+
         cl('(2) 본 서약서는 회사의 법정대리인, 관리인, 영업양수인, 합병된 경우의 신설 또는 존속회사 등 일체의 승계인에 대하여도 효력이 있음을 인정합니다.')+
         cl('상기 사항을 모두 확인·숙지하고 이를 성실히 준수할 것을 서약합니다.')+
+        CONFIRM+
         '<p class="doc__signdate">위 서약인 : '+EMP.name+'<br>'+COMPANY+' 귀중</p>';
       }
     },
@@ -1717,6 +1944,7 @@
           '<tr><th>직　급</th><td>'+EMP.rank+(EMP.position?' · '+EMP.position:'')+'</td></tr>'+
           '<tr><th>작성자 성명</th><td>'+EMP.name+'</td></tr>'+
         '</table>'+
+        CONFIRM+
         '<p class="doc__signdate">작성일자 : '+dateK(EMP.joinDate)+'<br>'+COMPANY+' 대표이사 귀하</p>';
       }
     }
@@ -1766,11 +1994,12 @@
     };
   }
 
-  var SIGNERS = {};          // key -> signer
-  var pdocSigned = {};       // key -> bool
+  var pdocSigned = {};       // key -> bool (전문 확인란 서명 + 동의 완료)
+  var psecData = {};         // key -> [dataURL|null…] 확인란별 서명 (전문을 닫아도 유지)
+  var pSlotTotal = {};       // key -> 확인란 수
 
   /* ── 서약 서류 카드 렌더 ── */
-  var CHK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var CHK = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var FILE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
 
   /* ── 항목별 동의 (선택 항목 전용) ──
@@ -1859,70 +2088,112 @@
       '<div class="card" data-pdoc="'+d.key+'">'+
         '<div class="card__title">'+d.title+' <span class="tag '+tagCls+'">'+tagTxt+'</span></div>'+
         '<div class="card__body">'+
-          '<button class="btn btn--ghost btn--full" type="button" data-pview="'+d.key+'" style="margin-bottom:14px;">'+FILE_ICON+' '+d.title+' 전문 보기</button>'+
           consentHTML(d)+
-          '<label class="agree" data-pagree="'+d.key+'" style="margin-top:0;margin-bottom:16px;">'+
-            '<input type="checkbox" data-pchk="'+d.key+'">'+
-            '<span>'+(d.agreeText || ('<b>위 '+d.title+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.'))+
-              (d.agreeNote ? '<br><span style="font-size:12px;color:var(--text-muted);">'+d.agreeNote+'</span>' : '')+
-            '</span>'+
-          '</label>'+
-          '<div class="sign__pad-wrap">'+
-            '<canvas class="sign__pad" data-ppad="'+d.key+'"></canvas>'+
-            '<div class="sign__ph" data-pph="'+d.key+'">아래 영역에 손가락 또는 마우스로<br>직접 서명해 주세요.</div>'+
+          '<div class="agree-row">'+
+            '<label class="agree" data-pagree="'+d.key+'">'+
+              '<input type="checkbox" data-pchk="'+d.key+'">'+
+              '<span>'+(d.agreeText || ('<b>'+d.title+' 내용을 모두 확인</b>하였으며, 이에 동의합니다.'))+
+                (d.agreeNote ? '<br><span style="font-size:12px;color:var(--text-muted);">'+d.agreeNote+'</span>' : '')+
+              '</span>'+
+            '</label>'+
+            '<button class="btn btn--ghost agree-row__doc" type="button" data-pview="'+d.key+'" title="'+d.title+' 전문 보기">'+FILE_ICON+' 전문 보기</button>'+
           '</div>'+
-          '<div class="sign__tools">'+
-            '<button class="btn btn--ghost btn--sm" type="button" data-pclear="'+d.key+'">지우기</button>'+
-            '<button class="btn btn--primary btn--sm" type="button" data-pdone="'+d.key+'">서명 완료</button>'+
-          '</div>'+
+          '<p class="agree-note" data-pnote="'+d.key+'"></p>'+
           '<div class="contract-done" data-pbanner="'+d.key+'">'+CHK+
-            '<div>'+d.title+' 서명이 완료되었습니다.'+
-              '<button class="link-reset" type="button" data-preset="'+d.key+'">다시 서명하기</button>'+
-            '</div>'+
+            '<span class="contract-done__txt">'+d.title+' 서명이 등록되었습니다.</span>'+
+            '<button class="link-reset" type="button" data-preset="'+d.key+'">다시 서명하기</button>'+
           '</div>'+
         '</div>'+
       '</div>';
     }).join('');
 
-    // signer 인스턴스 초기화
-    SIGNERS = {}; pdocSigned = {};
+    pdocSigned = {}; psecData = {}; pSlotTotal = {};
     docs.forEach(function(d){
-      var canvas = list.querySelector('[data-ppad="'+d.key+'"]');
-      var ph = list.querySelector('[data-pph="'+d.key+'"]');
-      SIGNERS[d.key] = createSigner(canvas, ph);
       pdocSigned[d.key] = false;
-      syncConsents(d, list.querySelector('[data-pdoc="'+d.key+'"]'));
+      psecData[d.key]   = [];
+      /* 확인란 수는 전문을 열지 않아도 안내에 써야 하므로 미리 센다 */
+      pSlotTotal[d.key] = (pledgeBody(d).match(/data-docsign-slot/g) || []).length;
+      syncConsents(d, pledgeCardEl(d.key));
+      updatePledgeNote(d.key);
     });
   }
 
-  function resizePledgePads(){ Object.keys(SIGNERS).forEach(function(k){ SIGNERS[k].resize(); }); }
+  function pledgeCardEl(key){ return $('#pledge-list').querySelector('[data-pdoc="'+key+'"]'); }
+  function pledgeSignedCount(key){ return (psecData[key] || []).filter(Boolean).length; }
+
+  function updatePledgeNote(key){
+    var card = pledgeCardEl(key); if(!card) return;
+    var n = pledgeSignedCount(key), t = pSlotTotal[key] || 0;
+    noteText(card.querySelector('[data-pnote="'+key+'"]'), n, t, pdocSigned[key], '서류 내용');
+  }
 
   function pledgeDoc(key){ return PLEDGE_DOCS.filter(function(d){ return d.key===key; })[0]; }
 
-  /* 서약서 전문 모달 */
+  /* ── 서약 서류 전문 모달 — 계약서와 동일하게 전문 안 확인란에서 서명한다 ── */
   var pledgeModal = $('#pledge-modal');
+  var pledgeCurKey = null;
+
+  var pSign = createDocSign({
+    bodyEl:  $('#pledge-modal-body'),
+    progEl:  $('#pledge-prog'),      nowEl:   $('#pledge-prog-now'),
+    totalEl: $('#pledge-prog-total'), msgEl:  $('#pledge-prog-msg'),
+    fillEl:  $('#pledge-prog-fill'),
+    okBtn:   $('#pledge-modal-ok'),  nextBtn: $('#pledge-modal-next'),
+    onChange: function(){
+      if(!pledgeCurKey) return;
+      psecData[pledgeCurKey] = pSign.data();     /* 전문을 닫아도 서명이 남는다 */
+      updatePledgeNote(pledgeCurKey);
+    }
+  });
+
+  function setPledgeChecked(key, v){
+    var card = pledgeCardEl(key); if(!card) return;
+    var chk = card.querySelector('[data-pchk]'), box = card.querySelector('[data-pagree]');
+    chk.checked = !!v;
+    box.classList.toggle('is-checked', !!v);
+    if(v) box.classList.remove('is-invalid');
+  }
+
   function openPledge(key){
     var d = pledgeDoc(key); if(!d) return;
+    pledgeCurKey = key;
     $('#pledge-modal-title').textContent = d.title;
     $('#pledge-modal-body').innerHTML = '<div class="doc__sec">'+pledgeBody(d)+'</div>';
+    syncEmpInfo($('#pledge-modal-body'));
     $('#pledge-modal-body').scrollTop = 0;
+    pSign.build(psecData[key]);
     pledgeModal.classList.add('is-open'); document.body.style.overflow='hidden';
+    if(pSign.count() > 0) requestAnimationFrame(pSign.scrollNext);
   }
   function closePledge(){ pledgeModal.classList.remove('is-open'); document.body.style.overflow=''; }
   $('#pledge-modal-close').addEventListener('click', closePledge);
   pledgeModal.addEventListener('click', function(e){ if(e.target===pledgeModal) closePledge(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && pledgeModal.classList.contains('is-open')) closePledge(); });
+  $('#pledge-modal-next').addEventListener('click', function(){ pSign.scrollNext(); });
+
+  $('#pledge-modal-ok').addEventListener('click', function(){
+    var key = pledgeCurKey;
+    if(!key || !pSign.isFull()) return;
+    var d = pledgeDoc(key), card = pledgeCardEl(key);
+    /* 선택 항목 동의는 카드에서 따로 받는다 — 미선택이면 카드로 돌려보낸다 */
+    var bad = checkConsents(d, card);
+    if(bad){
+      closePledge();
+      toast(bad.msg, 'danger');
+      if(bad.el) bad.el.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    pdocSigned[key] = true;
+    setPledgeChecked(key, true);
+    lockPledge(key, true);
+    closePledge();
+    updatePledgeNote(key);
+    toast('‘'+d.title+'’ 전문 확인란 '+pSign.total()+'곳 서명 완료 · 동의했습니다.', 'success');
+  });
 
   /* 카드 내 이벤트 위임 */
   $('#pledge-list').addEventListener('click', function(e){
     var view = e.target.closest('[data-pview]');
     if(view){ openPledge(view.getAttribute('data-pview')); return; }
-
-    var clr = e.target.closest('[data-pclear]');
-    if(clr){ var k=clr.getAttribute('data-pclear'); if(!pdocSigned[k]) SIGNERS[k].clear(); return; }
-
-    var done = e.target.closest('[data-pdone]');
-    if(done){ signPledge(done.getAttribute('data-pdone')); return; }
 
     var reset = e.target.closest('[data-preset]');
     if(reset){ resetPledge(reset.getAttribute('data-preset')); return; }
@@ -1931,54 +2202,41 @@
     var opt = e.target.closest('[data-consent]');
     if(opt){
       var dk = opt.getAttribute('data-consent');
-      syncConsents(pledgeDoc(dk), $('#pledge-list').querySelector('[data-pdoc="'+dk+'"]'));
+      syncConsents(pledgeDoc(dk), pledgeCardEl(dk));
       return;
     }
     var chk = e.target.closest('[data-pchk]');
-    if(chk){
-      var box = chk.closest('[data-pagree]');
-      box.classList.toggle('is-checked', chk.checked);
-      if(chk.checked) box.classList.remove('is-invalid');
+    if(!chk) return;
+    var key = chk.getAttribute('data-pchk');
+    /* 동의 체크 = 전문 열기. 확인란 서명이 끝나기 전에는 체크가 확정되지 않는다 */
+    if(chk.checked && !pdocSigned[key]){
+      setPledgeChecked(key, false);
+      /* 선택 항목 동의를 먼저 받는다 — 전문 서명을 마친 뒤 되돌리면 헛수고가 되므로 */
+      var pre = checkConsents(pledgeDoc(key), pledgeCardEl(key));
+      if(pre){
+        toast(pre.msg, 'danger');
+        if(pre.el) pre.el.scrollIntoView({behavior:'smooth', block:'center'});
+        return;
+      }
+      openPledge(key);
+      return;
     }
+    setPledgeChecked(key, chk.checked);
   });
 
-  function signPledge(key){
-    var card = $('#pledge-list').querySelector('[data-pdoc="'+key+'"]');
-    var chk = card.querySelector('[data-pchk]');
-    var box = card.querySelector('[data-pagree]');
-    var bad = checkConsents(pledgeDoc(key), card);
-    if(bad){
-      toast(bad.msg, 'danger');
-      if(bad.el) bad.el.scrollIntoView({behavior:'smooth', block:'center'});
-      return;
-    }
-    if(!chk.checked){
-      box.classList.add('is-invalid');
-      toast('먼저 서류 내용에 동의해 주세요.', 'danger');
-      box.scrollIntoView({behavior:'smooth', block:'center'});
-      return;
-    }
-    if(!SIGNERS[key].isDrawn()){ toast('서명을 입력해 주세요.', 'danger'); return; }
-    pdocSigned[key] = true;
-    SIGNERS[key].lock(true);
-    card.querySelector('[data-pbanner]').classList.add('is-show');
-    card.querySelector('[data-pdone]').disabled = true;
-    card.querySelector('[data-pclear]').disabled = true;
-    chk.disabled = true;
-    $$('[data-consent]', card).forEach(function(r){ r.disabled = true; });
-    toast('‘'+pledgeDoc(key).title+'’ 서명이 완료되었습니다.', 'success');
+  function lockPledge(key, v){
+    var card = pledgeCardEl(key); if(!card) return;
+    card.querySelector('[data-pbanner]').classList.toggle('is-show', !!v);
+    card.querySelector('[data-pchk]').disabled = !!v;
+    $$('[data-consent]', card).forEach(function(r){ r.disabled = !!v; });
   }
 
   function resetPledge(key){
-    var card = $('#pledge-list').querySelector('[data-pdoc="'+key+'"]');
     pdocSigned[key] = false;
-    SIGNERS[key].lock(false);
-    SIGNERS[key].clear();
-    card.querySelector('[data-pbanner]').classList.remove('is-show');
-    card.querySelector('[data-pdone]').disabled = false;
-    card.querySelector('[data-pclear]').disabled = false;
-    card.querySelector('[data-pchk]').disabled = false;
-    $$('[data-consent]', card).forEach(function(r){ r.disabled = false; });
+    psecData[key] = [];
+    setPledgeChecked(key, false);
+    lockPledge(key, false);
+    updatePledgeNote(key);
   }
 
   function pledgesAllSigned(){
@@ -2015,8 +2273,9 @@
     }
     if(n===2){
       if(!contractDone){
-        if(!agreeChk.checked){ agreeBox.classList.add('is-invalid'); toast('근로조건에 동의해 주세요.', 'danger'); }
-        else toast('서명 완료 후 계약을 체결해 주세요.', 'danger');
+        agreeBox.classList.add('is-invalid');
+        toast('계약서 전문의 확인란에 모두 서명해 주세요.', 'danger');
+        agreeBox.scrollIntoView({behavior:'smooth', block:'center'});
         return false;
       }
     }
@@ -2048,7 +2307,7 @@
       ['성명', $('#in-name').value.trim() || '-'],
       ['사내 메일', ($('#in-id').value.trim().toLowerCase()||'-') + '@swadpia.co.kr'],
       ['휴대전화', $('#in-phone').value.trim() || '-'],
-      ['근로·임금 계약', contractDone ? '체결 완료' : '미체결'],
+      ['근로·임금 계약', contractDone ? '서명 등록 완료' : '미서명'],
       ['서약 서류', signedPledgeCount()+'/'+pTotal+'건 서명 · 보관함 보관'],
       ['급여 계좌', ($('#in-bank').value||'-')+' '+($('#in-acc').value.trim()||'')],
       ['학력·경력', cnt('edu')+'건 · '+cnt('career')+'건'],
@@ -2073,8 +2332,7 @@
     var next = $('#btn-next');
     if(n===TOTAL){ $('#footer').style.display='none'; }
     else { $('#footer').style.display=''; next.textContent = (n===SUBMIT_STEP) ? '제출' : '다음'; }
-    if(n===2){ requestAnimationFrame(resizeSignature); }   // 서명 패드는 표시된 뒤 크기 확정
-    if(n===3){ requestAnimationFrame(resizePledgePads); }  // 서약서 패드도 표시 후 크기 확정
+    if(n===2) syncEmpInfo($('#doc-modal-body'));            // 1단계 입력값을 전문에 반영
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
@@ -2084,8 +2342,6 @@
     goto(cur+1);
   });
   $('#btn-prev').addEventListener('click', function(){ if(cur>1) goto(cur-1); });
-
-  window.addEventListener('resize', function(){ if(cur===2) resizeSignature(); if(cur===3) resizePledgePads(); });
 
   // clear individual errors on input (전화·이메일은 별도 중복확인 핸들러에서 처리)
   [['in-rrn1','f-rrn'],['in-rrn2','f-rrn'],

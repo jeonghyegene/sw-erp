@@ -214,7 +214,8 @@
     const searchHTML = C.searchPanel({
       showDateRange: true,
       dateLabel: '퇴사일',
-      quick: ['week','m1','m3','m6','y1'],
+      /* 기간 빠른칩 — 인사·근태 도메인 표준 6종 (오늘/1주일/1개월/3개월/6개월/1년) */
+      quick: ['today','week','m1','m3','m6','y1'],
       conditions: [
         { value: 'name',  label: '성명' },
         { value: 'empId', label: '사번' },

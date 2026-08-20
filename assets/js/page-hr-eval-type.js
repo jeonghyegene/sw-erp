@@ -13,7 +13,10 @@
  *   · 복제는 항상 가능. App.HREvalType.listForms()/getForm() 로 회차가 소비.
  *
  *  [Tab 2] 단계·등급 설정 (STATE.settingsTab = 'stageGrade', STATE.view='stageGrade')
- *   · App.HREvalConfig 전역 설정을 편집 — 평가자 단계(본인/1차/2차/대표이사) + 직군별 등급 tier.
+ *   · App.HREvalConfig 전역 설정을 편집 — 평가자 단계 + 직군별 등급 tier.
+ *     평가자 단계: 본인(사용/미사용) → 1차·2차(직책 드롭다운 + 사용/미사용 스위치)
+ *                 → 대표이사(최종·고정) → 확정. 미사용 단계는 회차에 내려가지 않고 배분율 합계에서도 제외.
+ *     평가 등급: 직군(사무직/연구직/생산직)별로 등급 명칭·비율을 따로 관리. 등급은 직군별 최대 5개.
  *
  *  UI Kit 재사용
  *   .att-page__head / .att-applist-tabs (수습평가 설정·근태 설정과 동일 상단 탭)
@@ -2569,46 +2572,116 @@
   /* =========================================================
    *  VIEW: 단계·등급 설정 (전역 App.HREvalConfig 편집)
    * ========================================================= */
+  /* 배분율 합계 — 사용 중인 단계만 합산 (미사용 단계는 제외) */
+  function cfgActiveMid(st) { return (st.mid || []).filter(m => m.on !== false); }
   function cfgStageSum(st) {
     return (st.self && st.self.on ? clampScore(st.self.weight) : 0)
-      + clampScore(st.first.weight) + clampScore(st.second.weight) + clampScore(st.ceo.weight);
+      + cfgActiveMid(st).reduce((sum, m) => sum + clampScore(m.weight), 0)
+      + clampScore(st.ceo.weight);
   }
   function cfgGroupSum(g) {
     return (g.tiers || []).reduce((s, t) => s + clampScore(t.ratio), 0);
   }
 
-  /* ===== 단계·등급 설정 수정 이력 테이블 ===== */
-  function renderConfigHistoryTable() {
+  /* =========================================================
+   *  단계·등급 설정 수정 이력 — 액션바 [수정이력] 버튼 → 모달 (페이지네이션)
+   * ========================================================= */
+  const CFG_HIST_PAGE_SIZE = 10;
+
+  function renderConfigHistoryBody(page) {
     const rows = (App.HREvalConfig && App.HREvalConfig.history) ? App.HREvalConfig.history() : [];
-    const bodyRows = rows.length
-      ? rows.map((h, i) => {
-          const no = rows.length - i;   // 최신이 위 · No 내림차순 (도메인 표준)
+    const total = rows.length;
+    const pages = Math.max(1, Math.ceil(total / CFG_HIST_PAGE_SIZE));
+    const cur = Math.min(Math.max(1, page || 1), pages);
+    const start = (cur - 1) * CFG_HIST_PAGE_SIZE;
+    const slice = rows.slice(start, start + CFG_HIST_PAGE_SIZE);
+
+    const bodyRows = slice.length
+      ? slice.map((h, i) => {
+          const no = total - (start + i);   // 최신이 위 · No 내림차순 (도메인 표준)
           return `
             <tr>
               <td style="text-align:center;color:var(--color-text-sub);">${no}</td>
               <td>${esc(h.reason || '-')}</td>
               <td style="text-align:center;white-space:nowrap;">${esc(h.by || '-')}</td>
-              <td style="text-align:center;white-space:nowrap;">${esc(h.at || '-')}</td>
+              <td style="text-align:center;white-space:nowrap;">${esc(h.at || '-').replace(/ {2,}/g, '&nbsp;&nbsp;&nbsp;')}</td>
             </tr>`;
         }).join('')
       : `<tr><td colspan="4" style="text-align:center;color:var(--color-text-muted);padding:24px 0;">수정 이력이 없습니다.</td></tr>`;
+
+    /* 총 건수 — 테이블 위(툴바 위치). 도메인 표준: 툴바 「총 N건」 + 하단 페이지네이션 */
+    const countBar = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
+        <strong style="font-size:var(--fs-sm);color:var(--color-text-sub);">총 ${total}건</strong>
+        ${pages > 1 ? `<small style="color:var(--color-text-muted);font-size:var(--fs-xs);">${cur} / ${pages} 페이지</small>` : ''}
+      </div>`;
+
+    /* 페이지네이션 — 이력이 한 페이지에 다 들어가면 노출하지 않음 */
+    const pager = pages > 1
+      ? `<div class="pagination" style="padding:10px 0 0;border:0;background:transparent;">
+          <div class="pagination__info">${start + 1} - ${start + slice.length} / 총 ${total}건</div>
+          <div class="pagination__right">
+            <div class="pagination__list">
+              <button class="pagination__btn" type="button" data-hret-hist-page="1" ${cur === 1 ? 'disabled' : ''}>«</button>
+              <button class="pagination__btn" type="button" data-hret-hist-page="${cur - 1}" ${cur === 1 ? 'disabled' : ''}>‹</button>
+              ${Array.from({ length: pages }, (_, n) => n + 1).map(n =>
+                `<button class="pagination__btn ${n === cur ? 'is-active' : ''}" type="button" data-hret-hist-page="${n}">${n}</button>`).join('')}
+              <button class="pagination__btn" type="button" data-hret-hist-page="${cur + 1}" ${cur === pages ? 'disabled' : ''}>›</button>
+              <button class="pagination__btn" type="button" data-hret-hist-page="${pages}" ${cur === pages ? 'disabled' : ''}>»</button>
+            </div>
+          </div>
+        </div>`
+      : '';
+
     return `
-      <section style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
-        <header style="padding:12px 16px;border-bottom:1px solid var(--color-divider);">
-          <strong style="font-size:var(--fs-md);color:var(--color-text);">단계·등급 설정 수정 이력</strong>
-        </header>
-        <table class="tbl tbl--bordered" style="width:100%;">
-          <thead>
-            <tr>
-              <th style="width:48px;text-align:center;">No</th>
-              <th>수정 사유</th>
-              <th style="width:120px;text-align:center;">수정자</th>
-              <th style="width:150px;text-align:center;">수정일시</th>
-            </tr>
-          </thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
-      </section>`;
+      ${countBar}
+      <table class="tbl tbl--bordered" style="width:100%;">
+        <thead>
+          <tr>
+            <th style="width:48px;text-align:center;">No</th>
+            <th>수정 사유</th>
+            <th style="width:110px;text-align:center;">수정자</th>
+            <th style="width:150px;text-align:center;">수정일시</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+      ${pager}`;
+  }
+
+  function openConfigHistoryModal() {
+    let host = document.getElementById('hret-hist-modal');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'hret-hist-modal';
+      host.className = 'modal-backdrop';
+      document.body.appendChild(host);
+    }
+    let page = 1;
+    const paint = () => {
+      host.innerHTML = `
+        <div class="modal modal--lg">
+          <div class="modal__header">
+            <div class="modal__title">단계·등급 설정 수정 이력</div>
+            <button class="modal__close" type="button" data-hret-hist-x aria-label="닫기">✕</button>
+          </div>
+          <div class="modal__body" style="background:var(--color-surface);padding:18px 20px;">
+            ${renderConfigHistoryBody(page)}
+          </div>
+          <div class="modal__footer">
+            <button class="btn" type="button" data-hret-hist-x>닫기</button>
+          </div>
+        </div>`;
+      host.querySelectorAll('[data-hret-hist-x]').forEach(b => b.addEventListener('click', close));
+      host.querySelectorAll('[data-hret-hist-page]').forEach(b => b.addEventListener('click', e => {
+        page = Number(e.currentTarget.dataset.hretHistPage) || 1;
+        paint();
+      }));
+    };
+    function close() { host.classList.remove('is-open'); document.body.style.overflow = ''; }
+    paint();
+    host.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    host.onclick = (e) => { if (e.target === host) close(); };
   }
 
   /* ===== 수정 사유 입력 모달 — 저장 시 사유 입력 후 적용 → 이력 누적 ===== */
@@ -2660,26 +2733,24 @@
   function renderStageGradeView(pageEl) {
     STATE.view = 'stageGrade';
     STATE.settingsTab = 'stageGrade';
+    /* 재렌더로 스크롤이 맨 위로 튀는 것 방지 — 직전 스크롤 위치를 보존 후 복원 */
+    const prevScrollEl = pageEl.querySelector('[data-cfg-scroll]');
+    const prevScroll = prevScrollEl ? prevScrollEl.scrollTop : 0;
     if (!STATE.configDraft) STATE.configDraft = (App.HREvalConfig && App.HREvalConfig.get()) || null;
     const cfg = STATE.configDraft;
     if (!cfg) { pageEl.innerHTML = `${settingsTabBar('stageGrade')}<div style="padding:32px;color:var(--color-text-muted);">단계·등급 설정 모듈을 불러올 수 없습니다.</div>`; bindSettingsTabs(pageEl); return; }
 
     const roleOpts = (App.HREvalConfig.roleOptions() || []);
-    const roleSelect = (cur, hook) => `<select class="select" data-cfg-role="${hook}" style="max-width:200px;">${
-      roleOpts.map(r => `<option value="${esc(r.key)}" ${cur === r.key ? 'selected' : ''}>${esc(r.label)}</option>`).join('')
-    }</select>`;
-    const wInput = (val, hook) => `<span style="display:inline-flex;align-items:center;gap:5px;">
-        <input type="number" min="0" max="100" class="input" data-cfg-weight="${hook}" value="${clampScore(val)}" style="width:72px;text-align:right;" />
-        <span style="color:var(--color-text-muted);">%</span></span>`;
-
     const st = cfg.stages;
+    const mid = st.mid || (st.mid = []);
 
     /* 흐름 chips — 저장본이 아닌 편집 중 draft(cfg.stages) 기준으로 생성해야
        본인평가 사용/미사용 토글이 상단 뱃지에 즉시 반영된다. */
     const draftFlow = [];
     if (st.self && st.self.on) draftFlow.push({ label: '본인', weight: clampScore(st.self.weight) });
-    draftFlow.push({ label: '1차 · ' + App.HREvalConfig.roleLabel(st.first.role),  weight: clampScore(st.first.weight) });
-    draftFlow.push({ label: '2차 · ' + App.HREvalConfig.roleLabel(st.second.role), weight: clampScore(st.second.weight) });
+    cfgActiveMid(st).forEach((m, i) => {
+      draftFlow.push({ label: (i + 1) + '차 · ' + App.HREvalConfig.roleLabel(m.role), weight: clampScore(m.weight) });
+    });
     draftFlow.push({ label: '대표이사', weight: clampScore(st.ceo.weight) });
     draftFlow.push({ label: '확정' });
     const flowChips = draftFlow.map((c, i, arr) => `
@@ -2691,63 +2762,113 @@
     const wsum = cfgStageSum(st);
     const wOk = wsum <= 100;
 
+    /* ---- 단계 행 공통 레이아웃 — 단계 / 평가자 / 배분율 / 사용 여부 / 삭제 ---- */
+    /* 컬럼 폭 고정 — 트랙이 늘어나지 않아 「평가자 → 배분율 → 사용 여부」 가 좌측에 붙어 시선 이동이 짧다. */
+    const ROW_GRID = 'display:grid;grid-template-columns:56px 300px 128px 96px;align-items:center;gap:12px;';
+    const badge = (label, tone) => {
+      const skin = tone === 'final'
+        ? 'background:var(--color-brand-primary);color:#fff;'
+        : (tone === 'mid' ? 'background:var(--color-active);color:var(--color-brand-primary);' : 'background:var(--color-surface-alt);color:var(--color-text-sub);');
+      return `<span style="display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 10px;border-radius:var(--radius-sm);font-size:var(--fs-xs);font-weight:var(--fw-semibold);${skin}">${esc(label)}</span>`;
+    };
+    const wCell = (val, hook, off) => `<span style="display:inline-flex;align-items:center;gap:5px;${off ? 'opacity:.45;' : ''}">
+        <input type="number" min="0" max="100" class="input" data-cfg-weight="${hook}" value="${clampScore(val)}" style="width:76px;text-align:right;" ${off ? 'disabled' : ''} />
+        <span style="color:var(--color-text-muted);font-size:var(--fs-sm);">%</span></span>`;
+    const useSwitch = (hook, on) => `<label class="switch">
+        <input type="checkbox" ${hook} ${on ? 'checked' : ''} /><span class="switch__box"></span>
+        <span style="font-size:var(--fs-xs);color:${on ? 'var(--color-text-sub)' : 'var(--color-text-muted)'};">${on ? '사용' : '미사용'}</span></label>`;
+
+    const selfOff = !st.self.on;
+    const selfRow = `
+      <div style="${ROW_GRID}padding:11px 16px;border-bottom:1px solid var(--color-divider);${selfOff ? 'background:var(--color-surface-alt);' : ''}">
+        ${badge('본인', 'self')}
+        <span style="font-size:var(--fs-sm);color:var(--color-text-sub);${selfOff ? 'opacity:.55;' : ''}">본인 평가 (자기 진단)</span>
+        ${wCell(st.self.weight, 'self', selfOff)}
+        ${useSwitch('data-cfg-self', !selfOff)}
+      </div>`;
+
+    const activeMid = cfgActiveMid(st);
+    const midRows = mid.map((m, i) => {
+      const off = m.on === false;
+      const ord = activeMid.indexOf(m);                       // 차수는 사용 중 단계 기준으로 재계산
+      const label = off ? '미사용' : (ord + 1) + '차';
+      const opts = roleOpts.map(r => `<option value="${esc(r.key)}" ${m.role === r.key ? 'selected' : ''}>${esc(r.label)}</option>`).join('');
+      return `
+        <div style="${ROW_GRID}padding:11px 16px;border-bottom:1px solid var(--color-divider);${off ? 'background:var(--color-surface-alt);' : ''}">
+          ${badge(label, off ? 'self' : 'mid')}
+          <span style="display:inline-flex;align-items:center;gap:8px;min-width:0;${off ? 'opacity:.55;' : ''}">
+            <select class="select" data-cfg-mid-role="${i}" style="width:150px;" ${off ? 'disabled' : ''}>${opts}</select>
+            ${m.role === 'direct_assign' ? '<span class="pill pill--soft-warning" title="회차 등록 시 대상자별로 평가자를 한 명씩 지정합니다.">회차에서 지정</span>' : ''}
+          </span>
+          ${wCell(m.weight, 'mid-' + i, off)}
+          ${useSwitch('data-cfg-mid-on="' + i + '"', !off)}
+        </div>`;
+    }).join('');
+
+    const ceoRow = `
+      <div style="${ROW_GRID}padding:11px 16px;">
+        ${badge('최종', 'final')}
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <span class="pill pill--soft-blue">대표이사</span>
+          <small style="color:var(--color-text-muted);font-size:var(--fs-xs);">고정 단계</small>
+        </span>
+        ${wCell(st.ceo.weight, 'ceo', false)}
+        <span style="font-size:var(--fs-xs);color:var(--color-text-muted);">항상 사용</span>
+      </div>`;
+
     const stageCard = `
       <section style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:20px 24px 22px;">
         <header style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--color-divider);">
           <span style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 8px;border-radius:var(--radius-sm);background:var(--color-brand-primary);color:#fff;font-size:var(--fs-sm);font-weight:var(--fw-bold);">1</span>
           <h3 style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">평가자 단계</h3>
+          <small style="color:var(--color-text-muted);">미사용 단계는 평가 흐름·배분율 합계에서 제외됩니다.</small>
         </header>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:16px;">${flowChips}</div>
-        <div class="fm-tbl fm-tbl--compact fm-tbl--bordered">
-          <div class="fm-tbl__row fm-tbl__row--1">
-            <div class="fm-tbl__label">본인평가</div>
-            <div class="fm-tbl__value">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <label class="cb cb--pill" style="padding:5px 14px;font-size:var(--fs-sm);"><input type="radio" name="cfg-self" value="Y" data-cfg-self ${st.self.on ? 'checked' : ''} /><span>사용</span></label>
-                <label class="cb cb--pill" style="padding:5px 14px;font-size:var(--fs-sm);"><input type="radio" name="cfg-self" value="N" data-cfg-self ${!st.self.on ? 'checked' : ''} /><span>미사용</span></label>
-                ${st.self.on ? `<span style="margin-left:8px;font-size:var(--fs-sm);color:var(--color-text-sub);">배분율 ${wInput(st.self.weight, 'self')}</span>` : ''}
-              </div>
-            </div>
+        <div style="border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;">
+          <div style="${ROW_GRID}padding:9px 16px;background:var(--color-surface-alt);border-bottom:1px solid var(--color-border);font-size:var(--fs-xs);font-weight:var(--fw-semibold);color:var(--color-text-muted);">
+            <span>단계</span><span>평가자</span><span>배분율</span><span>사용 여부</span>
           </div>
-          <div class="fm-tbl__row fm-tbl__row--2">
-            <div class="fm-tbl__label">1차 평가자</div>
-            <div class="fm-tbl__value">${roleSelect(st.first.role, 'first')} <span style="margin-left:8px;font-size:var(--fs-sm);color:var(--color-text-sub);">배분율 ${wInput(st.first.weight, 'first')}</span></div>
-            <div class="fm-tbl__label">2차 평가자</div>
-            <div class="fm-tbl__value">${roleSelect(st.second.role, 'second')} <span style="margin-left:8px;font-size:var(--fs-sm);color:var(--color-text-sub);">배분율 ${wInput(st.second.weight, 'second')}</span></div>
-          </div>
-          <div class="fm-tbl__row fm-tbl__row--1">
-            <div class="fm-tbl__label">최종 평가자</div>
-            <div class="fm-tbl__value"><span class="pill pill--soft-blue">대표이사</span> <span style="margin-left:8px;font-size:var(--fs-sm);color:var(--color-text-sub);">배분율 ${wInput(st.ceo.weight, 'ceo')}</span></div>
-          </div>
+          ${selfRow}${midRows}${ceoRow}
         </div>
-        <div style="margin-top:12px;font-size:var(--fs-sm);font-weight:var(--fw-medium);color:var(--color-text-sub);">
+        <div style="margin-top:12px;text-align:right;font-size:var(--fs-sm);font-weight:var(--fw-medium);color:var(--color-text-sub);">
           배분율 합계: <strong data-cfg-weight-total style="color:${wOk ? 'var(--color-success)' : 'var(--color-danger)'};">${wsum}%</strong>
           <small style="color:var(--color-text-muted);">/ 100% 이내</small>
         </div>
       </section>`;
 
+    const MIN_TIERS = App.HREvalConfig.minTiers || 2;
+    const MAX_TIERS = App.HREvalConfig.maxTiers || 5;
     const gradeCards = (cfg.grades || []).map((g, gi) => {
       const gsum = cfgGroupSum(g);
       const gOk = gsum <= 100;
-      const catChips = (g.condValues || []).map(v => `<span class="pill">${esc(App.HREvalConfig.jobCatLabel(v))}</span>`).join(' ');
-      const tierRows = (g.tiers || []).map((t, ti) => `
+      const tiers = g.tiers || [];
+      const canDel = tiers.length > MIN_TIERS;
+      const tierRows = tiers.map((t, ti) => `
         <tr>
           <td style="text-align:center;color:var(--color-text-muted);font-size:var(--fs-xs);">${ti + 1}</td>
-          <td><input type="text" class="input" data-cfg-tier-name="${gi}-${ti}" value="${esc(t.name)}" style="width:100%;max-width:160px;" /></td>
+          <td><input type="text" class="input" data-cfg-tier-name="${gi}-${ti}" value="${esc(t.name)}" placeholder="등급 명칭" style="width:100%;max-width:220px;" /></td>
           <td style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:5px;"><input type="number" min="0" max="100" class="input" data-cfg-tier-ratio="${gi}-${ti}" value="${clampScore(t.ratio)}" style="width:72px;text-align:right;" /><span style="color:var(--color-text-muted);">%</span></span></td>
+          <td style="text-align:center;">${canDel
+            ? `<button class="btn btn--xs btn--ghost btn--icon" type="button" data-cfg-tier-del="${gi}-${ti}" title="등급 삭제" aria-label="등급 삭제">✕</button>`
+            : ''}</td>
         </tr>`).join('');
       return `
         <div style="border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px 16px;background:var(--color-surface);">
           <header style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
             <strong style="font-size:var(--fs-md);">${esc(g.groupName)}</strong>
-            <span style="display:inline-flex;gap:4px;flex-wrap:wrap;">${catChips}</span>
+            <small style="color:var(--color-text-muted);font-size:var(--fs-xs);">${tiers.length}등급</small>
           </header>
           <table class="tbl tbl--bordered">
-            <thead><tr><th style="width:40px;text-align:center;">#</th><th>등급 명칭</th><th style="width:120px;text-align:center;">비율</th></tr></thead>
+            <thead><tr><th style="width:40px;text-align:center;">#</th><th>등급 명칭</th><th style="width:120px;text-align:center;">비율</th><th style="width:56px;text-align:center;"></th></tr></thead>
             <tbody>${tierRows}</tbody>
           </table>
-          <div style="margin-top:8px;text-align:right;font-size:var(--fs-xs);font-weight:var(--fw-medium);color:${gOk ? 'var(--color-text-muted)' : 'var(--color-danger)'};">
-            비율 합계 <strong data-cfg-grade-sum="${gi}">${gsum}</strong>% / 100% 이내
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;flex-wrap:wrap;">
+            ${tiers.length < MAX_TIERS
+              ? `<button class="btn btn--xs" type="button" data-cfg-tier-add="${gi}">+ 등급 추가</button>`
+              : `<small style="color:var(--color-text-muted);font-size:var(--fs-xs);">등급은 최대 ${MAX_TIERS}개까지 추가할 수 있습니다.</small>`}
+            <span style="font-size:var(--fs-xs);font-weight:var(--fw-medium);color:${gOk ? 'var(--color-text-muted)' : 'var(--color-danger)'};">
+              비율 합계 <strong data-cfg-grade-sum="${gi}">${gsum}</strong>% / 100% 이내
+            </span>
           </div>
         </div>`;
     }).join('');
@@ -2757,27 +2878,30 @@
         <header style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--color-divider);">
           <span style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 8px;border-radius:var(--radius-sm);background:var(--color-brand-primary);color:#fff;font-size:var(--fs-sm);font-weight:var(--fw-bold);">2</span>
           <h3 style="font-size:var(--fs-lg);font-weight:var(--fw-semibold);">평가 등급 산정</h3>
+          <small style="color:var(--color-text-muted);">직군별로 등급 명칭·비율을 따로 설정합니다. 등급은 직군당 최대 ${MAX_TIERS}개.</small>
         </header>
         <div style="display:flex;flex-direction:column;gap:14px;">${gradeCards}</div>
       </section>`;
 
     pageEl.innerHTML = `
       ${settingsTabBar('stageGrade')}
-      <div style="flex:1;min-height:0;overflow:auto;padding:18px 28px 28px;background:var(--color-surface-alt);">
+      <div data-cfg-scroll style="flex:1;min-height:0;overflow:auto;padding:18px 28px 28px;background:var(--color-surface-alt);">
         <div style="display:flex;flex-direction:column;gap:16px;">
           ${stageCard}
           ${gradeCard}
-          ${renderConfigHistoryTable()}
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 28px;border-top:1px solid var(--color-divider);background:var(--color-surface);">
         <small style="color:var(--color-text-muted);">모든 역량평가 회차가 이 설정을 상속합니다.</small>
         <div style="display:flex;gap:8px;">
+          <button class="btn btn--sm" type="button" data-cfg-history>수정이력</button>
           <button class="btn btn--sm" type="button" data-cfg-reset>되돌리기</button>
           <button class="btn btn--sm btn--primary" type="button" data-cfg-save>저장</button>
         </div>
       </div>
     `;
+    const scrollEl = pageEl.querySelector('[data-cfg-scroll]');
+    if (scrollEl && prevScroll) scrollEl.scrollTop = prevScroll;
     bindStageGrade(pageEl);
   }
 
@@ -2786,19 +2910,36 @@
     const cfg = STATE.configDraft;
     const st = cfg.stages;
 
-    pageEl.querySelectorAll('[data-cfg-self]').forEach(r => r.addEventListener('change', e => {
-      if (!e.target.checked) return;
-      st.self.on = (e.target.value === 'Y');
+    /* ---- 본인평가 사용/미사용 ---- */
+    const selfSw = pageEl.querySelector('[data-cfg-self]');
+    if (selfSw) selfSw.addEventListener('change', e => {
+      st.self.on = !!e.target.checked;
+      renderStageGradeView(pageEl);
+    });
+
+    /* ---- 평가자 단계 사용/미사용 ---- */
+    pageEl.querySelectorAll('[data-cfg-mid-on]').forEach(sw => sw.addEventListener('change', e => {
+      const i = Number(e.target.dataset.cfgMidOn);
+      if (st.mid[i]) st.mid[i].on = !!e.target.checked;
       renderStageGradeView(pageEl);
     }));
-    pageEl.querySelectorAll('[data-cfg-role]').forEach(sel => sel.addEventListener('change', e => {
-      const hook = e.target.dataset.cfgRole;
-      st[hook].role = e.target.value;
+
+    /* ---- 평가자 직책 선택 ---- */
+    pageEl.querySelectorAll('[data-cfg-mid-role]').forEach(sel => sel.addEventListener('change', e => {
+      const i = Number(e.target.dataset.cfgMidRole);
+      if (st.mid[i]) st.mid[i].role = e.target.value;
       renderStageGradeView(pageEl);   // 흐름 chips 갱신
     }));
+
+    /* ---- 배분율 ---- */
     pageEl.querySelectorAll('[data-cfg-weight]').forEach(inp => inp.addEventListener('input', e => {
       const hook = e.target.dataset.cfgWeight;
-      st[hook].weight = clampScore(e.target.value);
+      if (hook.indexOf('mid-') === 0) {
+        const i = Number(hook.slice(4));
+        if (st.mid[i]) st.mid[i].weight = clampScore(e.target.value);
+      } else if (st[hook]) {
+        st[hook].weight = clampScore(e.target.value);
+      }
       const totEl = pageEl.querySelector('[data-cfg-weight-total]');
       if (totEl) {
         const sum = cfgStageSum(st);
@@ -2811,6 +2952,26 @@
       const [gi, ti] = e.target.dataset.cfgTierName.split('-').map(Number);
       cfg.grades[gi].tiers[ti].name = e.target.value;
     }));
+    /* ---- 등급 추가 / 삭제 ---- */
+    const MAX_TIERS = App.HREvalConfig.maxTiers || 5;
+    const MIN_TIERS = App.HREvalConfig.minTiers || 2;
+    pageEl.querySelectorAll('[data-cfg-tier-add]').forEach(btn => btn.addEventListener('click', e => {
+      const gi = Number(e.currentTarget.dataset.cfgTierAdd);
+      const g = cfg.grades[gi];
+      if (!g || (g.tiers || []).length >= MAX_TIERS) return;
+      g.tiers.push({ name: '', ratio: 0 });
+      renderStageGradeView(pageEl);
+      const last = pageEl.querySelector(`[data-cfg-tier-name="${gi}-${g.tiers.length - 1}"]`);
+      if (last) { try { last.focus({ preventScroll: true }); } catch (err) { last.focus(); } }
+    }));
+    pageEl.querySelectorAll('[data-cfg-tier-del]').forEach(btn => btn.addEventListener('click', e => {
+      const [gi, ti] = e.currentTarget.dataset.cfgTierDel.split('-').map(Number);
+      const g = cfg.grades[gi];
+      if (!g || (g.tiers || []).length <= MIN_TIERS) return;
+      g.tiers.splice(ti, 1);
+      renderStageGradeView(pageEl);
+    }));
+
     pageEl.querySelectorAll('[data-cfg-tier-ratio]').forEach(inp => inp.addEventListener('input', e => {
       const [gi, ti] = e.target.dataset.cfgTierRatio.split('-').map(Number);
       cfg.grades[gi].tiers[ti].ratio = clampScore(e.target.value);
@@ -2821,6 +2982,9 @@
         sumEl.closest('div').style.color = sum <= 100 ? 'var(--color-text-muted)' : 'var(--color-danger)';
       }
     }));
+
+    const histBtn = pageEl.querySelector('[data-cfg-history]');
+    if (histBtn) histBtn.addEventListener('click', () => openConfigHistoryModal());
 
     const resetBtn = pageEl.querySelector('[data-cfg-reset]');
     if (resetBtn) resetBtn.addEventListener('click', () => {
@@ -2848,10 +3012,12 @@
         else window.toast && window.toast(`「${cfg.grades[gi].groupName}」 등급 비율 합계가 100%를 초과했습니다.`, 'warning');
         return;
       }
-      if (cfg.grades[gi].tiers.some(t => !t.name || !t.name.trim())) {
-        const inp = pageEl.querySelector(`[data-cfg-tier-name="${gi}-0"]`);
+      const emptyTi = cfg.grades[gi].tiers.findIndex(t => !t.name || !t.name.trim());
+      if (emptyTi >= 0) {
+        const inp = pageEl.querySelector(`[data-cfg-tier-name="${gi}-${emptyTi}"]`);
         if (inp && App.Forms) App.Forms.setFieldError(inp, '등급 명칭을 모두 입력해주세요.');
         else window.toast && window.toast('등급 명칭을 모두 입력해주세요.', 'warning');
+        if (inp) inp.focus();
         return;
       }
     }

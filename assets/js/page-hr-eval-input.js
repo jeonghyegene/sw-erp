@@ -114,22 +114,28 @@
     return [];
   }
 
-  /* 평가자 결정 — direct_assign 외 역할은 결정적(heuristic) 규칙으로 해결 */
+  /* 회차에서 대상자별로 평가자를 직접 지정하는 role */
+  function isManualRole(role) { return role === 'direct_assign'; }
+
+  /* 평가자 결정 — 직접 지정(기타) 외 역할은 결정적(heuristic) 규칙으로 해결 */
   function resolveEvaluator(target, role, round) {
     if (!target) return null;
     const all = allMembers().filter(isActiveMember);
-    if (role === 'direct_assign') {
+    if (isManualRole(role)) {
       const a = (round.evaluatorAssignments || {})[target.id] || {};
-      /* direct_assign 단계 키 (e.g. '역량_1') 는 listDirectAssignStages 에서 발급 — caller 가 stageKey 전달.
+      /* 직접 지정 단계 키 (e.g. '역량_1') 는 listDirectAssignStages 에서 발급 — caller 가 stageKey 전달.
        *   이 함수는 단순 fallback 용으로 호출되므로 a 의 첫 값 반환. */
       const v = Object.values(a).find(Boolean);
       return v || (all.find(e => e.id !== target.id) || {}).id || null;
     }
     /* 같은 부서 — 같은 dept 가 정확히 일치하지 않을 수 있으므로 본부 prefix 기준 fallback */
     const sameDept = all.filter(e => e.id !== target.id && e.dept && target.dept && (e.dept === target.dept));
-    /* 직책 기준 role (파트장/팀장/실장/본부장) — 단계·등급 설정과 동일. 반드시 같은 부서 안에서만 해석.
+    /* 직책 기준 role (임원/본부장/팀장/소장/파트장/팀원) — 단계·등급 설정과 동일. 반드시 같은 부서 안에서만 해석.
        해당 직책자가 없으면 같은 부서 상위 리더로 대행, 그마저 없으면 미배정(수동). (부서 교차 배정 방지) */
-    const ROLE_POS = { part_lead: '파트장', team_lead: '팀장', office_lead: '실장', hq_lead: '본부장' };
+    const ROLE_POS = {
+      exec: '임원', hq_lead: '본부장', team_lead: '팀장', site_lead: '소장',
+      part_lead: '파트장', member: '팀원', other: '기타', office_lead: '실장',
+    };
     if (ROLE_POS[role]) {
       const posLabel = ROLE_POS[role];
       const exact = sameDept.find(e => e.position === posLabel);
@@ -188,7 +194,7 @@
         const stages = proc.stages || [];
         stages.forEach((s, idx) => {
           let evaluatorId;
-          if (s.role === 'direct_assign') {
+          if (isManualRole(s.role)) {
             const a = (round.evaluatorAssignments || {})[t.id] || {};
             evaluatorId = a[`${el}_${idx}`] || null;
             /* 스토리보드 mock 의 round 들은 evaluatorAssignments 가 비어있을 수 있음 — 결정적 fallback */
@@ -1018,7 +1024,7 @@
     }
     stages.forEach((s, i) => {
       let evId;
-      if (s.role === 'direct_assign') {
+      if (isManualRole(s.role)) {
         const a = (round.evaluatorAssignments || {})[task.targetId] || {};
         evId = a[`${task.element}_${i}`] || null;
       } else {
