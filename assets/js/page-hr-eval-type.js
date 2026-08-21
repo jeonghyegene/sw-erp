@@ -2760,7 +2760,7 @@
       </span>`).join('');
 
     const wsum = cfgStageSum(st);
-    const wOk = wsum <= 100;
+    const wOk = wsum === 100;   // 배분율은 정확히 100% 여야 저장 가능
 
     /* ---- 단계 행 공통 레이아웃 — 단계 / 평가자 / 배분율 / 사용 여부 / 삭제 ---- */
     /* 컬럼 폭 고정 — 트랙이 늘어나지 않아 「평가자 → 배분율 → 사용 여부」 가 좌측에 붙어 시선 이동이 짧다. */
@@ -2832,7 +2832,8 @@
         </div>
         <div style="margin-top:12px;text-align:right;font-size:var(--fs-sm);font-weight:var(--fw-medium);color:var(--color-text-sub);">
           배분율 합계: <strong data-cfg-weight-total style="color:${wOk ? 'var(--color-success)' : 'var(--color-danger)'};">${wsum}%</strong>
-          <small style="color:var(--color-text-muted);">/ 100% 이내</small>
+          <small style="color:var(--color-text-muted);">/ 100%</small>
+          <span data-cfg-weight-msg style="display:${wOk ? 'none' : 'inline'};margin-left:8px;font-weight:var(--fw-regular);color:var(--color-danger);">${wOk ? '' : '사용 중인 단계의 배분율 합계가 100%가 되어야 저장할 수 있습니다.'}</span>
         </div>
       </section>`;
 
@@ -2866,8 +2867,9 @@
             ${tiers.length < MAX_TIERS
               ? `<button class="btn btn--xs" type="button" data-cfg-tier-add="${gi}">+ 등급 추가</button>`
               : `<small style="color:var(--color-text-muted);font-size:var(--fs-xs);">등급은 최대 ${MAX_TIERS}개까지 추가할 수 있습니다.</small>`}
-            <span style="font-size:var(--fs-xs);font-weight:var(--fw-medium);color:${gOk ? 'var(--color-text-muted)' : 'var(--color-danger)'};">
+            <span data-cfg-grade-line="${gi}" style="font-size:var(--fs-xs);font-weight:var(--fw-medium);color:${gOk ? 'var(--color-text-muted)' : 'var(--color-danger)'};">
               비율 합계 <strong data-cfg-grade-sum="${gi}">${gsum}</strong>% / 100% 이내
+              <span data-cfg-grade-msg="${gi}" style="display:${gOk ? 'none' : 'inline'};margin-left:6px;color:var(--color-danger);">비율 합계가 100%를 초과했습니다.</span>
             </span>
           </div>
         </div>`;
@@ -2905,6 +2907,36 @@
     bindStageGrade(pageEl);
   }
 
+  /* 배분율 합계 라인 — 값·색상·경고 문구를 한 번에 갱신 (100% 정확히 일치해야 정상) */
+  function updateStageSumLine(pageEl, st) {
+    const sum = cfgStageSum(st);
+    const ok  = sum === 100;
+    const totEl = pageEl.querySelector('[data-cfg-weight-total]');
+    if (totEl) {
+      totEl.textContent = sum + '%';
+      totEl.style.color = ok ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+    const msgEl = pageEl.querySelector('[data-cfg-weight-msg]');
+    if (msgEl) {
+      msgEl.textContent = ok ? '' : '사용 중인 단계의 배분율 합계가 100%가 되어야 저장할 수 있습니다.';
+      msgEl.style.display = ok ? 'none' : 'inline';
+    }
+    return ok;
+  }
+
+  /* 직군별 등급 비율 합계 라인 — 값·색상·초과 경고를 한 번에 갱신 */
+  function updateGradeSumLine(pageEl, cfg, gi) {
+    const sum = cfgGroupSum(cfg.grades[gi]);
+    const ok  = sum <= 100;
+    const sumEl = pageEl.querySelector(`[data-cfg-grade-sum="${gi}"]`);
+    if (sumEl) sumEl.textContent = sum;
+    const lineEl = pageEl.querySelector(`[data-cfg-grade-line="${gi}"]`);
+    if (lineEl) lineEl.style.color = ok ? 'var(--color-text-muted)' : 'var(--color-danger)';
+    const msgEl = pageEl.querySelector(`[data-cfg-grade-msg="${gi}"]`);
+    if (msgEl) msgEl.style.display = ok ? 'none' : 'inline';
+    return ok;
+  }
+
   function bindStageGrade(pageEl) {
     bindSettingsTabs(pageEl);
     const cfg = STATE.configDraft;
@@ -2940,12 +2972,7 @@
       } else if (st[hook]) {
         st[hook].weight = clampScore(e.target.value);
       }
-      const totEl = pageEl.querySelector('[data-cfg-weight-total]');
-      if (totEl) {
-        const sum = cfgStageSum(st);
-        totEl.textContent = sum + '%';
-        totEl.style.color = sum <= 100 ? 'var(--color-success)' : 'var(--color-danger)';
-      }
+      updateStageSumLine(pageEl, st);
     }));
 
     pageEl.querySelectorAll('[data-cfg-tier-name]').forEach(inp => inp.addEventListener('input', e => {
@@ -2975,12 +3002,7 @@
     pageEl.querySelectorAll('[data-cfg-tier-ratio]').forEach(inp => inp.addEventListener('input', e => {
       const [gi, ti] = e.target.dataset.cfgTierRatio.split('-').map(Number);
       cfg.grades[gi].tiers[ti].ratio = clampScore(e.target.value);
-      const sumEl = pageEl.querySelector(`[data-cfg-grade-sum="${gi}"]`);
-      if (sumEl) {
-        const sum = cfgGroupSum(cfg.grades[gi]);
-        sumEl.textContent = sum;
-        sumEl.closest('div').style.color = sum <= 100 ? 'var(--color-text-muted)' : 'var(--color-danger)';
-      }
+      updateGradeSumLine(pageEl, cfg, gi);
     }));
 
     const histBtn = pageEl.querySelector('[data-cfg-history]');
@@ -2998,18 +3020,16 @@
 
   function saveStageGrade(pageEl) {
     const cfg = STATE.configDraft;
-    /* 인라인 검증 — 합계 100% 초과 금지 */
-    if (cfgStageSum(cfg.stages) > 100) {
-      const inp = pageEl.querySelector('[data-cfg-weight="ceo"]');
-      if (inp && App.Forms) App.Forms.setFieldError(inp, '배분율 합계가 100%를 초과했습니다.');
-      else window.toast && window.toast('평가자 배분율 합계가 100%를 초과했습니다.', 'warning');
+    /* 검증 — 합계 오류는 해당 「합계」 안내 라인에 표시한다 (입력 칸 옆 인라인 에러 아님) */
+    if (!updateStageSumLine(pageEl, cfg.stages)) {
+      const line = pageEl.querySelector('[data-cfg-weight-msg]');
+      if (line && line.scrollIntoView) line.scrollIntoView({ block: 'center' });
       return;
     }
     for (let gi = 0; gi < cfg.grades.length; gi++) {
-      if (cfgGroupSum(cfg.grades[gi]) > 100) {
-        const inp = pageEl.querySelector(`[data-cfg-tier-ratio="${gi}-0"]`);
-        if (inp && App.Forms) App.Forms.setFieldError(inp, `「${cfg.grades[gi].groupName}」 비율 합계가 100%를 초과했습니다.`);
-        else window.toast && window.toast(`「${cfg.grades[gi].groupName}」 등급 비율 합계가 100%를 초과했습니다.`, 'warning');
+      if (!updateGradeSumLine(pageEl, cfg, gi)) {
+        const line = pageEl.querySelector(`[data-cfg-grade-line="${gi}"]`);
+        if (line && line.scrollIntoView) line.scrollIntoView({ block: 'center' });
         return;
       }
       const emptyTi = cfg.grades[gi].tiers.findIndex(t => !t.name || !t.name.trim());
